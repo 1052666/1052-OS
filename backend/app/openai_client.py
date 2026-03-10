@@ -518,6 +518,8 @@ async def stream_openai_api(
         content_chunks = []
         
         async for chunk in stream:
+            if not chunk.choices:
+                continue
             delta = chunk.choices[0].delta
             
             if delta.content:
