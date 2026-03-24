@@ -1,6 +1,6 @@
 # 1052 助理
 
-> 一个由 [黎夏](https://github.com/lixia) 开发的智能 AI 聊天机器人，支持 Web 界面、Telegram、飞书等多平台接入
+> 一个由 [黎夏](https://github.com/1052666) 开发的智能 AI 聊天机器人，支持 Web 界面、Telegram、飞书等多平台接入
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
@@ -107,8 +107,8 @@
 1. **克隆项目**
 
 ```bash
-git clone https://github.com/lixia/1052-robot.git
-cd 1052-robot
+https://github.com/1052666/1052.git
+cd 1052
 ```
 
 2. **安装依赖**
@@ -362,7 +362,8 @@ pytest tests/
 ## 联系方式
 
 - 作者：黎夏
-- GitHub：https://github.com/lixia
+- GitHub：https://github.com/1052666
+- GitHub：lixia20250619
 
 ---
 
