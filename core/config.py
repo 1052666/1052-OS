@@ -1,5 +1,25 @@
 import json
+import os
 from pathlib import Path
+from typing import Optional
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
+
+
+def validate_config(config: dict) -> tuple[bool, Optional[str]]:
+    """验证配置是否有效"""
+    # 检查必需的 API Key
+    if not config.get("api_key"):
+        return False, "缺少 API Key 配置"
+
+    # 验证温度参数范围
+    temp = config.get("temperature", 0.7)
+    if not (0 <= temp <= 2):
+        return False, "temperature 必须在 0-2 之间"
+
+    return True, None
 
 # ─── Paths ────────────────────────────────────────────────────────
 _ROOT = Path(__file__).parent.parent
@@ -113,12 +133,60 @@ def read_preferences() -> str:
 
 
 def load_config() -> dict:
+    """加载配置，优先使用环境变量，其次使用 config.json"""
+    # 从文件加载基础配置
+    config = {}
     if CONFIG_FILE.exists():
         try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except Exception:
-            return {}
-    return {}
+            pass
+
+    # 环境变量覆盖（优先级更高）
+    if os.getenv("OPENAI_API_KEY"):
+        config["api_key"] = os.getenv("OPENAI_API_KEY")
+    if os.getenv("OPENAI_BASE_URL"):
+        config["base_url"] = os.getenv("OPENAI_BASE_URL")
+    if os.getenv("MODEL"):
+        config["model"] = os.getenv("MODEL")
+    if os.getenv("TEMPERATURE"):
+        config["temperature"] = float(os.getenv("TEMPERATURE"))
+
+    # IM 配置
+    if "im" not in config:
+        config["im"] = {}
+
+    # Telegram
+    if "telegram" not in config["im"]:
+        config["im"]["telegram"] = {}
+    if os.getenv("TELEGRAM_ENABLED"):
+        config["im"]["telegram"]["enabled"] = os.getenv("TELEGRAM_ENABLED").lower() == "true"
+    if os.getenv("TELEGRAM_BOT_TOKEN"):
+        config["im"]["telegram"]["token"] = os.getenv("TELEGRAM_BOT_TOKEN")
+
+    # 飞书
+    if "lark" not in config["im"]:
+        config["im"]["lark"] = {}
+    if os.getenv("LARK_ENABLED"):
+        config["im"]["lark"]["enabled"] = os.getenv("LARK_ENABLED").lower() == "true"
+    if os.getenv("LARK_APP_ID"):
+        config["im"]["lark"]["app_id"] = os.getenv("LARK_APP_ID")
+    if os.getenv("LARK_APP_SECRET"):
+        config["im"]["lark"]["app_secret"] = os.getenv("LARK_APP_SECRET")
+
+    # 微信
+    if "wechat" not in config["im"]:
+        config["im"]["wechat"] = {}
+    if os.getenv("WECHAT_ENABLED"):
+        config["im"]["wechat"]["enabled"] = os.getenv("WECHAT_ENABLED").lower() == "true"
+    if os.getenv("WECHAT_PRIMARY_CHAT"):
+        config["im"]["wechat"]["primary_chat"] = os.getenv("WECHAT_PRIMARY_CHAT")
+    if os.getenv("WECHAT_BOT_NAME"):
+        config["im"]["wechat"]["bot_name"] = os.getenv("WECHAT_BOT_NAME")
+    if os.getenv("WECHAT_MENTION_PATTERN"):
+        config["im"]["wechat"]["mention_pattern"] = os.getenv("WECHAT_MENTION_PATTERN")
+
+    return config
 
 
 def save_config(data: dict):

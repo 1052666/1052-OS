@@ -4,7 +4,7 @@ from typing import Optional
 
 from core.config import (
     SYSTEM_PROMPT_FILE, MCP_CONFIG_FILE, DATA_DIR,
-    read_system_prompt, load_conversation, load_config, save_config,
+    read_system_prompt, load_config, save_config,
 )
 
 router = APIRouter()
@@ -25,6 +25,7 @@ class AppConfigUpdate(BaseModel):
     temperature:      Optional[float] = None
     max_tokens:       Optional[int]   = None
     evolution_interval: Optional[int]  = None  # 进化模式间隔（秒）
+    provider:         Optional[str]   = None  # 新增：provider 类型
 
 
 # ─── System Prompt ────────────────────────────────────────────────
@@ -68,7 +69,15 @@ async def get_app_config():
         hint = "***"
     else:
         hint = ""
+
+    # 获取 provider 配置 schema
+    from core.providers import get_provider_config_schema
+    current_provider = cfg.get("provider", "openai_compatible")
+    provider_schema = get_provider_config_schema(current_provider)
+
     return {
+        "provider": current_provider,
+        "provider_schema": provider_schema,
         "api_key_set":  bool(api_key),
         "api_key_hint": hint,
         "base_url":     cfg.get("base_url",    "https://api.openai.com/v1"),
@@ -76,6 +85,19 @@ async def get_app_config():
         "temperature":  cfg.get("temperature", 0.7),
         "max_tokens":   cfg.get("max_tokens",  32768),
         "evolution_interval": cfg.get("evolution_interval", 1800),  # 默认30分钟
+    }
+
+
+@router.get("/config/providers")
+async def get_providers():
+    """获取所有支持的 provider 列表及其配置 schema"""
+    from core.providers import get_provider_config_schema
+
+    return {
+        "providers": [
+            {"id": "openai_compatible", "name": "OpenAI Compatible", "schema": get_provider_config_schema("openai_compatible")},
+            {"id": "anthropic", "name": "Anthropic (Claude)", "schema": get_provider_config_schema("anthropic")},
+        ],
     }
 
 
@@ -92,14 +114,19 @@ async def update_app_config(body: AppConfigUpdate):
 
 
 # ─── Conversation ─────────────────────────────────────────────────
-@router.get("/conversation")
-async def get_conversation():
-    return {"messages": load_conversation()}
-
+# GET /conversation 已移至 routers/chat.py（支持跨平台消息）
 
 @router.delete("/conversation")
 async def clear_conversation():
     from core.config import CONVERSATION_FILE
+    from core.agent_runtime import get_agent_runtime
+    # 清除旧的 conversation.json
     if CONVERSATION_FILE.exists():
         CONVERSATION_FILE.unlink()
+    # 同时清除 AgentRuntime 中的 SessionStore 会话
+    try:
+        runtime = get_agent_runtime()
+        runtime.clear_session(platform="web", user_id="")
+    except Exception:
+        pass
     return {"ok": True}

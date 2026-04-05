@@ -25,6 +25,13 @@ async function loadIMConfig() {
     $("im-lark-verify").value = "";
     $("im-lark-verify").placeholder = data.lark?.verification_token_set ? "已配置，留空不修改" : "Verification Token (可选)";
 
+    // 微信
+    $("im-wx-enabled").checked = data.wechat?.enabled || false;
+    $("im-wx-primary").value = data.wechat?.primary_chat || "";
+    $("im-wx-primary").placeholder = "主监听窗口（好友备注或群聊名称）";
+    $("im-wx-botname").value = data.wechat?.bot_name || "";
+    $("im-wx-botname").placeholder = data.wechat?.bot_name_auto ? `已自动检测: ${data.wechat.bot_name_auto}` : "机器人名称（当前微信昵称，用于群聊@识别）";
+
     renderIMStatus(data);
   } catch (e) {
     console.error("[IM] 加载配置失败:", e);
@@ -46,6 +53,11 @@ function renderIMStatus(data) {
   } else {
     items.push(`<span class="im-status-dot"></span> 飞书`);
   }
+  if (data.wechat?.enabled) {
+    items.push(`<span class="im-status-dot ok"></span> 微信`);
+  } else {
+    items.push(`<span class="im-status-dot"></span> 微信`);
+  }
   el.innerHTML = items.join(" · ");
 }
 
@@ -61,6 +73,11 @@ async function saveIMConfig() {
       app_secret: $("im-lark-secret").value.trim(),
       encrypt_key: $("im-lark-encrypt").value.trim(),
       verification_token: $("im-lark-verify").value.trim(),
+    },
+    wechat: {
+      enabled: $("im-wx-enabled").checked,
+      primary_chat: $("im-wx-primary").value.trim(),
+      bot_name: $("im-wx-botname").value.trim(),
     },
   };
 
@@ -83,7 +100,7 @@ async function reloadIM() {
   try {
     const res = await fetch("/im/reload", { method: "POST" });
     const data = await res.json();
-    renderIMStatus({ telegram: data.telegram, lark: data.lark });
+    renderIMStatus({ telegram: data.telegram, lark: data.lark, wechat: data.wechat });
     flashBtn($("im-reload-btn"), "✓ 已重载");
   } catch (e) {
     alert("重载失败: " + e.message);

@@ -1,8 +1,31 @@
+# 1052 AI 助手 - 依赖清单
+
+# ─── Web 服务 ───────────────────────────────
 fastapi
 uvicorn[standard]
-openai
-mcp
 python-dotenv
+
+# ─── AI / LLM ──────────────────────────────
+openai
+anthropic  # 可选，使用 Anthropic Claude 时需要
+
+# ─── MCP 协议 ──────────────────────────────
+mcp
+
+# ─── 定时任务 ──────────────────────────────
 croniter
+
+# ─── IM 集成 ──────────────────────────────
 python-telegram-bot>=20.0
 lark-oapi>=1.0.0
+requests  # 飞书文件上传等 HTTP 请求
+
+# ─── 微信自动化 (wx/) ─────────────────────
+psutil>=5.9.6
+pyautogui>=0.9.54
+pycaw>=20240210
+pywin32>=308
+pywin32-ctypes>=0.2.2
+pywinauto>=0.6.8
+pillow>=11.1.0
+emoji>=2.14.1

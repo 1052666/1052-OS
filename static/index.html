@@ -63,33 +63,62 @@
   <div id="tab-settings" class="tab-panel" style="display:none">
   <div id="settings-section">
     <div class="settings-group">
-      <label>API 密钥</label>
-      <div class="api-key-wrap">
-        <input type="password" id="api-key" placeholder="sk-..." />
-        <button class="toggle-key" id="toggle-key" title="显示/隐藏">👁</button>
+      <label>AI Provider</label>
+      <select id="provider">
+        <option value="openai_compatible">OpenAI Compatible</option>
+        <option value="anthropic">Anthropic (Claude)</option>
+      </select>
+    </div>
+
+    <div id="provider-openai" class="provider-settings">
+      <div class="settings-group">
+        <label>API 密钥</label>
+        <div class="api-key-wrap">
+          <input type="password" id="api-key" placeholder="sk-..." />
+          <button class="toggle-key" id="toggle-key" title="显示/隐藏">👁</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <label>API Base URL</label>
+        <input type="text" id="base-url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
+      </div>
+
+      <div class="settings-group">
+        <label>模型</label>
+        <select id="model">
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
+          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+          <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+          <option value="deepseek-chat">DeepSeek Chat</option>
+          <option value="deepseek-reasoner">DeepSeek Reasoner</option>
+          <option value="moonshot-v1-8k">Moonshot v1-8k</option>
+          <option value="glm-4-flash">GLM-4 Flash</option>
+          <option value="custom">自定义...</option>
+        </select>
+        <input type="text" id="custom-model" placeholder="输入自定义模型名称"
+               style="margin-top:6px;display:none" />
       </div>
     </div>
 
-    <div class="settings-group">
-      <label>API Base URL</label>
-      <input type="text" id="base-url" value="https://api.openai.com/v1" placeholder="https://api.openai.com/v1" />
-    </div>
+    <div id="provider-anthropic" class="provider-settings" style="display:none">
+      <div class="settings-group">
+        <label>API 密钥 (Anthropic)</label>
+        <div class="api-key-wrap">
+          <input type="password" id="api-key-anthropic" placeholder="sk-ant-..." />
+          <button class="toggle-key" id="toggle-key-anthropic" title="显示/隐藏">👁</button>
+        </div>
+      </div>
 
-    <div class="settings-group">
-      <label>模型</label>
-      <select id="model">
-        <option value="gpt-4o">GPT-4o</option>
-        <option value="gpt-4o-mini" selected>GPT-4o Mini</option>
-        <option value="gpt-4-turbo">GPT-4 Turbo</option>
-        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-        <option value="deepseek-chat">DeepSeek Chat</option>
-        <option value="deepseek-reasoner">DeepSeek Reasoner</option>
-        <option value="moonshot-v1-8k">Moonshot v1-8k</option>
-        <option value="glm-4-flash">GLM-4 Flash</option>
-        <option value="custom">自定义...</option>
-      </select>
-      <input type="text" id="custom-model" placeholder="输入自定义模型名称"
-             style="margin-top:6px;display:none" />
+      <div class="settings-group">
+        <label>模型</label>
+        <select id="model-anthropic">
+          <option value="claude-opus-4-6" selected>Claude Opus 4.6 (推荐)</option>
+          <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+          <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+        </select>
+      </div>
     </div>
 
     <div class="settings-group">
@@ -173,25 +202,8 @@
           <input type="text" id="sched-f-schedule" placeholder="daily:09:00 | interval:30 | once:2024-12-31T09:00:00" />
           <div style="font-size:10px;color:#6b7280;margin-top:4px">daily:HH:MM · interval:分钟数 · cron:表达式 · once:ISO时间</div>
         </div>
-        <div class="settings-group">
-          <label>API Key <span style="color:#6b7280;font-weight:400;text-transform:none">(编辑时留空保持不变)</span></label>
-          <input type="password" id="sched-f-apikey" placeholder="sk-..." />
-        </div>
-        <div class="settings-group">
-          <label>Base URL</label>
-          <input type="text" id="sched-f-baseurl" value="https://api.openai.com/v1" />
-        </div>
-        <div class="settings-group">
-          <label>模型</label>
-          <input type="text" id="sched-f-model" value="gpt-4o-mini" />
-        </div>
-        <div class="settings-group">
-          <label>Temperature</label>
-          <input type="number" id="sched-f-temp" value="0.7" min="0" max="2" step="0.1" />
-        </div>
-        <div class="settings-group">
-          <label>Max Tokens</label>
-          <input type="number" id="sched-f-maxtok" value="2048" min="256" max="32768" />
+        <div style="font-size:11px;color:#6b7280;padding:6px 0;border-bottom:1px solid #3d4452;margin-bottom:8px">
+          模型配置将使用全局设置中的 API Key、模型和参数
         </div>
         <div style="display:flex;gap:8px;margin-top:4px">
           <button id="sched-form-submit" style="flex:1;background:#2563eb;border:none;color:white;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">保存</button>
@@ -271,6 +283,21 @@
         </div>
       </div>
 
+      <!-- 微信 -->
+      <div style="background:#1a1d23;border:1px solid #3d4452;border-radius:6px;padding:10px;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:8px">
+          <input type="checkbox" id="im-wx-enabled" style="accent-color:#2563eb" />
+          <span style="font-size:12px;font-weight:600;color:#e5e7eb">微信 机器人</span>
+        </label>
+        <input type="text" id="im-wx-primary" placeholder="主监听窗口（好友备注或群聊名称）"
+               style="width:100%;padding:6px 8px;background:#2d3340;border:1px solid #3d4452;border-radius:4px;color:#e5e7eb;font-size:12px;outline:none;margin-bottom:6px" />
+        <input type="text" id="im-wx-botname" placeholder="机器人名称（当前微信昵称，用于群聊@识别）"
+               style="width:100%;padding:6px 8px;background:#2d3340;border:1px solid #3d4452;border-radius:4px;color:#e5e7eb;font-size:12px;outline:none" />
+        <div style="font-size:10px;color:#6b7280;margin-top:6px">
+          提示：bot_name 留空将自动检测当前微信昵称，检测失败时需手动填写
+        </div>
+      </div>
+
       <button id="im-save-btn" style="width:100%;background:#2563eb;border:none;color:white;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">保存 IM 配置</button>
     </div>
   </div>
@@ -278,7 +305,8 @@
 
   <div id="status-bar">
     <div class="status-dot" id="status-dot"></div>
-    <span id="status-text">未连接</span>
+    <span id="status-text">检测中...</span>
+    <div id="health-details" style="margin-left:auto;font-size:10px;color:#6b7280;display:flex;gap:8px"></div>
   </div>
 </aside>
 
@@ -361,6 +389,7 @@
 <script src="/static/js/im-panel.js"></script>
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/main.js"></script>
+<script src="/static/js/health.js"></script>
 
 </body>
 </html>

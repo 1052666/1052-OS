@@ -123,10 +123,15 @@ function updateEvolutionUI(data) {
 
   if (data.active) {
     panel.style.display = "block";
-    badge.textContent = "运行中";
+    const stateLabels = { planning: "规划中", executing: "执行中", waiting: "等待确认", idle: "空闲" };
+    const stateLabel = stateLabels[data.state] || data.state || "运行中";
+    badge.textContent = stateLabel;
     badge.style.background = "#16a34a";
     badge.style.color = "#fff";
-    info.innerHTML = `平台: ${data.platform}<br>开始: ${data.start_time || "-"}<br>结果数: ${data.result_count}`;
+
+    const tasksDone = (data.tasks || []).filter(t => t.status === "completed").length;
+    const tasksTotal = (data.tasks || []).length;
+    info.innerHTML = `轮次: ${data.cycle || 1}<br>任务: ${tasksDone}/${tasksTotal} 完成<br>状态: ${stateLabel}`;
     stopBtn.style.display = "block";
     evolutionActive = true;
   } else {
@@ -184,18 +189,21 @@ async function compressContext() {
     + "💡 压缩期间您可以继续使用，任务会在后台完成。");
 
   try {
-    const res = await fetch("/im/compress", {
+    const res = await fetch("/chat/compact", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ platform: "web", user_id: "web_user" })
     });
     const data = await res.json();
     if (data.ok) {
+      const compressRatio = data.original_count > 0
+        ? Math.round((1 - (data.preserve_count + 1) / data.original_count) * 100)
+        : 0;
       appendMessage("ai", "✅ <b>上下文压缩完成！</b>\n\n"
         + `📊 <b>压缩结果：</b>\n`
         + `• 原始消息数：${data.original_count} 条\n`
         + `• 压缩后：1 条摘要 + ${data.preserve_count} 条最近对话\n`
-        + `• 压缩比：约 ${data.compress_ratio}%\n\n`
+        + `• 压缩比：约 ${compressRatio}%\n\n`
         + "🔄 您可以继续对话，上下文已精简。");
     } else {
       appendMessage("ai", "❌ <b>压缩失败：</b> " + (data.message || "未知错误"));

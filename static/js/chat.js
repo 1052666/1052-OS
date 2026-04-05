@@ -96,11 +96,20 @@ async function loadConversationHistory() {
     const { messages } = await res.json();
     if (!messages || messages.length === 0) return;
 
-    state.messages = messages;
+    state.messages = messages.map(m => ({ role: m.role, content: m.content }));
     if (welcome) welcome.style.display = "none";
 
     messages.forEach(m => {
-      appendMessage(m.role === "user" ? "user" : "ai", m.content);
+      const role = m.role === "user" ? "user" : "ai";
+      const platform = m.platform || "unknown";
+      const platformLabel = platform !== "web" ? ` [${platform}]` : "";
+
+      // 添加平台标识到消息内容
+      if (role === "user" && platformLabel) {
+        appendMessage(role, m.content, platformLabel);
+      } else {
+        appendMessage(role, m.content);
+      }
     });
 
     updateMsgCount();
@@ -151,12 +160,13 @@ async function sendMessage() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
 
     const reader  = resp.body.getReader();
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder("utf-8");
     bubble.innerHTML = "";
 
     let fullText      = "";
     let currentSegText = "";
     let currentTextEl  = null;
+    let sseBuffer      = "";  // 缓冲跨 chunk 的不完整 SSE 行
 
     // ── RAF batching: collect tokens, flush once per animation frame ──
     let tokenBuffer = "";
@@ -224,8 +234,12 @@ async function sendMessage() {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value);
-      for (const line of chunk.split("\n")) {
+      const chunk = decoder.decode(value, {stream: true});
+      sseBuffer += chunk;
+      const lines = sseBuffer.split("\n");
+      // 最后一个元素可能是不完整的行，保留到下次
+      sseBuffer = lines.pop();
+      for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const jsonStr = line.slice(6).trim();
         if (!jsonStr) continue;
@@ -267,6 +281,15 @@ async function sendMessage() {
           setStatus("error", "请求出错");
         }
       }
+    }
+
+    // 处理 decoder 中残余的字节 + sseBuffer 中残余的行
+    const trailing = decoder.decode() + sseBuffer;
+    if (trailing.startsWith("data: ")) {
+      try {
+        const data = JSON.parse(trailing.slice(6).trim());
+        if (data.type === "done") finalizeTextEl();
+      } catch {}
     }
 
     if (fullText) {
@@ -315,7 +338,22 @@ function updateMsgCount() {
 
 // ─── UI helpers ───────────────────────────────────────────────────
 
-function appendMessage(role, content) {
+// ─── Think tag processing (global) ───────────────────────────────
+
+function processThinkTagsStatic(text) {
+  if (!text.includes("<think>")) return text;
+  return text.replace(/<think>([\s\S]*?)<\/think>/g, (match, content) => {
+    const trimmed = content.trim();
+    if (!trimmed) return "";
+    const id = "think-" + Math.random().toString(36).substr(2, 9);
+    return `<details class="think-block" id="${id}">
+<summary>💭 思考过程</summary>
+<div class="think-content">\n\n${trimmed}\n\n</div>
+</details>`;
+  });
+}
+
+function appendMessage(role, content, platformLabel = "") {
   const row    = document.createElement("div");
   row.className = `msg-row ${role}`;
 
@@ -327,7 +365,8 @@ function appendMessage(role, content) {
   bubble.className = "bubble";
   if (content) {
     if (role === "user") {
-      bubble.innerHTML = escHtml(content).replace(/\n/g, "<br>");
+      const platformTag = platformLabel ? `<span style="display:inline-block;background:#374151;color:#9ca3af;padding:2px 6px;border-radius:4px;font-size:10px;margin-right:6px;font-weight:600">${escHtml(platformLabel)}</span>` : "";
+      bubble.innerHTML = platformTag + escHtml(content).replace(/\n/g, "<br>");
     } else {
       // 处理 think 标签后再渲染
       const processedContent = processThinkTagsStatic(content);

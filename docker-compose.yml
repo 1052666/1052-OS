@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./skills:/app/skills
+    env_file:
+      - .env
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000

@@ -27,7 +27,6 @@ function renderSchedulerList() {
           ${t.enabled ? '●' : '○'}
         </span>
         <span class="sched-name">${escHtml(t.name)}</span>
-        <span class="sched-model">${escHtml(t.model || '')}</span>
       </div>
       <div class="sched-meta">
         <span>⏰ ${escHtml(t.schedule)}</span>
@@ -129,25 +128,12 @@ function openSchedForm(task) {
     document.getElementById('sched-f-name').value = task.name;
     document.getElementById('sched-f-prompt').value = task.prompt;
     document.getElementById('sched-f-schedule').value = task.schedule;
-    document.getElementById('sched-f-apikey').value = '';   // masked, don't prefill
-    document.getElementById('sched-f-baseurl').value = task.base_url || 'https://api.openai.com/v1';
-    document.getElementById('sched-f-model').value = task.model || 'gpt-4o-mini';
-    document.getElementById('sched-f-temp').value = task.temperature ?? 0.7;
-    document.getElementById('sched-f-maxtok').value = task.max_tokens ?? 2048;
   } else {
     title.textContent = '新建定时任务';
     document.getElementById('sched-f-id').value = '';
     document.getElementById('sched-f-name').value = '';
     document.getElementById('sched-f-prompt').value = '';
     document.getElementById('sched-f-schedule').value = 'daily:09:00';
-    document.getElementById('sched-f-apikey').value = '';
-    // default to current chat settings if available
-    document.getElementById('sched-f-baseurl').value =
-      (typeof getState === 'function' && getState().baseUrl) || 'https://api.openai.com/v1';
-    document.getElementById('sched-f-model').value =
-      (typeof getState === 'function' && getState().model) || 'gpt-4o-mini';
-    document.getElementById('sched-f-temp').value = 0.7;
-    document.getElementById('sched-f-maxtok').value = 2048;
   }
 
   form.style.display = 'block';
@@ -159,16 +145,11 @@ function closeSchedForm() {
 
 async function submitSchedForm() {
   const id = document.getElementById('sched-f-id').value;
-  const apiKey = document.getElementById('sched-f-apikey').value.trim();
 
   const body = {
     name:        document.getElementById('sched-f-name').value.trim(),
     prompt:      document.getElementById('sched-f-prompt').value.trim(),
     schedule:    document.getElementById('sched-f-schedule').value.trim(),
-    base_url:    document.getElementById('sched-f-baseurl').value.trim(),
-    model:       document.getElementById('sched-f-model').value.trim(),
-    temperature: parseFloat(document.getElementById('sched-f-temp').value),
-    max_tokens:  parseInt(document.getElementById('sched-f-maxtok').value),
   };
 
   if (!body.name || !body.prompt || !body.schedule) {
@@ -177,16 +158,12 @@ async function submitSchedForm() {
   }
 
   if (id) {
-    // update — only include api_key if user typed something
-    if (apiKey) body.api_key = apiKey;
     await fetch(`/tasks/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
   } else {
-    if (!apiKey) { alert('新建任务请填写 API Key'); return; }
-    body.api_key = apiKey;
     await fetch('/tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

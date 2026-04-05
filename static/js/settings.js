@@ -5,6 +5,12 @@ async function loadSettings() {
     const res = await fetch("/config");
     const cfg = await res.json();
 
+    // Provider 选择
+    if (cfg.provider) {
+      $("provider").value = cfg.provider;
+      updateProviderUI(cfg.provider);
+    }
+
     // API Key：只显示脱敏提示，input 留空（placeholder 显示提示）
     const keyInput = $("api-key");
     keyInput.value = "";
@@ -12,8 +18,23 @@ async function loadSettings() {
       ? `已配置 (${cfg.api_key_hint})，留空不修改`
       : "sk-...";
 
+    // Anthropic API Key
+    const keyInputAnthropic = $("api-key-anthropic");
+    keyInputAnthropic.value = "";
+    keyInputAnthropic.placeholder = cfg.api_key_set
+      ? `已配置 (${cfg.api_key_hint})，留空不修改`
+      : "sk-ant-...";
+
     if (cfg.base_url)    $("base-url").value = cfg.base_url;
     if (cfg.model)       setModelSelect(cfg.model);
+
+    // Anthropic 模型
+    if (cfg.model && cfg.model.startsWith("claude-")) {
+      const sel = $("model-anthropic");
+      const opt = [...sel.options].find(o => o.value === cfg.model);
+      if (opt) sel.value = cfg.model;
+    }
+
     if (cfg.temperature != null) {
       $("temperature").value    = cfg.temperature;
       $("temp-val").textContent = cfg.temperature;
@@ -28,12 +49,28 @@ async function loadSettings() {
   applySettings();
 }
 
+function updateProviderUI(provider) {
+  $("provider-openai").style.display = provider === "openai_compatible" ? "block" : "none";
+  $("provider-anthropic").style.display = provider === "anthropic" ? "block" : "none";
+}
+
 async function saveSettings() {
-  const model  = getModel();
-  const apiKey = $("api-key").value.trim();
+  const provider = $("provider").value;
+  let model, apiKey, baseUrl;
+
+  if (provider === "anthropic") {
+    model = $("model-anthropic").value;
+    apiKey = $("api-key-anthropic").value.trim();
+    baseUrl = "";  // Anthropic 不需要 base_url
+  } else {
+    model = getModel();
+    apiKey = $("api-key").value.trim();
+    baseUrl = $("base-url").value.trim();
+  }
 
   const body = {
-    base_url:    $("base-url").value.trim(),
+    provider,
+    base_url:    baseUrl,
     model,
     temperature: parseFloat($("temperature").value),
     max_tokens:  parseInt($("max-tokens").value),
@@ -50,19 +87,33 @@ async function saveSettings() {
     });
     // 保存成功后刷新 placeholder
     if (apiKey) {
-      $("api-key").value = "";
-      $("api-key").placeholder = `已配置 (${apiKey.slice(0,5)}...${apiKey.slice(-4)})，留空不修改`;
+      if (provider === "anthropic") {
+        $("api-key-anthropic").value = "";
+        $("api-key-anthropic").placeholder = `已配置 (${apiKey.slice(0,5)}...${apiKey.slice(-4)})，留空不修改`;
+      } else {
+        $("api-key").value = "";
+        $("api-key").placeholder = `已配置 (${apiKey.slice(0,5)}...${apiKey.slice(-4)})，留空不修改`;
+      }
     }
     applySettings();
     flashBtn($("save-settings-btn"), "✓ 已保存");
+    // 刷新健康状态
+    if (typeof fetchHealth === "function") fetchHealth();
   } catch (e) {
     alert("保存失败: " + e.message);
   }
 }
 
 function applySettings() {
-  const model   = getModel();
-  const keySet  = $("api-key").placeholder.startsWith("已配置") || $("api-key").value.trim();
+  const provider = $("provider").value;
+  let model;
+  if (provider === "anthropic") {
+    model = $("model-anthropic").value;
+  } else {
+    model = getModel();
+  }
+  const keyInput = provider === "anthropic" ? $("api-key-anthropic") : $("api-key");
+  const keySet = keyInput.placeholder.startsWith("已配置") || keyInput.value.trim();
   modelLabel.textContent = `模型: ${model || "未配置"}`;
   if (keySet) {
     setStatus("ok", `已配置 · ${model}`);
@@ -117,8 +168,17 @@ async function loadSystemPrompt() {
 
 $("save-settings-btn").addEventListener("click", saveSettings);
 
+$("provider").addEventListener("change", function () {
+  updateProviderUI(this.value);
+});
+
 $("toggle-key").addEventListener("click", () => {
   const inp = $("api-key");
+  inp.type = inp.type === "password" ? "text" : "password";
+});
+
+$("toggle-key-anthropic").addEventListener("click", () => {
+  const inp = $("api-key-anthropic");
   inp.type = inp.type === "password" ? "text" : "password";
 });
 

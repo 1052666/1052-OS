@@ -1,5 +1,5 @@
 """
-IM 集成路由 - Telegram、飞书配置、进化模式
+IM 集成路由 - Telegram、飞书、微信配置、进化模式
 """
 
 from fastapi import APIRouter, Request
@@ -24,9 +24,16 @@ class LarkConfig(BaseModel):
     verification_token: Optional[str] = None    # 验证令牌（可选，用于回调验证）
 
 
+class WeChatConfig(BaseModel):
+    enabled: bool
+    primary_chat: Optional[str] = None
+    bot_name: Optional[str] = None
+
+
 class IMConfig(BaseModel):
     telegram: TelegramConfig
     lark: LarkConfig
+    wechat: Optional[WeChatConfig] = None
 
 
 @router.get("/im/status")
@@ -44,6 +51,16 @@ async def get_im_config():
 
     tg = im_cfg.get("telegram", {})
     lark = im_cfg.get("lark", {})
+    wx = im_cfg.get("wechat", {})
+
+    # 获取运行时微信状态（自动检测的昵称）
+    wx_runtime_name = ""
+    try:
+        from core.tools import _im_manager
+        if _im_manager and _im_manager.wechat and _im_manager.wechat.bot_name:
+            wx_runtime_name = _im_manager.wechat.bot_name
+    except Exception:
+        pass
 
     return {
         "telegram": {
@@ -58,6 +75,12 @@ async def get_im_config():
             "app_secret_set": bool(lark.get("app_secret")),
             "encrypt_key_set": bool(lark.get("encrypt_key")),
             "verification_token_set": bool(lark.get("verification_token")),
+        },
+        "wechat": {
+            "enabled": wx.get("enabled", False),
+            "primary_chat": wx.get("primary_chat", ""),
+            "bot_name": wx.get("bot_name", ""),
+            "bot_name_auto": wx_runtime_name,
         }
     }
 
@@ -96,6 +119,19 @@ async def update_im_config(body: IMConfig, request: Request):
     if body.lark.verification_token == "":
         new_cfg["lark"]["verification_token"] = ""
 
+    # 微信配置
+    if body.wechat:
+        new_cfg["wechat"] = {
+            "enabled": body.wechat.enabled,
+            "primary_chat": body.wechat.primary_chat or old_im.get("wechat", {}).get("primary_chat", ""),
+            "bot_name": body.wechat.bot_name or old_im.get("wechat", {}).get("bot_name", ""),
+            "mention_pattern": old_im.get("wechat", {}).get("mention_pattern", ""),
+        }
+        if body.wechat.primary_chat == "":
+            new_cfg["wechat"]["primary_chat"] = ""
+        if body.wechat.bot_name == "":
+            new_cfg["wechat"]["bot_name"] = ""
+
     cfg["im"] = new_cfg
     save_config(cfg)
 
@@ -126,17 +162,9 @@ def _mask_token(token: str) -> str:
 @router.get("/im/evolution/status")
 async def get_evolution_status():
     """获取进化模式状态"""
-    from im_integration.evolution import evolution_manager
-    status = evolution_manager.get_status()
-    return {
-        "active": status.active,
-        "platform": status.platform,
-        "user_id": status.user_id,
-        "start_time": status.start_time,
-        "log_file": status.log_file,
-        "last_run": status.last_run,
-        "result_count": status.result_count,
-    }
+    from im_integration.evolution_v2 import evolution_manager_v2
+    status = evolution_manager_v2.get_status()
+    return status
 
 
 class EvolutionStartRequest(BaseModel):
@@ -146,180 +174,31 @@ class EvolutionStartRequest(BaseModel):
 
 @router.post("/im/evolution/start")
 async def start_evolution(body: EvolutionStartRequest):
-    """启动进化模式"""
-    from im_integration.evolution import evolution_manager
-    if evolution_manager.active:
-        return {"ok": False, "message": "已经在进化模式中"}
-    result = await evolution_manager.start(body.platform, body.user_id)
+    """启动或触发进化模式"""
+    from im_integration.evolution_v2 import evolution_manager_v2
+    evolution_manager_v2.set_user(body.platform, body.user_id)
+    result = await evolution_manager_v2.trigger()
     return {"ok": True, "message": result}
 
 
 @router.post("/im/evolution/stop")
 async def stop_evolution():
     """停止进化模式"""
-    from im_integration.evolution import evolution_manager
-    if not evolution_manager.active:
-        return {"ok": False, "message": "进化模式未启动"}
-    result = await evolution_manager.stop()
+    from im_integration.evolution_v2 import evolution_manager_v2
+    result = await evolution_manager_v2.stop()
     return {"ok": True, "message": result}
 
 
-@router.get("/im/evolution/logs")
-async def get_evolution_logs():
-    """获取进化日志"""
-    from im_integration.evolution import evolution_manager
-    logs = evolution_manager.get_logs()
-    return {"logs": logs}
-
-
-# ─── 压缩上下文 API ────────────────────────────────────────────────
-
-class CompressRequest(BaseModel):
-    platform: str = "web"
-    user_id: str = "web_user"
-
-
-@router.post("/im/compress")
-async def compress_context(body: CompressRequest, request: Request):
-    """触发上下文压缩（后台执行）"""
-    import asyncio
-
-    # 获取 chat_handler
-    chat_handler = getattr(request.app.state, "chat_handler", None)
-    if not chat_handler:
-        return {"ok": False, "message": "聊天处理器未配置"}
-
-    # 启动后台压缩任务
-    asyncio.create_task(
-        _run_compress_task(body.platform, body.user_id, chat_handler)
-    )
-
-    # 返回压缩前的统计信息
-    from core.config import load_conversation
-    messages = load_conversation(platform=body.platform, user_id=body.user_id)
-    original_count = len(messages)
-
-    # 预估保留数量
-    preserve_count = 2  # 假设保留最近一对对话
-
-    return {
-        "ok": True,
-        "original_count": original_count,
-        "preserve_count": preserve_count,
-        "compress_ratio": int((1 - (preserve_count + 1) / max(original_count, 1)) * 100)
-    }
-
-
-async def _run_compress_task(platform: str, user_id: str, chat_handler):
-    """执行压缩任务的辅助函数"""
+@router.get("/im/evolution/history")
+async def get_evolution_history(count: int = 10):
+    """获取进化历史记录"""
+    from im_integration.evolution_v2 import EVOLUTION_HISTORY_FILE
     import json
-    import re
-    from core.config import DATA_DIR, load_conversation, save_conversation
-
-    try:
-        # 加载对话历史
-        messages = load_conversation(platform=platform, user_id=user_id)
-
-        if len(messages) < 10:
-            return
-
-        # 计算需要保留的消息
-        recent_user_idx = -1
-        recent_asst_idx = -1
-        for i in range(len(messages) - 1, -1, -1):
-            if messages[i].get("role") == "user" and recent_user_idx == -1:
-                recent_user_idx = i
-            elif messages[i].get("role") == "assistant" and recent_asst_idx == -1:
-                recent_asst_idx = i
-            if recent_user_idx != -1 and recent_asst_idx != -1:
-                break
-
-        preserve_count = max(recent_user_idx, recent_asst_idx) + 1 if recent_user_idx != -1 and recent_asst_idx != -1 else len(messages)
-        old_messages = messages[:-preserve_count] if preserve_count < len(messages) else []
-
-        # 构建压缩提示
-        def build_compress_prompt(msgs):
-            if not msgs:
-                return ""
-            formatted = []
-            for msg in msgs:
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                if content:
-                    role_name = {"user": "用户", "assistant": "助手", "system": "系统"}.get(role, role)
-                    formatted.append(f"**{role_name}：**\n{content[:500]}")
-            if not formatted:
-                return ""
-            separator = "=" * 50
-            return f"""请将以下对话历史压缩成简洁的摘要，保留关键信息和要点：
-
----
-{separator.join(formatted)}
----
-
-压缩要求：
-1. 提取对话的主要话题和目标
-2. 记录重要的结论和决定
-3. 保留关键的用户偏好和信息
-4. 使用简洁的语言，不超过 500 字
-
-请直接输出压缩后的摘要，不需要解释。"""
-
-        compress_prompt = build_compress_prompt(old_messages)
-        summary_text = ""
-
-        if compress_prompt:
-            try:
-                summarize_messages = [
-                    {"role": "system", "content": "你是一个对话历史压缩助手。你的任务是将冗长的对话历史压缩成简洁的摘要，保留关键信息和要点。"},
-                    {"role": "user", "content": compress_prompt}
-                ]
-
-                async for chunk in chat_handler(summarize_messages):
-                    if chunk.get("type") == "delta":
-                        summary_text += chunk.get("content", "")
-
-                if summary_text:
-                    # 清理思考标签
-                    summary_text = re.sub(r'<result>[\s\S]*?</result>', '', summary_text)
-                    summary_text = re.sub(r'<thinking>[\s\S]*?</thinking>', '', summary_text)
-                    # 清理 <think>...</think> 标签（使用简单字符串替换）
-                    summary_text = summary_text.replace('<think>', '').replace('</think>', '')
-                    summary_text = summary_text.strip()
-            except Exception as e:
-                print(f"[Compress] 摘要生成失败: {e}")
-                return
-
-        # 构建新消息
-        new_messages = []
-        if summary_text:
-            new_messages.append({
-                "role": "assistant",
-                "content": f"【上下文压缩摘要】\n\n{summary_text[:2000]}",
-                "_meta": {"platform": platform, "user_id": user_id, "compressed": True}
-            })
-
-        if preserve_count > 0:
-            new_messages.extend(messages[-preserve_count:])
-
-        # 保存压缩后的对话
-        conv_file = DATA_DIR / "conversation.json"
+    history = []
+    if EVOLUTION_HISTORY_FILE.exists():
         try:
-            all_messages = []
-            if conv_file.exists():
-                all_messages = json.loads(conv_file.read_text(encoding="utf-8"))
-
-            all_messages = [m for m in all_messages
-                          if m.get("_meta", {}).get("user_id") != user_id
-                          or m.get("_meta", {}).get("platform") != platform]
-
-            all_messages.extend(new_messages)
-            all_messages = all_messages[-200:]
-
-            conv_file.write_text(json.dumps(all_messages, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"[Compress] 压缩完成: {platform}/{user_id}")
-        except Exception as e:
-            print(f"[Compress] 保存压缩对话失败: {e}")
-
-    except Exception as e:
-        print(f"[Compress] 压缩上下文异常: {e}")
+            data = json.loads(EVOLUTION_HISTORY_FILE.read_text(encoding="utf-8"))
+            history = data.get("logs", [])[-count:]
+        except Exception:
+            pass
+    return {"history": history, "total": len(history)}

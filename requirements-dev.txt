@@ -1,0 +1,17 @@
+# 开发和测试依赖
+
+# 测试框架
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+httpx>=0.24.0  # FastAPI 测试客户端
+
+# 代码质量
+black>=23.0.0  # 代码格式化
+flake8>=6.0.0  # 代码检查
+mypy>=1.4.0  # 类型检查
+isort>=5.12.0  # import 排序
+
+# 调试工具
+ipython>=8.14.0
+ipdb>=0.13.13

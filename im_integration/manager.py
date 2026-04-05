@@ -1,5 +1,5 @@
 """
-IM 集成管理器 - 统一管理 Telegram、飞书等机器人
+IM 集成管理器 - 统一管理 Telegram、飞书、微信等机器人
 """
 
 import asyncio
@@ -9,13 +9,14 @@ from dataclasses import dataclass
 from core.config import load_config
 from .telegram_bot import TelegramBot
 from .lark_bot import LarkBot
-from .evolution import evolution_manager
+from .wechat_bot import WeChatBot
+from .evolution_v2 import evolution_manager_v2 as evolution_manager
 
 
 @dataclass
 class IMChatRequest:
     """IM 聊天请求"""
-    platform: str  # telegram / lark
+    platform: str  # telegram / lark / wechat
     user_id: str
     message: str
     messages: list  # 历史消息
@@ -27,6 +28,7 @@ class IMManager:
     def __init__(self):
         self.telegram: Optional[TelegramBot] = None
         self.lark: Optional[LarkBot] = None
+        self.wechat: Optional[WeChatBot] = None
         self._chat_handler: Optional[Callable] = None
 
     def setup_chat_handler(self, handler: Callable):
@@ -60,6 +62,17 @@ class IMManager:
             )
             await self.lark.start()
 
+        # 微信
+        wx_cfg = im_cfg.get("wechat", {})
+        if wx_cfg.get("enabled"):
+            self.wechat = WeChatBot(
+                primary_chat=wx_cfg.get("primary_chat", ""),
+                mention_pattern=wx_cfg.get("mention_pattern", ""),
+                bot_name=wx_cfg.get("bot_name", ""),
+                chat_handler=self._create_handler("wechat"),
+            )
+            await self.wechat.start()
+
     async def reload(self):
         """重新加载配置"""
         await self.cleanup()
@@ -73,15 +86,18 @@ class IMManager:
         if self.lark:
             await self.lark.stop()
             self.lark = None
+        if self.wechat:
+            await self.wechat.stop()
+            self.wechat = None
 
     def _create_handler(self, platform: str):
         """创建平台特定的处理器"""
-        async def handler(messages: list) -> AsyncGenerator[dict, None]:
+        async def handler(messages: list, cancel_event=None) -> AsyncGenerator[dict, None]:
             if not self._chat_handler:
                 yield {"type": "error", "content": "聊天处理器未配置"}
                 return
 
-            async for chunk in self._chat_handler(messages):
+            async for chunk in self._chat_handler(messages, cancel_event=cancel_event):
                 yield chunk
 
         return handler
@@ -96,5 +112,11 @@ class IMManager:
             "lark": {
                 "enabled": self.lark.enabled if self.lark else False,
                 "name": "飞书"
+            },
+            "wechat": {
+                "enabled": self.wechat.enabled if self.wechat else False,
+                "primary_chat": self.wechat.primary_chat if self.wechat else "",
+                "monitored_groups": list(self.wechat._monitored_groups.keys()) if self.wechat else [],
+                "name": "微信"
             }
         }

@@ -27,7 +27,7 @@ except ImportError as e:
 
 import requests
 
-from core.config import DATA_DIR, load_conversation, save_conversation
+from core.config import DATA_DIR
 
 
 class FeishuFileClient:
@@ -264,6 +264,9 @@ class FeishuFileClient:
 class LarkBot:
     """飞书机器人，长连接模式，使用交互式卡片"""
 
+    # 打断管理
+    _cancel_events: dict[str, asyncio.Event] = {}
+
     def __init__(
         self,
         app_id: str,
@@ -282,10 +285,31 @@ class LarkBot:
         self._enabled = False
         self._task: Optional[asyncio.Task] = None
         self._file_client: Optional[FeishuFileClient] = None
+        self._active_chats: dict[str, tuple[str, float]] = {}  # receive_id -> (receive_id_type, last_active)
 
     @property
     def enabled(self) -> bool:
         return self._enabled and LARK_AVAILABLE
+
+    def get_health(self) -> dict:
+        """获取健康状态"""
+        return {
+            "enabled": self.enabled,
+            "client_initialized": self.client is not None,
+            "ws_connected": self.ws_client is not None,
+            "file_client_ready": self._file_client is not None,
+            "app_id_set": bool(self.app_id),
+        }
+
+    async def send_alert(self, text: str):
+        """向所有活跃会话发送告警通知"""
+        if not self._file_client or not self._active_chats:
+            return
+        for receive_id, (receive_id_type, _) in list(self._active_chats.items()):
+            try:
+                self._file_client.send_text_message(receive_id, receive_id_type, text)
+            except Exception as e:
+                print(f"[Lark] 告警发送失败 (receive_id={receive_id}): {e}")
 
     async def start(self):
         """启动飞书机器人"""
@@ -422,6 +446,10 @@ class LarkBot:
             receive_id = chat_id
             receive_id_type = "chat_id"
 
+        # 记录活跃会话 (供告警通知使用)
+        import time as _time
+        self._active_chats[receive_id] = (receive_id_type, _time.time())
+
         # 处理文件消息（图片、文档等）
         if msg_type in ("file", "image", "audio", "video") and not text:
             await self._handle_file_message(receive_id, receive_id_type, msg_type, content, sender, message_id)
@@ -441,49 +469,55 @@ class LarkBot:
             print(f"[Lark] 收到未知消息类型: msg_type={msg_type}, content={content}")
             return
 
+        print(f"[Lark] 收到消息: text={text!r}, sender={sender}, chat_type={chat_type}")
+
         # 处理命令
         if text == "/new":
-            self._clear_conversation(sender)
-            await self._send_text(receive_id, receive_id_type, "✅ 已新建对话")
+            from core.agent_runtime import get_agent_runtime
+            runtime = get_agent_runtime()
+            runtime.clear_session(platform="lark", user_id=sender)
+            await self._send_text(receive_id, receive_id_type, "✅ 已新建对话，历史已清空")
             return
 
-        if text in ["/help", "帮助"]:
+        if text in ["/help", "/1052"] or text.startswith("/1052") or text.startswith("/help"):
             card = self._build_help_card()
             await self._send_card(receive_id, receive_id_type, card)
             return
 
-        if text in ["/压缩上下文", "/compress"]:
+        if text == "/compress":
             # 启动后台压缩任务
             asyncio.create_task(self._compress_context_task(sender, receive_id, receive_id_type))
             return
 
         if text == "/evolve":
-            # 启动进化模式
-            from im_integration.evolution import evolution_manager
-            if evolution_manager.active:
-                await self._send_text(receive_id, receive_id_type, "已经在进化模式中，发送任意消息退出")
-                return
-            result = await evolution_manager.start("lark", sender)
+            from im_integration.evolution_v2 import evolution_manager_v2 as evolution_manager
+            evolution_manager.set_user("lark", sender)
+            result = await evolution_manager.trigger()
             await self._send_text(receive_id, receive_id_type, result)
             return
 
-        # 检查是否需要打断进化模式
-        from im_integration.evolution import evolution_manager
-        if evolution_manager.active and evolution_manager._platform == "lark" and evolution_manager._user_id == sender:
+        if text == "/stop":
+            from im_integration.evolution_v2 import evolution_manager_v2 as evolution_manager
             result = await evolution_manager.stop()
-            await self._send_text(receive_id, receive_id_type, f"已退出进化模式。{result}")
-            # 继续处理用户消息
+            await self._send_text(receive_id, receive_id_type, result)
+            return
 
         # 加载对话历史
-        messages = self._load_conversation(sender)
 
-        # 在消息开头插入用户信息（供 chat_stream_handler 检测平台）
-        messages.insert(0, {
-            "role": "system",
-            "content": f"[用户信息] platform=lark, user_id={sender}"
-        })
+        # ── 打断旧的处理 ──
+        old_event = self._cancel_events.get(sender)
+        if old_event:
+            old_event.set()
 
-        messages.append({"role": "user", "content": text})
+        # ── 创建本处理的取消事件 ──
+        cancel_event = asyncio.Event()
+        self._cancel_events[sender] = cancel_event
+
+        # 只传新用户消息 + 用户信息，AgentRuntime 负责加载会话历史
+        messages = [
+            {"role": "system", "content": f"[用户信息] platform=lark, user_id={sender}"},
+            {"role": "user", "content": text}
+        ]
 
         # 设置全局平台信息（供 tools.py 中的定时任务等工具使用）
         from core.tools import set_current_user
@@ -501,13 +535,29 @@ class LarkBot:
         try:
             # 1. 先创建初始文本消息
             print(f"[Lark] 创建流式消息, receive_id={receive_id}, type={receive_id_type}")
-            streaming_msg_id = await self._send_text(receive_id, receive_id_type, "正在思考...")
+            init_text = "正在思考..."
+            streaming_msg_id = await self._send_text(receive_id, receive_id_type, init_text)
             print(f"[Lark] 流式消息创建结果: {streaming_msg_id}")
 
             # 2. 流式处理响应
-            async for chunk in self.chat_handler(messages):
+            async for chunk in self.chat_handler(messages, cancel_event=cancel_event):
                 chunk_type = chunk.get("type")
                 print(f"[Lark] chunk: type={chunk_type}")
+
+                # ── 取消检查 ──
+                if cancel_event.is_set():
+                    if streaming_msg_id:
+                        await self._update_text_message(streaming_msg_id, "⚠️ 已被新消息打断")
+                    return
+
+                # ── 上下文快照（AgentRuntime 自行管理）──
+                if chunk_type == "context_update":
+                    continue
+
+                if chunk_type == "cancelled":
+                    if streaming_msg_id:
+                        await self._update_text_message(streaming_msg_id, "⚠️ 已被新消息打断")
+                    return
 
                 if chunk_type == "delta":
                     delta = chunk.get("content", "")
@@ -599,14 +649,8 @@ class LarkBot:
             traceback.print_exc()
             await self._send_text(receive_id, receive_id_type, f"处理异常: {str(e)[:200]}")
 
-        # 保存对话
-        print(f"[Lark] 保存对话: sender={sender}, messages数量={len(messages)}")
-        messages.append({"role": "assistant", "content": full_response})
-        self._save_conversation(sender, messages[-20:])
-
-        # 验证保存
-        saved = load_conversation(platform="lark", user_id=sender)
-        print(f"[Lark] 验证保存: 加载到 {len(saved)} 条消息")
+        # AgentRuntime 已自动保存会话，无需手动保存
+        pass
 
     async def _handle_recalled_message(self, event):
         """处理消息撤回事件"""
@@ -683,23 +727,19 @@ class LarkBot:
                 except Exception as e:
                     print(f"[Lark] 下载文件失败: {e}")
 
-            # 加载对话历史
-            messages = self._load_conversation(sender)
-
-            # 在消息开头插入用户信息（供 chat_stream_handler 检测平台）
-            messages.insert(0, {
-                "role": "system",
-                "content": f"[用户信息] platform=lark, user_id={sender}"
-            })
-
-            # 构建文件描述（如果是图片且已下载，附上本地路径供多模态处理）
+            # 构建文件描述
             if local_file_path and msg_type == "image":
                 file_desc = f"[用户发送了图片，本地路径: {local_file_path}]"
             elif local_file_path:
                 file_desc = f"[用户发送了 {msg_type} 文件，本地路径: {local_file_path}]"
             else:
                 file_desc = f"[用户发送了 {msg_type} 文件，file_key={file_key}]"
-            messages.append({"role": "user", "content": file_desc})
+
+            # 只传新消息，AgentRuntime 管理会话
+            messages = [
+                {"role": "system", "content": f"[用户信息] platform=lark, user_id={sender}"},
+                {"role": "user", "content": file_desc}
+            ]
 
             # 设置全局平台信息
             from core.tools import set_current_user
@@ -746,9 +786,7 @@ class LarkBot:
             except Exception as e:
                 print(f"[Lark] 处理文件消息异常: {e}")
 
-            # 保存对话
-            messages.append({"role": "assistant", "content": full_response or "文件已收到"})
-            self._save_conversation(sender, messages[-20:])
+            # AgentRuntime 已自动保存会话
 
         except Exception as e:
             print(f"[Lark] 处理文件消息失败: {e}")
@@ -866,11 +904,11 @@ class LarkBot:
         }
 
     def _build_help_card(self) -> dict:
-        """构建帮助卡片（简化版）"""
+        """构建帮助卡片"""
         return {
             "config": {"wide_screen_mode": True},
             "header": {
-                "title": {"tag": "plain_text", "content": "1052 AI 助理"},
+                "title": {"tag": "plain_text", "content": "1052 可用命令"},
                 "template": "blue"
             },
             "elements": [
@@ -878,15 +916,15 @@ class LarkBot:
                     "tag": "div",
                     "text": {
                         "tag": "lark_md",
-                        "content": "**欢迎使用 1052 AI 助理！**\n\n直接发送消息开始对话，支持：\n\n- 文字对话\n- 图片分析\n- 文件处理\n- 工具调用"
-                    }
-                },
-                {"tag": "hr"},
-                {
-                    "tag": "div",
-                    "text": {
-                        "tag": "lark_md",
-                        "content": "**命令：**\n\n- /new - 新建对话\n- /compress - 压缩对话历史\n- /evolve - 开启进化模式\n- /help - 显示帮助"
+                        "content": (
+                            "**命令列表：**\n\n"
+                            "/new — 新建对话，清空上下文\n"
+                            "/compress — 压缩对话历史（AI 摘要）\n"
+                            "/evolve — 开启进化模式（自主思考）\n"
+                            "/stop — 停止进化模式\n"
+                            "/help — 查看帮助\n\n"
+                            "直接发送消息与我对话"
+                        )
                     }
                 }
             ]
@@ -1110,209 +1148,36 @@ class LarkBot:
         except Exception as e:
             print(f"[Lark] 发送文件异常: {e}")
 
-    def _load_conversation(self, user_id: str) -> list:
-        """加载用户对话历史（统一会话）"""
-        messages = load_conversation(platform="lark", user_id=user_id)
-        # 过滤掉 system 消息（避免历史数据损坏导致的问题）
-        return [m for m in messages if m.get("role") != "system"]
-
-    def _save_conversation(self, user_id: str, messages: list):
-        """保存用户对话历史到统一会话"""
-        save_conversation(messages, platform="lark", user_id=user_id)
-
-    def _clear_conversation(self, user_id: str):
-        """清空对话历史"""
-        conv_file = DATA_DIR / "conversation.json"
-        if conv_file.exists():
-            try:
-                all_messages = json.loads(conv_file.read_text(encoding="utf-8"))
-                all_messages = [m for m in all_messages
-                              if m.get("_meta", {}).get("user_id") != user_id
-                              or m.get("_meta", {}).get("platform") != "lark"]
-                conv_file.write_text(json.dumps(all_messages, ensure_ascii=False, indent=2), encoding="utf-8")
-            except Exception:
-                pass
-
     async def _compress_context_task(self, user_id: str, receive_id: str, receive_id_type: str = "chat_id"):
-        """后台压缩上下文任务
-
-        Args:
-            user_id: 用户 ID
-            receive_id: 接收方 ID
-            receive_id_type: 接收ID类型 ("chat_id" 或 "open_id")
-        """
+        """后台压缩上下文任务（使用 AgentRuntime）"""
         try:
-            # 1. 发送压缩开始提示
             await self._send_text(receive_id, receive_id_type,
-                "🔄 **正在压缩上下文...**\n\n"
-                "📋 即将进行以下操作：\n"
-                "• 分析并理解对话历史\n"
-                "• 提取关键信息和要点\n"
-                "• 生成压缩摘要\n\n"
-                "⏱️ 预计需要 **1-2 分钟**，请稍候...\n\n"
-                "💡 压缩期间您可以继续使用，任务会在后台完成。"
+                "🔄 **正在压缩上下文...**\n\n⏱️ 预计需要 1-2 分钟，请稍候..."
             )
 
-            # 2. 加载对话历史
-            messages = self._load_conversation(user_id)
+            from core.agent_runtime import get_agent_runtime
+            runtime = get_agent_runtime()
+            result = await runtime.compact_session(platform="lark", user_id=user_id)
 
-            if not messages:
-                await self._send_text(receive_id, receive_id_type,
-                    "📝 **无对话历史**\n\n"
-                    "当前没有对话历史可压缩。"
-                )
+            original = result.get("original_count", 0)
+            preserve = result.get("preserve_count", 0)
+
+            if original == 0:
+                await self._send_text(receive_id, receive_id_type, "📝 **没有消息可压缩**")
                 return
 
-            # 3. 保留最近的消息（user 最后一条 + assistant 最后一条 + 系统提示位置前的消息）
-            # 找到最后一个 user 消息和 assistant 消息
-            recent_user_idx = -1
-            recent_asst_idx = -1
-            for i in range(len(messages) - 1, -1, -1):
-                if messages[i].get("role") == "user" and recent_user_idx == -1:
-                    recent_user_idx = i
-                elif messages[i].get("role") == "assistant" and recent_asst_idx == -1:
-                    recent_asst_idx = i
-                if recent_user_idx != -1 and recent_asst_idx != -1:
-                    break
+            compress_ratio = int((1 - (preserve + 1) / original) * 100) if original > 0 else 0
 
-            # 需要保留的消息：最近的 user + assistant 消息对
-            preserve_count = max(recent_user_idx, recent_asst_idx) + 1 if recent_user_idx != -1 and recent_asst_idx != -1 else len(messages)
-
-            # 4. 调用 AI 进行摘要压缩
-            old_messages = messages[:-preserve_count] if preserve_count < len(messages) else []
-            compress_prompt = self._build_compress_prompt(old_messages)
-            print(f"[Lark] 压缩上下文: 总消息={len(messages)}, 旧消息={len(old_messages)}, prompt长度={len(compress_prompt)}")
-
-            summary_done = False
-            summary_text = ""
-
-            if not compress_prompt:
-                # 没有旧消息需要压缩
-                await self._send_text(receive_id, receive_id_type,
-                    "📝 **上下文较短，无需压缩**\n\n"
-                    "当前对话历史较少，无需压缩。"
-                )
-                return
-
-            if not self.chat_handler:
-                await self._send_text(receive_id, receive_id_type,
-                    "❌ **chat_handler 未配置**\n\n"
-                    "压缩功能需要配置 chat_handler。"
-                )
-                return
-
-            if compress_prompt and self.chat_handler:
-                try:
-                    # 构建摘要请求
-                    summarize_messages = [
-                        {"role": "system", "content": "你是一个对话历史压缩助手。你的任务是将冗长的对话历史压缩成简洁的摘要，保留关键信息和要点。"},
-                        {"role": "user", "content": compress_prompt}
-                    ]
-
-                    # 调用流式 handler 获取摘要
-                    async for chunk in self.chat_handler(summarize_messages):
-                        if chunk.get("type") == "delta":
-                            summary_text += chunk.get("content", "")
-
-                    if summary_text:
-                        summary_text = self._remove_thinking_tags(summary_text).strip()
-                        summary_done = True
-                except Exception as e:
-                    print(f"[Lark] 摘要生成失败: {e}")
-
-            # 5. 更新对话历史
-            if summary_done and summary_text:
-                # 保留最新的一对对话（user + assistant），将更早的历史替换为摘要
-                new_messages = []
-
-                # 添加摘要作为 assistant 的压缩消息
-                new_messages.append({
-                    "role": "assistant",
-                    "content": f"【上下文压缩摘要】\n\n{summary_text[:2000]}",
-                    "_meta": {"platform": "lark", "user_id": user_id, "compressed": True}
-                })
-
-                # 添加保留的最近对话
-                if preserve_count > 0:
-                    new_messages.extend(messages[-preserve_count:])
-
-                # 保存压缩后的对话
-                self._save_compressed_conversation(user_id, new_messages)
-
-                await self._send_text(receive_id, receive_id_type,
-                    "✅ **上下文压缩完成！**\n\n"
-                    f"📊 **压缩结果：**\n"
-                    f"• 原始消息数：{len(messages)} 条\n"
-                    f"• 压缩后：1 条摘要 + {preserve_count} 条最近对话\n"
-                    f"• 压缩比：约 {int((1 - len(new_messages)/len(messages))*100)}%\n\n"
-                    "🔄 您可以继续对话，上下文已精简。"
-                )
-            else:
-                # 没有成功摘要，但已经等待了一段时间，给用户反馈
-                await self._send_text(receive_id, receive_id_type,
-                    "⏰ **压缩任务已超时**\n\n"
-                    "由于摘要生成超时，上下文未被压缩。\n"
-                    "您可以稍后重试，或使用 `/new` 新建对话。"
-                )
+            await self._send_text(receive_id, receive_id_type,
+                "✅ **上下文压缩完成！**\n\n"
+                f"📊 **压缩结果：**\n"
+                f"• 原始消息数：{original} 条\n"
+                f"• 压缩后：1 条摘要 + {preserve} 条最近对话\n"
+                f"• 压缩比：约 {compress_ratio}%\n\n"
+                "🔄 您可以继续对话，上下文已精简。"
+            )
 
         except Exception as e:
             print(f"[Lark] 压缩上下文异常: {e}")
             await self._send_text(receive_id, receive_id_type, f"❌ **压缩失败**：{str(e)[:100]}")
-
-    def _build_compress_prompt(self, messages: list) -> str:
-        """构建压缩提示"""
-        if not messages:
-            return ""
-
-        # 将消息格式化为文本
-        formatted = []
-        for msg in messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            if content:
-                role_name = {"user": "用户", "assistant": "助手", "system": "系统"}.get(role, role)
-                formatted.append(f"**{role_name}：**\n{content[:500]}")
-
-        if not formatted:
-            return ""
-
-        separator = "=" * 50
-        prompt = f"""请将以下对话历史压缩成简洁的摘要，保留关键信息和要点：
-
----
-{separator.join(formatted)}
----
-
-压缩要求：
-1. 提取对话的主要话题和目标
-2. 记录重要的结论和决定
-3. 保留关键的用户偏好和信息
-4. 使用简洁的语言，不超过 500 字
-
-请直接输出压缩后的摘要，不需要解释。"""
-
-        return prompt
-
-    def _save_compressed_conversation(self, user_id: str, messages: list):
-        """保存压缩后的对话历史"""
-        conv_file = DATA_DIR / "conversation.json"
-        try:
-            all_messages = []
-            if conv_file.exists():
-                all_messages = json.loads(conv_file.read_text(encoding="utf-8"))
-
-            # 移除该用户的旧消息
-            all_messages = [m for m in all_messages
-                          if m.get("_meta", {}).get("user_id") != user_id
-                          or m.get("_meta", {}).get("platform") != "lark"]
-
-            # 添加压缩后的消息
-            all_messages.extend(messages)
-
-            # 保留最近 200 条
-            all_messages = all_messages[-200:]
-
-            conv_file.write_text(json.dumps(all_messages, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception as e:
-            print(f"[Lark] 保存压缩对话失败: {e}")
 
