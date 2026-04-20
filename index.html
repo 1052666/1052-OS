@@ -1,0 +1,1101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>1052 OS — 真正能帮人做事的个人 AI 操作系统</title>
+<meta name="description" content="1052 OS · a local-first personal AI operating system. Chat, files, notes, skills, search, schedules, notifications & social channels — built around an agent that actually gets things done." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F5F2EC;
+    --paper-2:#EEEAE0;
+    --ink:#111111;
+    --ink-soft:#5B5A57;
+    --ink-mute:#8A867D;
+    --rule:#E3DED3;
+    --rule-2:#D8D2C4;
+    --accent: oklch(0.38 0.12 265);
+    --accent-soft: oklch(0.93 0.03 265);
+    --amber: oklch(0.72 0.12 70);
+    --green: oklch(0.62 0.10 150);
+    --red: oklch(0.62 0.14 27);
+    --sans: "Inter", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    --serif-zh: "Noto Serif SC", "Source Han Serif SC", serif;
+    --maxw: 1240px;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  a{color:inherit;text-decoration:none}
+  .mono{font-family:var(--mono); font-feature-settings:"ss01","cv11"; letter-spacing:0.01em}
+  .serif-zh{font-family:var(--serif-zh)}
+  .muted{color:var(--ink-soft)}
+  .tiny{font-size:12px}
+  .small{font-size:13px}
+  .upcase{text-transform:uppercase; letter-spacing:0.14em}
+  .hairline{height:1px;background:var(--rule);border:0;margin:0}
+  .accent{color:var(--accent)}
+
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 32px}
+
+  /* status bar */
+  .statusbar{
+    border-bottom:1px solid var(--rule);
+    background:var(--paper);
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--ink-soft);
+    letter-spacing:0.04em;
+  }
+  .statusbar .wrap{display:flex; align-items:center; justify-content:space-between; height:28px}
+  .statusbar .dots{display:inline-flex; gap:6px; align-items:center}
+  .statusbar .dot{width:7px;height:7px;border-radius:999px;background:var(--ink-mute)}
+  .statusbar .dot.live{background:var(--green); box-shadow:0 0 0 3px color-mix(in oklab, var(--green) 20%, transparent)}
+  .statusbar .sep{color:var(--ink-mute); margin:0 10px}
+
+  /* top nav */
+  nav.top{
+    border-bottom:1px solid var(--rule);
+    background: color-mix(in oklab, var(--paper) 92%, white);
+    position:sticky; top:0; z-index:20;
+    backdrop-filter: blur(8px);
+  }
+  nav.top .wrap{display:flex; align-items:center; gap:32px; height:64px}
+  .brand{display:flex; align-items:center; gap:12px; font-weight:600; letter-spacing:-0.01em}
+  .brand .mark{
+    width:28px;height:28px;border-radius:7px;
+    background:var(--ink);
+    color:var(--paper);
+    display:grid; place-items:center;
+    font-family:var(--mono); font-size:11px; font-weight:500;
+    letter-spacing:0;
+  }
+  .brand .name{font-size:16px}
+  .brand .by{font-family:var(--mono); font-size:11px; color:var(--ink-soft); margin-left:2px}
+  nav.top ul{list-style:none; display:flex; gap:26px; margin:0; padding:0; font-size:14px; color:var(--ink-soft)}
+  nav.top ul a:hover{color:var(--ink)}
+  nav.top .spacer{flex:1}
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    height:36px; padding:0 14px; border-radius:8px;
+    border:1px solid var(--ink); background:var(--ink); color:var(--paper);
+    font-size:13px; font-weight:500;
+    transition:transform .15s ease, background .15s ease;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--rule-2)}
+  .btn.ghost:hover{border-color:var(--ink)}
+  .btn .arrow{font-family:var(--mono); font-size:12px; opacity:.8}
+
+  /* section scaffolding */
+  section{padding:96px 0; border-bottom:1px solid var(--rule)}
+  .sec-tag{
+    display:flex; align-items:center; gap:12px;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    letter-spacing:0.12em; text-transform:uppercase;
+    margin-bottom:28px;
+  }
+  .sec-tag .bar{flex:0 0 28px; height:1px; background:var(--ink)}
+  h1,h2,h3,h4{margin:0; font-weight:600; letter-spacing:-0.02em}
+  h2{font-size:44px; line-height:1.1}
+  h2 .en{
+    display:block; font-family:var(--mono); font-size:12px; color:var(--ink-soft);
+    letter-spacing:0.1em; text-transform:uppercase; font-weight:500;
+    margin-top:14px;
+  }
+
+  /* HERO */
+  .hero{padding:72px 0 110px}
+  .hero .kicker{
+    display:inline-flex; align-items:center; gap:10px;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    letter-spacing:0.14em; text-transform:uppercase;
+    border:1px solid var(--rule-2); border-radius:999px;
+    padding:6px 12px; background:color-mix(in oklab, var(--paper) 80%, white);
+  }
+  .hero .kicker .pulse{width:6px; height:6px; border-radius:999px; background:var(--green); box-shadow:0 0 0 3px color-mix(in oklab, var(--green) 20%, transparent)}
+  .hero h1{
+    font-family:var(--serif-zh);
+    font-weight:600;
+    font-size:88px;
+    line-height:1.02;
+    letter-spacing:-0.03em;
+    margin:28px 0 0;
+    max-width:16ch;
+  }
+  .hero h1 .light{color:var(--ink-soft); font-weight:400}
+  .hero .sub-en{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--ink-soft);
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    margin-top:28px;
+    max-width:680px;
+  }
+  .hero .lede{
+    font-size:19px;
+    line-height:1.55;
+    color:var(--ink);
+    max-width:620px;
+    margin:28px 0 0;
+  }
+  .hero .lede .soft{color:var(--ink-soft)}
+  .hero .ctas{display:flex; gap:12px; align-items:center; margin-top:36px; flex-wrap:wrap}
+  .hero .meta{
+    display:flex; gap:28px; margin-top:56px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    letter-spacing:0.1em; text-transform:uppercase;
+  }
+  .hero .meta b{color:var(--ink); font-weight:500}
+
+  /* windowed visual */
+  .window{
+    margin-top:80px;
+    background:#FBF9F3;
+    border:1px solid var(--rule-2);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.6) inset,
+      0 30px 60px -30px rgba(20,18,10,0.18),
+      0 8px 20px -12px rgba(20,18,10,0.08);
+  }
+  .window .chrome{
+    height:36px;
+    display:flex; align-items:center; gap:8px;
+    padding:0 14px;
+    border-bottom:1px solid var(--rule);
+    background: linear-gradient(to bottom, #EEEAE0, #E6E1D4);
+  }
+  .window .chrome .light{width:11px;height:11px;border-radius:999px;background:#CFC9BC; border:1px solid rgba(0,0,0,0.06)}
+  .window .chrome .title{
+    flex:1; text-align:center;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    letter-spacing:0.1em;
+  }
+  .window .chrome .title b{color:var(--ink); font-weight:500}
+  .window .body{display:grid; grid-template-columns: 210px 1fr 280px; min-height:520px}
+  .sidebar{
+    border-right:1px solid var(--rule);
+    padding:18px 14px;
+    font-size:13px;
+  }
+  .sidebar h5{
+    margin:18px 8px 8px;
+    font-family:var(--mono); font-size:10px;
+    color:var(--ink-mute); letter-spacing:0.12em; text-transform:uppercase;
+    font-weight:500;
+  }
+  .sidebar h5:first-child{margin-top:4px}
+  .sidebar .item{
+    display:flex; align-items:center; gap:10px;
+    padding:7px 10px; border-radius:7px;
+    color:var(--ink-soft);
+  }
+  .sidebar .item.on{background:var(--paper-2); color:var(--ink); font-weight:500}
+  .sidebar .item .g{width:6px;height:6px;border-radius:2px;background:var(--ink-mute)}
+  .sidebar .item.on .g{background:var(--accent)}
+  .sidebar .item .k{flex:1}
+  .sidebar .item .n{font-family:var(--mono); font-size:11px; color:var(--ink-mute)}
+
+  .chat{padding:22px 26px; display:flex; flex-direction:column; gap:14px; border-right:1px solid var(--rule)}
+  .msg{max-width:92%}
+  .msg .who{font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-mute); margin-bottom:6px}
+  .msg .bubble{
+    background:var(--paper); border:1px solid var(--rule);
+    border-radius:10px; padding:12px 14px; font-size:14px; line-height:1.55;
+  }
+  .msg.me{align-self:flex-end}
+  .msg.me .bubble{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .msg.me .who{text-align:right}
+  .think{
+    border:1px dashed var(--rule-2); border-radius:8px; padding:8px 10px;
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    display:flex; align-items:center; gap:10px; margin-bottom:8px;
+  }
+  .think .tri{width:0;height:0;border-left:5px solid var(--ink-soft); border-top:3.5px solid transparent; border-bottom:3.5px solid transparent}
+  .toolcall{
+    background:color-mix(in oklab, var(--accent) 8%, var(--paper));
+    border:1px solid color-mix(in oklab, var(--accent) 22%, var(--rule));
+    border-radius:10px; padding:10px 12px;
+    font-family:var(--mono); font-size:12px; color:var(--accent);
+  }
+  .toolcall .head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; font-weight:500}
+  .toolcall .k{color:var(--ink-soft)}
+
+  .inspector{padding:20px 22px; background:color-mix(in oklab, var(--paper) 60%, white)}
+  .inspector h5{
+    margin:0 0 10px; font-family:var(--mono); font-size:10px; color:var(--ink-mute);
+    letter-spacing:0.12em; text-transform:uppercase; font-weight:500;
+  }
+  .inspector .card{
+    border:1px solid var(--rule); border-radius:10px; padding:12px; background:var(--paper);
+    margin-bottom:12px;
+  }
+  .inspector .row{display:flex; justify-content:space-between; font-size:12px; padding:3px 0; color:var(--ink-soft)}
+  .inspector .row b{color:var(--ink); font-weight:500; font-family:var(--mono); font-size:12px}
+  .inspector .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono); font-size:10px; letter-spacing:0.08em;
+    border:1px solid var(--rule); border-radius:999px; padding:3px 8px;
+    color:var(--ink-soft); margin-right:6px; margin-bottom:6px;
+  }
+  .inspector .pill .d{width:5px;height:5px;border-radius:999px;background:var(--ink-mute)}
+  .inspector .pill.on .d{background:var(--green)}
+  .inspector .pill.warn .d{background:var(--amber)}
+
+  /* FEATURES */
+  .feat-grid{
+    display:grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap:1px;
+    background:var(--rule);
+    border-top:1px solid var(--rule);
+    border-bottom:1px solid var(--rule);
+    margin-top:48px;
+  }
+  .feat{
+    grid-column: span 4;
+    background:var(--paper);
+    padding:28px 26px 32px;
+    min-height:220px;
+    position:relative;
+  }
+  .feat .num{
+    font-family:var(--mono); font-size:11px; color:var(--ink-mute);
+    letter-spacing:0.1em;
+  }
+  .feat .zh{
+    font-family:var(--serif-zh); font-size:24px; font-weight:600;
+    margin-top:18px; letter-spacing:-0.01em;
+  }
+  .feat .en{
+    font-family:var(--mono); font-size:11px; color:var(--ink-soft);
+    text-transform:uppercase; letter-spacing:0.12em; margin-top:6px;
+  }
+  .feat p{font-size:14px; color:var(--ink-soft); margin:14px 0 0; line-height:1.6}
+  .feat .glyph{
+    position:absolute; top:24px; right:26px;
+    width:34px; height:34px; border:1px solid var(--rule-2); border-radius:8px;
+    display:grid; place-items:center;
+    font-family:var(--mono); font-size:12px; color:var(--ink-soft);
+  }
+
+  /* MODULES TABLE */
+  .modtable{
+    margin-top:40px;
+    border:1px solid var(--rule);
+    border-radius:12px;
+    overflow:hidden;
+    background:color-mix(in oklab, var(--paper) 55%, white);
+  }
+  .modtable .row{
+    display:grid;
+    grid-template-columns: 220px 1fr;
+    border-bottom:1px solid var(--rule);
+  }
+  .modtable .row:last-child{border-bottom:0}
+  .modtable .row .k{
+    padding:20px 24px;
+    border-right:1px solid var(--rule);
+    background:var(--paper);
+  }
+  .modtable .row .k .zh{font-family:var(--serif-zh); font-size:19px; font-weight:600}
+  .modtable .row .k .en{font-family:var(--mono); font-size:10px; color:var(--ink-mute); letter-spacing:0.12em; text-transform:uppercase; margin-top:4px}
+  .modtable .row .v{padding:20px 24px; display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .tag{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:12.5px; color:var(--ink);
+    background:var(--paper); border:1px solid var(--rule);
+    padding:6px 10px; border-radius:999px;
+  }
+  .tag .d{width:5px;height:5px;border-radius:999px;background:var(--ink-mute)}
+  .tag.a .d{background:var(--accent)}
+  .tag.g .d{background:var(--green)}
+  .tag.m .d{background:var(--amber)}
+
+  /* FLOW / HOW IT WORKS */
+  .flow{
+    margin-top:56px;
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:0;
+    border:1px solid var(--rule); border-radius:12px; overflow:hidden;
+    background:var(--paper);
+  }
+  .flow .step{padding:28px 24px 32px; border-right:1px solid var(--rule); position:relative}
+  .flow .step:last-child{border-right:0}
+  .flow .step .no{font-family:var(--mono); font-size:11px; color:var(--ink-mute); letter-spacing:0.1em}
+  .flow .step h4{margin-top:14px; font-family:var(--serif-zh); font-size:22px}
+  .flow .step .en{font-family:var(--mono); font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.12em; margin-top:4px}
+  .flow .step p{margin:14px 0 0; color:var(--ink-soft); font-size:13.5px; line-height:1.6}
+  .flow .step .arr{
+    position:absolute; right:-8px; top:36px; width:16px; height:16px;
+    background:var(--paper); border-top:1px solid var(--rule); border-right:1px solid var(--rule);
+    transform:rotate(45deg); z-index:2;
+  }
+  .flow .step:last-child .arr{display:none}
+
+  /* schedule / notifications split */
+  .split{display:grid; grid-template-columns: 1.1fr 1fr; gap:40px; margin-top:56px}
+  .panel{
+    background:color-mix(in oklab, var(--paper) 55%, white);
+    border:1px solid var(--rule);
+    border-radius:12px;
+    padding:26px 26px 28px;
+  }
+  .panel h3{font-family:var(--serif-zh); font-size:24px; margin-bottom:4px}
+  .panel h3 .en{display:block; font-family:var(--mono); font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.12em; margin-top:4px; font-weight:500}
+  .panel .list{margin-top:20px}
+  .tkrow{
+    display:grid; grid-template-columns: 90px 1fr auto; gap:14px;
+    padding:12px 0; border-top:1px dashed var(--rule);
+    align-items:center;
+  }
+  .tkrow:first-of-type{border-top:0}
+  .tkrow .t{font-family:var(--mono); font-size:12px; color:var(--ink-soft)}
+  .tkrow .title{font-size:14px}
+  .tkrow .title .sub{display:block; color:var(--ink-soft); font-size:12px; margin-top:2px}
+  .tkrow .state{font-family:var(--mono); font-size:10px; letter-spacing:0.1em; color:var(--ink-soft); text-transform:uppercase}
+  .tkrow .state.ok{color:var(--green)}
+  .tkrow .state.run{color:var(--accent)}
+  .tkrow .state.pend{color:var(--amber)}
+  .notif{
+    display:flex; gap:14px; padding:14px 0; border-top:1px dashed var(--rule);
+    align-items:flex-start;
+  }
+  .notif:first-of-type{border-top:0}
+  .notif .ic{
+    width:32px; height:32px; border-radius:8px; border:1px solid var(--rule);
+    display:grid; place-items:center; font-family:var(--mono); font-size:12px; color:var(--ink-soft); flex:0 0 auto;
+  }
+  .notif .t{flex:1}
+  .notif .t .ttl{font-size:14px; font-weight:500}
+  .notif .t .sub{font-size:12.5px; color:var(--ink-soft); margin-top:2px; line-height:1.5}
+  .notif .t .meta{margin-top:6px; font-family:var(--mono); font-size:10.5px; color:var(--ink-mute); letter-spacing:0.08em; text-transform:uppercase}
+
+  /* QUOTE */
+  .quote{
+    margin:0;
+    font-family:var(--serif-zh);
+    font-size:44px;
+    line-height:1.25;
+    letter-spacing:-0.02em;
+    max-width:22ch;
+  }
+  .quote .en{
+    display:block; font-family:var(--mono); font-size:12px;
+    color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.1em;
+    margin-top:24px; font-weight:500;
+  }
+
+  /* FAQ */
+  .faq{margin-top:32px; border-top:1px solid var(--rule)}
+  .faq details{border-bottom:1px solid var(--rule); padding:22px 4px}
+  .faq summary{
+    list-style:none; cursor:pointer;
+    display:flex; align-items:baseline; gap:18px;
+    font-family:var(--serif-zh); font-size:22px; font-weight:600;
+  }
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary .n{font-family:var(--mono); font-size:12px; color:var(--ink-mute); font-weight:500}
+  .faq summary .plus{margin-left:auto; font-family:var(--mono); color:var(--ink-soft); font-weight:400}
+  .faq details[open] summary .plus{transform:rotate(45deg)}
+  .faq summary .plus{transition:transform .2s}
+  .faq .body{padding:14px 0 0 56px; color:var(--ink-soft); font-size:15px; line-height:1.7; max-width:68ch}
+  .faq .body .en{display:block; font-family:var(--mono); font-size:11px; color:var(--ink-mute); text-transform:uppercase; letter-spacing:0.1em; margin-top:10px}
+
+  /* CTA */
+  .cta{
+    margin-top:20px;
+    background:var(--ink); color:var(--paper);
+    border-radius:14px; padding:72px 56px;
+    display:grid; grid-template-columns: 1.3fr 1fr; gap:40px; align-items:end;
+    position:relative; overflow:hidden;
+  }
+  .cta .grid-bg{
+    position:absolute; inset:0; pointer-events:none; opacity:0.12;
+    background-image:
+      linear-gradient(to right, #ffffff22 1px, transparent 1px),
+      linear-gradient(to bottom, #ffffff22 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at 30% 20%, black 30%, transparent 75%);
+  }
+  .cta h2{font-family:var(--serif-zh); font-size:56px; line-height:1.05; letter-spacing:-0.02em}
+  .cta h2 .soft{color:#ffffff88}
+  .cta .en{font-family:var(--mono); font-size:12px; color:#ffffff99; letter-spacing:0.1em; text-transform:uppercase; margin-top:18px}
+  .cta .btn.primary{background:var(--paper); color:var(--ink); border-color:var(--paper)}
+  .cta .btn.ghost{color:var(--paper); border-color:#ffffff33}
+  .cta .btn.ghost:hover{border-color:var(--paper)}
+  .cta ul{list-style:none; margin:0; padding:0; font-family:var(--mono); font-size:12px; color:#ffffffaa; letter-spacing:0.06em}
+  .cta ul li{padding:10px 0; border-top:1px solid #ffffff1a; display:flex; justify-content:space-between}
+  .cta ul li:first-child{border-top:0}
+  .cta ul li b{color:var(--paper); font-weight:500}
+  .cta .ctas{display:flex; gap:12px; margin-top:36px; flex-wrap:wrap}
+
+  footer{padding:56px 0 80px}
+  footer .wrap{display:flex; gap:40px; flex-wrap:wrap; justify-content:space-between; align-items:flex-start}
+  footer .cols{display:flex; gap:60px; flex-wrap:wrap}
+  footer h6{font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-mute); margin:0 0 12px; font-weight:500}
+  footer ul{list-style:none; margin:0; padding:0; font-size:13.5px; color:var(--ink-soft)}
+  footer ul li{margin:8px 0}
+  footer .sig{max-width:320px; color:var(--ink-soft); font-size:13px; line-height:1.6}
+
+  /* responsive */
+  @media (max-width: 1040px){
+    .window .body{grid-template-columns: 180px 1fr}
+    .inspector{display:none}
+    .feat{grid-column: span 6}
+    .flow{grid-template-columns: repeat(2,1fr)}
+    .flow .step:nth-child(2) .arr{display:none}
+    .split{grid-template-columns: 1fr}
+    .cta{grid-template-columns:1fr; padding:48px 32px}
+  }
+  @media (max-width: 720px){
+    .wrap{padding:0 20px}
+    nav.top ul{display:none}
+    .hero h1{font-size:56px}
+    h2{font-size:32px}
+    .window .body{grid-template-columns: 1fr}
+    .sidebar{display:none}
+    .chat{border-right:0}
+    .feat{grid-column: span 12}
+    .flow{grid-template-columns: 1fr}
+    .flow .step{border-right:0; border-bottom:1px solid var(--rule)}
+    .flow .step:last-child{border-bottom:0}
+    .flow .step .arr{display:none}
+    .modtable .row{grid-template-columns:1fr}
+    .modtable .row .k{border-right:0; border-bottom:1px solid var(--rule)}
+    .cta h2{font-size:36px}
+    .quote{font-size:30px}
+  }
+
+  /* little cursor blink */
+  .caret{display:inline-block; width:8px; height:1.1em; background:var(--ink); vertical-align:-0.15em; margin-left:3px; animation:blink 1s steps(2) infinite}
+  .cta .caret{background:var(--paper)}
+  @keyframes blink{50%{opacity:0}}
+</style>
+</head>
+<body>
+
+<!-- status bar -->
+<div class="statusbar">
+  <div class="wrap">
+    <div class="dots">
+      <span class="dot live"></span>
+      <span class="mono">1052 OS · v0.9.2 — docs build 2026.04</span>
+    </div>
+    <div class="mono">
+      <span>CN / EN</span><span class="sep">·</span>
+      <span>LOCAL-FIRST</span><span class="sep">·</span>
+      <span>MIT LICENSED</span>
+    </div>
+  </div>
+</div>
+
+<!-- nav -->
+<nav class="top">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <span class="mark">10</span>
+      <span class="name">1052 OS</span>
+      <span class="by">/ personal agent workbench</span>
+    </a>
+    <div class="spacer"></div>
+    <ul>
+      <li><a href="#features">功能 · Features</a></li>
+      <li><a href="#modules">模块 · Modules</a></li>
+      <li><a href="#flow">流程 · How it works</a></li>
+      <li><a href="#schedule">日程 · Schedule</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+    <a class="btn ghost" href="https://github.com/1052666/1052-OS" target="_blank" rel="noopener">GitHub <span class="arrow">↗</span></a>
+    <a class="btn" href="https://github.com/1052666/1052-OS/releases" target="_blank" rel="noopener">下载 · Download <span class="arrow">→</span></a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="top" style="border-bottom:0">
+  <div class="wrap">
+    <span class="kicker"><span class="pulse"></span>Now in public preview · v0.9.2</span>
+    <h1>
+      真正能帮人做事的<br/>
+      <span class="light">个人</span> AI 操作系统<span class="caret"></span>
+    </h1>
+    <div class="sub-en">
+      1052 OS · a local-first personal AI workbench — chat, files, notes, skills, search, schedules & social channels, all around one agent that actually gets things done.
+    </div>
+    <p class="lede">
+      聊天、文件、笔记、资源、技能、搜索、定时任务、通知、社交通道 —— 统一在一个
+      <b>本地优先</b> 的工作台里，围绕一个<b>真的能动手</b>的 Agent 展开。
+      <span class="soft">不是一个更花哨的聊天窗口，而是一台可以替你持续工作的小型操作系统。</span>
+    </p>
+    <div class="ctas">
+      <a class="btn" href="https://github.com/1052666/1052-OS/releases" target="_blank" rel="noopener">下载最新版 · Latest release <span class="arrow">→</span></a>
+      <a class="btn ghost" href="#flow">看它怎么工作 · See how it works</a>
+    </div>
+    <div class="meta">
+      <div><b>Local-first</b> · 数据留在本机</div>
+      <div><b>OpenAI-compatible</b> · 任意兼容模型</div>
+      <div><b>Cross-platform</b> · macOS / Windows / Linux</div>
+      <div><b>MIT</b> · 开源协议</div>
+    </div>
+
+    <!-- Windowed hero visual -->
+    <div class="window" aria-hidden="true">
+      <div class="chrome">
+        <span class="light"></span><span class="light"></span><span class="light"></span>
+        <span class="title">1052 OS — <b>chat</b> · repo: ~/projects/market-report · skill: 周报整理</span>
+        <span class="mono tiny" style="color:var(--ink-soft)">⌘K</span>
+      </div>
+      <div class="body">
+        <!-- sidebar -->
+        <aside class="sidebar">
+          <h5>Workspace</h5>
+          <div class="item on"><span class="g"></span><span class="k">Chat · 聊天</span><span class="n">12</span></div>
+          <div class="item"><span class="g"></span><span class="k">Files · 文件</span><span class="n">438</span></div>
+          <div class="item"><span class="g"></span><span class="k">Notes · 笔记</span><span class="n">71</span></div>
+          <div class="item"><span class="g"></span><span class="k">Resources · 资源</span><span class="n">24</span></div>
+          <h5>Agent</h5>
+          <div class="item"><span class="g"></span><span class="k">Skills · 技能</span><span class="n">16</span></div>
+          <div class="item"><span class="g"></span><span class="k">Search · 搜索</span><span class="n">5</span></div>
+          <div class="item"><span class="g"></span><span class="k">Schedule · 定时</span><span class="n">8</span></div>
+          <div class="item"><span class="g"></span><span class="k">Notifications</span><span class="n">3</span></div>
+          <h5>Channels</h5>
+          <div class="item"><span class="g"></span><span class="k">WeChat · 微信</span><span class="n">•</span></div>
+          <div class="item"><span class="g"></span><span class="k">Memory · 记忆</span><span class="n">•</span></div>
+        </aside>
+
+        <!-- chat -->
+        <div class="chat">
+          <div class="msg me">
+            <div class="who">You · 10:42</div>
+            <div class="bubble">读一下 <span class="mono">~/projects/market-report</span> 的 README，整理一份两页周报，下午 17:00 推到微信。</div>
+          </div>
+          <div class="msg">
+            <div class="who">Agent · 1052</div>
+            <div class="think"><span class="tri"></span>思考过程已折叠 · thinking (3.2s, 412 tokens) — 点击展开</div>
+            <div class="toolcall">
+              <div class="head"><span>→ read_repo("market-report")</span><span class="k">ok · 18 files</span></div>
+              README.md · package.json · CHANGELOG.md · 15 more
+            </div>
+            <div style="height:6px"></div>
+            <div class="toolcall">
+              <div class="head"><span>→ create_note("周报 · 04-20")</span><span class="k">ok</span></div>
+              写入 data/notes/weekly/2026-04-20.md · 2 pages
+            </div>
+            <div style="height:6px"></div>
+            <div class="toolcall">
+              <div class="head"><span>→ schedule_once("wechat.push", at=17:00)</span><span class="k">queued</span></div>
+              callback → chat#12 on reply
+            </div>
+            <div style="height:8px"></div>
+            <div class="bubble">
+              已整理 <b>《Market Report 周报 · 04/14–04/20》</b>，两页，要点 6 条，风险 2 条。
+              <br/>17:00 会通过微信推送给你；对方回复会回到当前聊天。
+            </div>
+          </div>
+        </div>
+
+        <!-- inspector -->
+        <aside class="inspector">
+          <h5>Run · 运行状态</h5>
+          <div class="card">
+            <div class="row"><span>model</span><b>gpt-4.1-mini</b></div>
+            <div class="row"><span>context</span><b>42% · 52k / 128k</b></div>
+            <div class="row"><span>tools called</span><b>3</b></div>
+            <div class="row"><span>tokens</span><b>↑ 1 240 · ↓ 812</b></div>
+            <div class="row"><span>cost</span><b>¥ 0.018</b></div>
+          </div>
+          <h5>Permissions · 权限</h5>
+          <div class="card">
+            <span class="pill on"><span class="d"></span>files</span>
+            <span class="pill on"><span class="d"></span>notes</span>
+            <span class="pill on"><span class="d"></span>schedule</span>
+            <span class="pill warn"><span class="d"></span>network</span>
+            <span class="pill"><span class="d"></span>terminal</span>
+          </div>
+          <h5>Next · 下一步</h5>
+          <div class="card" style="font-size:13px; color:var(--ink-soft); line-height:1.55">
+            17:00 · wechat.push → 家庭群<br/>
+            周五 09:00 · 每周复盘（循环）
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES (pillars) -->
+<section id="features">
+  <div class="wrap">
+    <div class="sec-tag"><span class="bar"></span>§ 01 / PILLARS · 三大支柱</div>
+    <h2>
+      不是一个聊天框，<br/>是一台替你工作的小系统。
+      <span class="en">Three pillars · chat that does, workspace that remembers, agent that keeps running</span>
+    </h2>
+
+    <div class="feat-grid">
+      <div class="feat">
+        <div class="glyph mono">❝</div>
+        <div class="num">01 / CHAT</div>
+        <div class="zh">会聊天，更会动手</div>
+        <div class="en">Chat that gets things done</div>
+        <p>OpenAI 兼容接口、流式输出、可折叠思考过程、Token 统计、上下文压缩、Markdown 渲染。每条消息后面都是真实的工具调用，不是 demo。</p>
+      </div>
+      <div class="feat">
+        <div class="glyph mono">▤</div>
+        <div class="num">02 / WORKSPACE</div>
+        <div class="zh">一个会记住你的工作台</div>
+        <div class="en">A workspace that remembers you</div>
+        <p>本地文件、笔记、资源、仓库工作区四位一体；Agent 直接读写、按行编辑、跨项目检索，聊天里可以一键跳回原文件。</p>
+      </div>
+      <div class="feat">
+        <div class="glyph mono">⌁</div>
+        <div class="num">03 / AGENT</div>
+        <div class="zh">会自己持续跑的 Agent</div>
+        <div class="en">An agent that keeps running</div>
+        <p>技能中心 + 定时任务 + 通知 + 社交通道 + 长期记忆，让 Agent 不止回答问题，还能在你不在电脑前时把事做完，然后告诉你结果。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULES (your feature table) -->
+<section id="modules">
+  <div class="wrap">
+    <div class="sec-tag"><span class="bar"></span>§ 02 / MODULES · 模块总览</div>
+    <h2>
+      十二个模块，<br/>围绕同一个 Agent 展开。
+      <span class="en">Twelve modules · all wired into one working agent</span>
+    </h2>
+
+    <div class="modtable">
+      <div class="row">
+        <div class="k"><div class="zh">AI 聊天</div><div class="en">Chat</div></div>
+        <div class="v">
+          <span class="tag a"><span class="d"></span>OpenAI 兼容接口</span>
+          <span class="tag"><span class="d"></span>流式输出</span>
+          <span class="tag"><span class="d"></span>思考过程折叠</span>
+          <span class="tag"><span class="d"></span>Token 统计</span>
+          <span class="tag"><span class="d"></span>上下文压缩</span>
+          <span class="tag"><span class="d"></span>Markdown 渲染</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">Agent 工具</div><div class="en">Agent tools</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>文件增删查改</span>
+          <span class="tag"><span class="d"></span>按行编辑</span>
+          <span class="tag"><span class="d"></span>仓库读取</span>
+          <span class="tag"><span class="d"></span>笔记管理</span>
+          <span class="tag"><span class="d"></span>资源管理</span>
+          <span class="tag a"><span class="d"></span>联网搜索</span>
+          <span class="tag m"><span class="d"></span>终端执行</span>
+          <span class="tag g"><span class="d"></span>图像生成</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">仓库工作区</div><div class="en">Repo workspace</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>自动识别本地项目</span>
+          <span class="tag"><span class="d"></span>读取 README</span>
+          <span class="tag"><span class="d"></span>文件树与说明</span>
+          <span class="tag"><span class="d"></span>聊天内快速跳转</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">笔记系统</div><div class="en">Notes</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>绑定本地笔记目录</span>
+          <span class="tag"><span class="d"></span>data/notes/ 默认目录</span>
+          <span class="tag"><span class="d"></span>Agent 可读写</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">资源列表</div><div class="en">Resources</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>网址 / 长文本</span>
+          <span class="tag"><span class="d"></span>清单与备注</span>
+          <span class="tag"><span class="d"></span>标签</span>
+          <span class="tag"><span class="d"></span>按条目拆分保存</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">技能中心</div><div class="en">Skills</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>本地技能管理</span>
+          <span class="tag a"><span class="d"></span>技能市场搜索</span>
+          <span class="tag"><span class="d"></span>预览 / 安装</span>
+          <span class="tag g"><span class="d"></span>热更新</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">搜索系统</div><div class="en">Search</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>聚合搜索源</span>
+          <span class="tag"><span class="d"></span>新闻搜索</span>
+          <span class="tag"><span class="d"></span>网页读取</span>
+          <span class="tag"><span class="d"></span>搜索源状态可视化</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">日历 & 定时</div><div class="en">Calendar & Schedule</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>普通日程</span>
+          <span class="tag"><span class="d"></span>单次任务</span>
+          <span class="tag"><span class="d"></span>循环任务</span>
+          <span class="tag"><span class="d"></span>长期任务</span>
+          <span class="tag a"><span class="d"></span>Agent 回调</span>
+          <span class="tag m"><span class="d"></span>终端任务</span>
+          <span class="tag g"><span class="d"></span>微信推送</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">通知中心</div><div class="en">Notifications</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>未读提醒</span>
+          <span class="tag"><span class="d"></span>任务结果回写</span>
+          <span class="tag"><span class="d"></span>跳回聊天上下文</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">社交通道</div><div class="en">Social channel</div></div>
+        <div class="v">
+          <span class="tag g"><span class="d"></span>微信扫码接入</span>
+          <span class="tag"><span class="d"></span>消息回显</span>
+          <span class="tag"><span class="d"></span>媒体收发</span>
+          <span class="tag a"><span class="d"></span>定时任务推送</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">长期记忆</div><div class="en">Long-term memory</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>普通记忆</span>
+          <span class="tag m"><span class="d"></span>敏感记忆</span>
+          <span class="tag"><span class="d"></span>记忆建议</span>
+          <span class="tag a"><span class="d"></span>运行时注入预览</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">图像生成</div><div class="en">Image gen</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>OpenAI 格式配置</span>
+          <span class="tag"><span class="d"></span>聊天内直接展示</span>
+        </div>
+      </div>
+      <div class="row">
+        <div class="k"><div class="zh">设置面板</div><div class="en">Settings</div></div>
+        <div class="v">
+          <span class="tag"><span class="d"></span>模型配置</span>
+          <span class="tag"><span class="d"></span>主题</span>
+          <span class="tag m"><span class="d"></span>完全权限</span>
+          <span class="tag"><span class="d"></span>图像生成</span>
+          <span class="tag a"><span class="d"></span>Token 可视化</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="flow">
+  <div class="wrap">
+    <div class="sec-tag"><span class="bar"></span>§ 03 / FLOW · 一次完整的“做事”</div>
+    <h2>
+      从一句话，<br/>到事情真的被做完。
+      <span class="en">From one sentence — to the task actually done</span>
+    </h2>
+
+    <div class="flow">
+      <div class="step">
+        <div class="no">STEP 01</div>
+        <h4>说人话</h4>
+        <div class="en">Say it in plain words</div>
+        <p>直接用中文或英文描述你想做的事：整理、记录、查询、推送、长期追踪 —— 不用想工具名字。</p>
+        <div class="arr"></div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 02</div>
+        <h4>挑选技能</h4>
+        <div class="en">Skills &amp; tools chosen</div>
+        <p>Agent 结合仓库、笔记、资源和已装技能，决定用哪些工具：读文件、搜索、写笔记、发通知……</p>
+        <div class="arr"></div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 03</div>
+        <h4>动手执行</h4>
+        <div class="en">Tools actually run</div>
+        <p>文件真的被读写、终端命令真的被执行、搜索结果真的被抓取，全过程在工作台里可见、可撤销。</p>
+        <div class="arr"></div>
+      </div>
+      <div class="step">
+        <div class="no">STEP 04</div>
+        <h4>持续跟进</h4>
+        <div class="en">Keeps running for you</div>
+        <p>定时任务、循环任务、微信回推 —— 即使你不在电脑前，Agent 也会继续把事跟到底。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCHEDULE + NOTIFICATIONS -->
+<section id="schedule">
+  <div class="wrap">
+    <div class="sec-tag"><span class="bar"></span>§ 04 / SCHEDULE · 不在场也能替你做事</div>
+    <h2>
+      日历 × 定时 × 通知，<br/>一条线上的持续工作。
+      <span class="en">Calendar × schedule × notifications · one continuous line of work</span>
+    </h2>
+
+    <div class="split">
+      <div class="panel">
+        <h3>今日定时任务<span class="en">Today's schedule · 2026 · 04 · 20</span></h3>
+        <div class="list">
+          <div class="tkrow">
+            <div class="t">09:00</div>
+            <div class="title">每周复盘整理
+              <span class="sub">循环任务 · 每周一 · agent 回调 → chat#04</span>
+            </div>
+            <div class="state ok">DONE</div>
+          </div>
+          <div class="tkrow">
+            <div class="t">12:30</div>
+            <div class="title">午间新闻摘要
+              <span class="sub">长期任务 · 聚合搜索 + 网页读取 · 推送到微信</span>
+            </div>
+            <div class="state ok">DONE</div>
+          </div>
+          <div class="tkrow">
+            <div class="t">15:00</div>
+            <div class="title">读取 market-report 仓库
+              <span class="sub">单次任务 · 终端执行 git pull · 写入笔记</span>
+            </div>
+            <div class="state run">RUNNING</div>
+          </div>
+          <div class="tkrow">
+            <div class="t">17:00</div>
+            <div class="title">周报推送 · 家庭群
+              <span class="sub">Agent 回调 · wechat.push · 回复回到 chat#12</span>
+            </div>
+            <div class="state pend">QUEUED</div>
+          </div>
+          <div class="tkrow">
+            <div class="t">22:00</div>
+            <div class="title">长期目标检查 · 英语口语 30 天
+              <span class="sub">长期任务 · 读取笔记 · 生成当日提问</span>
+            </div>
+            <div class="state pend">QUEUED</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>通知中心<span class="en">Notifications · unread 3</span></h3>
+        <div class="list">
+          <div class="notif">
+            <div class="ic">✓</div>
+            <div class="t">
+              <div class="ttl">每周复盘已写入 <span class="mono small">notes/weekly/2026-04-20.md</span></div>
+              <div class="sub">包含 6 条要点、2 条风险、3 条下周行动项。</div>
+              <div class="meta">CHAT #04 · 09:02 · TAP TO OPEN</div>
+            </div>
+          </div>
+          <div class="notif">
+            <div class="ic">✎</div>
+            <div class="t">
+              <div class="ttl">记忆建议：你经常在周一早上读新闻</div>
+              <div class="sub">是否把"12:30 新闻摘要"加入长期记忆，作为默认行为？</div>
+              <div class="meta">MEMORY · SUGGESTION · 12:31</div>
+            </div>
+          </div>
+          <div class="notif">
+            <div class="ic">↗</div>
+            <div class="t">
+              <div class="ttl">微信收到回复：妈妈 · 家庭群</div>
+              <div class="sub">"好的，周报收到了。" — 已回写到 chat#12</div>
+              <div class="meta">WECHAT · 17:03 · JUMP TO CHAT</div>
+            </div>
+          </div>
+          <div class="notif">
+            <div class="ic">⚠</div>
+            <div class="t">
+              <div class="ttl">敏感记忆：信用卡尾号 · 已打码保存</div>
+              <div class="sub">仅在明确授权的技能中注入；可在 Settings → Memory 查看。</div>
+              <div class="meta">MEMORY · SENSITIVE · SEEN</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QUOTE / PHILOSOPHY -->
+<section>
+  <div class="wrap" style="display:grid; grid-template-columns: 1fr 1fr; gap:60px">
+    <div>
+      <div class="sec-tag"><span class="bar"></span>§ 05 / WHY · 为什么做成操作系统</div>
+      <blockquote class="quote">
+        好的 AI 不是一个更好的聊天框，<br/>而是一台<span class="accent">替你持续工作</span>的小系统。
+        <span class="en">Good AI isn't a better chat box. It's a small system that keeps working for you.</span>
+      </blockquote>
+    </div>
+    <div style="align-self:end">
+      <p style="font-size:16px; line-height:1.75; color:var(--ink-soft); max-width:50ch">
+        1052 OS 把<b style="color:var(--ink)">会话、文件、任务、记忆</b>放在同一个本地工作台里，
+        让 Agent 拥有<b style="color:var(--ink)">真正的上下文</b>与<b style="color:var(--ink)">真正的权限</b>。
+        你不是在调教一个演员，你是在配置一个能替你做事的同事。
+      </p>
+      <p style="font-size:14px; color:var(--ink-mute); font-family:var(--mono); letter-spacing:0.05em; margin-top:24px">
+        — 1052 OS design notes · §05
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-tag"><span class="bar"></span>§ 06 / FAQ · 常见问题</div>
+    <h2>
+      那些可能先想问的事。
+      <span class="en">Things you'll probably ask first</span>
+    </h2>
+
+    <div class="faq">
+      <details open>
+        <summary><span class="n">Q 01</span> 我的数据会被上传吗？<span class="plus">+</span></summary>
+        <div class="body">
+          不会。1052 OS 是<b>本地优先</b>的：文件、笔记、资源、长期记忆、定时任务全部保存在你自己的机器上。
+          只有当你选择调用云端模型或联网搜索时，相关内容才会按需发送给你配置的服务。
+          <span class="en">Local-first. Your data stays on your machine unless you opt in to a cloud model or web search.</span>
+        </div>
+      </details>
+      <details>
+        <summary><span class="n">Q 02</span> 支持哪些模型？<span class="plus">+</span></summary>
+        <div class="body">
+          任意 OpenAI 兼容接口都能直接配置，包括本地模型（如 Ollama / vLLM 暴露的兼容端点）。
+          你可以为不同场景配置不同模型：聊天用一个、定时任务用另一个。
+          <span class="en">Any OpenAI-compatible endpoint works — including local ones. Per-scenario model config is supported.</span>
+        </div>
+      </details>
+      <details>
+        <summary><span class="n">Q 03</span> 它和普通 AI 聊天 App 有什么不同？<span class="plus">+</span></summary>
+        <div class="body">
+          普通 App 给你一个聊天框；1052 OS 给你一个<b>会记东西、会动手、会守夜</b>的工作台：
+          本地仓库、笔记、技能、定时任务和社交通道都被编织在同一个 Agent 周围。
+          <span class="en">Chat apps give you a box. 1052 OS gives you a workspace — one that remembers, executes, and keeps running.</span>
+        </div>
+      </details>
+      <details>
+        <summary><span class="n">Q 04</span> 定时任务和「长期任务」有什么区别？<span class="plus">+</span></summary>
+        <div class="body">
+          单次任务在指定时间执行一次；循环任务按周期重复；长期任务是<b>没有固定终点</b>的目标型任务 ——
+          例如"帮我追一个项目直到上线"，Agent 会持续读取相关资源并在有进展时通知你。
+          <span class="en">Once / recurring / long-term — long-term tasks are open-ended goals the agent keeps tracking.</span>
+        </div>
+      </details>
+      <details>
+        <summary><span class="n">Q 05</span> 微信通道安全吗？<span class="plus">+</span></summary>
+        <div class="body">
+          微信通道通过扫码接入，消息通路在本地代理；你可以随时在设置里撤销授权。
+          任何通过社交通道发出的定时任务都会在通知中心留下可追溯的记录。
+          <span class="en">Scan-to-link, revokable anytime. Every outgoing action leaves an auditable trace in notifications.</span>
+        </div>
+      </details>
+      <details>
+        <summary><span class="n">Q 06</span> 开源吗？可以自己写技能吗？<span class="plus">+</span></summary>
+        <div class="body">
+          项目采用 MIT 许可。技能中心同时支持本地技能和技能市场，你可以编写、安装、预览并热更新技能，
+          也可以把技能打包分享给别人。
+          <span class="en">MIT licensed. Write your own skills locally, or install &amp; hot-reload from the skill market.</span>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="download" style="border-bottom:0; padding-bottom:80px">
+  <div class="wrap">
+    <div class="cta">
+      <div class="grid-bg"></div>
+      <div>
+        <div class="mono tiny" style="color:#ffffff99; letter-spacing:0.14em; text-transform:uppercase">§ 07 / GET STARTED</div>
+        <h2>
+          让这台小系统，<br/>
+          今晚<span class="soft">就</span>开始替你工作<span class="caret"></span>
+        </h2>
+        <div class="en">Let this little OS start working for you — tonight.</div>
+        <div class="ctas">
+          <a class="btn primary" href="https://github.com/1052666/1052-OS/releases" target="_blank" rel="noopener">下载最新版 · Latest release <span class="arrow">↗</span></a>
+          <a class="btn ghost" href="https://github.com/1052666/1052-OS" target="_blank" rel="noopener">在 GitHub 打开 · Open on GitHub <span class="arrow">→</span></a>
+        </div>
+      </div>
+      <ul>
+        <li><span>License</span><b>MIT</b></li>
+        <li><span>Latest</span><b>v0.9.2 · 2026.04</b></li>
+        <li><span>Platforms</span><b>macOS · Windows · Linux</b></li>
+        <li><span>Models</span><b>OpenAI-compatible</b></li>
+        <li><span>Repo</span><b>github.com/1052666/1052-OS</b></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="brand" style="margin-bottom:14px">
+        <span class="mark">10</span>
+        <span class="name">1052 OS</span>
+      </div>
+      <p class="sig">真正能帮人做事的个人 AI 操作系统。<br/>A local-first personal AI operating system that actually gets things done.</p>
+      <p class="mono tiny" style="color:var(--ink-mute); margin-top:24px; letter-spacing:0.08em">© 2026 · 1052 · MIT License</p>
+    </div>
+    <div class="cols">
+      <div>
+        <h6>Product · 产品</h6>
+        <ul>
+          <li><a href="#features">功能特性 / Features</a></li>
+          <li><a href="#modules">模块 / Modules</a></li>
+          <li><a href="#flow">工作流程 / Flow</a></li>
+          <li><a href="#schedule">定时 / Schedule</a></li>
+        </ul>
+      </div>
+      <div>
+        <h6>Project · 项目</h6>
+        <ul>
+          <li><a href="https://github.com/1052666/1052-OS" target="_blank" rel="noopener">GitHub Repository</a></li>
+          <li><a href="https://github.com/1052666/1052-OS/releases" target="_blank" rel="noopener">Releases · 发布</a></li>
+          <li><a href="https://github.com/1052666/1052-OS/issues" target="_blank" rel="noopener">Issues · 反馈</a></li>
+          <li><a href="https://github.com/1052666/1052-OS/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></li>
+        </ul>
+      </div>
+      <div>
+        <h6>Misc</h6>
+        <ul>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#download">下载 / Download</a></li>
+          <li><a href="#top">回到顶部 / To top ↑</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
