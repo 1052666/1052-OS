@@ -1,0 +1,38 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="84" x2="1080" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111F"/>
+      <stop offset="1" stop-color="#12365D"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#46C2FF"/>
+      <stop offset="1" stop-color="#FFD978"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" rx="32" fill="url(#bg)"/>
+  <rect x="66" y="60" width="1068" height="640" rx="28" fill="#0B172A" stroke="#24476E"/>
+  <rect x="98" y="96" width="1004" height="54" rx="18" fill="#091524" stroke="#1D385A"/>
+  <text x="132" y="131" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Search Sources and Skill Center</text>
+  <rect x="98" y="178" width="684" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <rect x="132" y="214" width="616" height="58" rx="18" fill="#10243E" stroke="#214268"/>
+  <circle cx="166" cy="243" r="11" fill="url(#accent)"/>
+  <text x="192" y="251" fill="#9BC4E7" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Search web, sources, tools, skills...</text>
+  <rect x="132" y="302" width="616" height="110" rx="22" fill="#0C2742" stroke="#214268"/>
+  <text x="166" y="346" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Cross-verified search result</text>
+  <rect x="166" y="368" width="228" height="10" rx="5" fill="#9BC4E7"/>
+  <rect x="166" y="390" width="184" height="10" rx="5" fill="#6E8AAC"/>
+  <rect x="132" y="438" width="298" height="92" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="164" y="492" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Search source status</text>
+  <rect x="450" y="438" width="298" height="92" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="520" y="492" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Chinese support</text>
+  <rect x="132" y="556" width="616" height="80" rx="20" fill="#10243E" stroke="#214268"/>
+  <path d="M168 596H454" stroke="url(#accent)" stroke-width="8" stroke-linecap="round" stroke-dasharray="18 12"/>
+  <rect x="814" y="178" width="288" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <text x="846" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Skills</text>
+  <rect x="846" y="252" width="224" height="100" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="892" y="308" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Install</text>
+  <rect x="846" y="378" width="224" height="100" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="899" y="434" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Preview</text>
+  <rect x="846" y="504" width="224" height="100" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="876" y="560" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Hot update</text>
+</svg>

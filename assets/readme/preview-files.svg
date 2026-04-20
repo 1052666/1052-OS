@@ -1,0 +1,49 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="84" x2="1020" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111F"/>
+      <stop offset="1" stop-color="#0E7C86"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFD978"/>
+      <stop offset="1" stop-color="#48E5C2"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" rx="32" fill="url(#bg)"/>
+  <rect x="66" y="60" width="1068" height="640" rx="28" fill="#0B172A" stroke="#23466E"/>
+  <rect x="98" y="96" width="1004" height="54" rx="18" fill="#091524" stroke="#1D385A"/>
+  <text x="130" y="131" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Files, Notes and Resources</text>
+  <rect x="98" y="178" width="266" height="490" rx="24" fill="#0C1E34" stroke="#1D385A"/>
+  <text x="132" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Workspace</text>
+  <rect x="132" y="250" width="198" height="18" rx="9" fill="url(#accent)"/>
+  <rect x="132" y="292" width="164" height="14" rx="7" fill="#5D7FA9"/>
+  <rect x="158" y="324" width="138" height="14" rx="7" fill="#7FA4CB"/>
+  <rect x="184" y="356" width="112" height="14" rx="7" fill="#5D7FA9"/>
+  <rect x="132" y="404" width="176" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+  <text x="162" y="434" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">README.md</text>
+  <rect x="132" y="472" width="176" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+  <text x="176" y="502" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">notes/</text>
+  <rect x="132" y="540" width="176" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+  <text x="163" y="570" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">resources/</text>
+  <rect x="396" y="178" width="416" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <text x="430" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Precise file editing</text>
+  <rect x="430" y="252" width="350" height="74" rx="18" fill="#10243E" stroke="#214268"/>
+  <text x="462" y="294" fill="#DCEBFF" font-family="Consolas, monospace" font-size="20" font-weight="700">filesystem_replace_lines()</text>
+  <rect x="430" y="350" width="350" height="196" rx="22" fill="#091524" stroke="#214268"/>
+  <text x="462" y="394" fill="#8DB5D9" font-family="Consolas, monospace" font-size="18">18  const items = loadItems()</text>
+  <text x="462" y="428" fill="#FFD978" font-family="Consolas, monospace" font-size="18">19  saveItems(items)</text>
+  <text x="462" y="462" fill="#8DB5D9" font-family="Consolas, monospace" font-size="18">20  return result</text>
+  <rect x="462" y="492" width="220" height="12" rx="6" fill="url(#accent)"/>
+  <rect x="430" y="576" width="170" height="52" rx="18" fill="#132C48" stroke="#2B5F92"/>
+  <text x="470" y="608" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Read</text>
+  <rect x="610" y="576" width="170" height="52" rx="18" fill="#132C48" stroke="#2B5F92"/>
+  <text x="648" y="608" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Write</text>
+  <rect x="844" y="178" width="258" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <text x="876" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Structured data</text>
+  <rect x="876" y="252" width="194" height="94" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="930" y="308" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Notes</text>
+  <rect x="876" y="372" width="194" height="94" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="905" y="428" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Resources</text>
+  <rect x="876" y="492" width="194" height="94" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="918" y="548" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Workspace</text>
+</svg>

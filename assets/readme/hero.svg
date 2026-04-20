@@ -1,0 +1,118 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="180" y1="120" x2="1460" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111F"/>
+      <stop offset="0.55" stop-color="#102443"/>
+      <stop offset="1" stop-color="#0E7C86"/>
+    </linearGradient>
+    <linearGradient id="card" x1="968" y1="150" x2="1368" y2="758" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11213B"/>
+      <stop offset="1" stop-color="#0A1629"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#46C2FF"/>
+      <stop offset="1" stop-color="#48E5C2"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFB86C"/>
+      <stop offset="1" stop-color="#FFD978"/>
+    </linearGradient>
+    <filter id="shadow" x="-120" y="-120" width="1840" height="1140" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="36" stdDeviation="42" flood-color="#020817" flood-opacity="0.36"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" rx="36" fill="url(#bg)"/>
+  <circle cx="1332" cy="118" r="214" fill="#48E5C2" opacity="0.08"/>
+  <circle cx="198" cy="752" r="236" fill="#46C2FF" opacity="0.08"/>
+  <circle cx="1102" cy="802" r="274" fill="#FFD978" opacity="0.06"/>
+
+  <g opacity="0.18">
+    <path d="M72 192H748" stroke="#7DD3FC" stroke-width="1"/>
+    <path d="M72 238H680" stroke="#7DD3FC" stroke-width="1"/>
+    <path d="M72 284H612" stroke="#7DD3FC" stroke-width="1"/>
+    <path d="M72 330H544" stroke="#7DD3FC" stroke-width="1"/>
+  </g>
+
+  <rect x="78" y="106" width="196" height="38" rx="19" fill="#0F2038" stroke="#27466F"/>
+  <circle cx="105" cy="125" r="6" fill="#48E5C2"/>
+  <text x="124" y="131" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Local-first AI Agent Workspace</text>
+
+  <text x="78" y="268" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="108" font-weight="800">1052 OS</text>
+  <text x="78" y="340" fill="#97B4D6" font-family="Segoe UI, Arial, sans-serif" font-size="36" font-weight="500">A practical personal operating space for chat, tools, files, memory, search and automations.</text>
+
+  <text x="78" y="414" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="28" font-weight="600">Designed and built by a 17-year-old student developer.</text>
+  <text x="78" y="456" fill="#97B4D6" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="500">Not just a demo chat window. It is meant to be used every day.</text>
+
+  <rect x="78" y="522" width="150" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="111" y="552" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Chat</text>
+  <rect x="242" y="522" width="150" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="273" y="552" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Files</text>
+  <rect x="406" y="522" width="150" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="431" y="552" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Search</text>
+  <rect x="570" y="522" width="150" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="594" y="552" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Skills</text>
+  <rect x="78" y="586" width="178" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="108" y="616" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Schedules</text>
+  <rect x="272" y="586" width="178" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="305" y="616" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Channels</text>
+  <rect x="466" y="586" width="178" height="48" rx="24" fill="#0E233C" stroke="#23436A"/>
+  <text x="500" y="616" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Memory</text>
+
+  <rect x="78" y="694" width="620" height="124" rx="28" fill="#0B1A2E" stroke="#213E62"/>
+  <text x="112" y="742" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700">Built for real workflows</text>
+  <text x="112" y="784" fill="#9BB7D8" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="500">Streaming chat, line-based file editing, resource management, long-term memory, scheduled callbacks and social channel delivery in one place.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="912" y="94" width="604" height="712" rx="36" fill="url(#card)" stroke="#2A4F7A"/>
+    <rect x="944" y="126" width="540" height="58" rx="18" fill="#0A1629" stroke="#23436A"/>
+    <circle cx="978" cy="155" r="7" fill="#FF7B72"/>
+    <circle cx="1006" cy="155" r="7" fill="#FFD978"/>
+    <circle cx="1034" cy="155" r="7" fill="#48E5C2"/>
+    <text x="1072" y="163" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Agent Workspace</text>
+
+    <rect x="944" y="204" width="118" height="570" rx="24" fill="#0B1A2E" stroke="#1D3553"/>
+    <rect x="964" y="232" width="78" height="24" rx="12" fill="url(#accent)" opacity="0.88"/>
+    <rect x="964" y="278" width="64" height="12" rx="6" fill="#375A82"/>
+    <rect x="964" y="306" width="82" height="12" rx="6" fill="#375A82"/>
+    <rect x="964" y="352" width="80" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+    <rect x="964" y="418" width="80" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+    <rect x="964" y="484" width="80" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+    <rect x="964" y="550" width="80" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+    <rect x="964" y="616" width="80" height="48" rx="16" fill="#10243E" stroke="#214268"/>
+
+    <rect x="1082" y="204" width="190" height="570" rx="24" fill="#0D1F36" stroke="#1D3553"/>
+    <text x="1110" y="244" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">Conversation</text>
+    <rect x="1110" y="274" width="134" height="74" rx="18" fill="#143050" stroke="#25517F"/>
+    <text x="1132" y="314" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="600">/compact</text>
+    <rect x="1124" y="382" width="120" height="86" rx="18" fill="#0C2742" stroke="#214268"/>
+    <rect x="1124" y="490" width="120" height="110" rx="18" fill="#0C2742" stroke="#214268"/>
+    <rect x="1124" y="620" width="120" height="118" rx="18" fill="#0C2742" stroke="#214268"/>
+    <circle cx="1150" cy="410" r="8" fill="#48E5C2"/>
+    <circle cx="1150" cy="518" r="8" fill="#46C2FF"/>
+    <circle cx="1150" cy="648" r="8" fill="#FFD978"/>
+    <rect x="1168" y="402" width="52" height="10" rx="5" fill="#9BC4E7"/>
+    <rect x="1168" y="430" width="40" height="10" rx="5" fill="#6985A9"/>
+    <rect x="1168" y="510" width="54" height="10" rx="5" fill="#9BC4E7"/>
+    <rect x="1168" y="538" width="44" height="10" rx="5" fill="#6985A9"/>
+    <rect x="1168" y="640" width="56" height="10" rx="5" fill="#9BC4E7"/>
+    <rect x="1168" y="668" width="46" height="10" rx="5" fill="#6985A9"/>
+
+    <rect x="1292" y="204" width="192" height="270" rx="24" fill="#0D1F36" stroke="#1D3553"/>
+    <text x="1320" y="244" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">Tools</text>
+    <rect x="1320" y="274" width="136" height="44" rx="16" fill="url(#accent)" opacity="0.16" stroke="#2B5F92"/>
+    <text x="1342" y="302" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">Filesystem</text>
+    <rect x="1320" y="332" width="136" height="44" rx="16" fill="#10243E" stroke="#214268"/>
+    <text x="1360" y="360" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">Search</text>
+    <rect x="1320" y="390" width="136" height="44" rx="16" fill="#10243E" stroke="#214268"/>
+    <text x="1352" y="418" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">Scheduler</text>
+
+    <rect x="1292" y="492" width="192" height="282" rx="24" fill="#0D1F36" stroke="#1D3553"/>
+    <text x="1320" y="532" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">Status</text>
+    <rect x="1320" y="560" width="136" height="64" rx="18" fill="#0F223B" stroke="#214268"/>
+    <text x="1342" y="596" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Streaming</text>
+    <rect x="1320" y="642" width="136" height="64" rx="18" fill="#0F223B" stroke="#214268"/>
+    <text x="1346" y="678" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">Memory</text>
+    <path d="M1342 734C1368 700 1390 698 1412 710C1430 720 1450 746 1456 768" stroke="url(#warm)" stroke-width="8" stroke-linecap="round"/>
+  </g>
+</svg>

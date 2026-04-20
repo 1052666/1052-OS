@@ -1,0 +1,48 @@
+<svg width="1200" height="760" viewBox="0 0 1200 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="84" x2="1080" y2="700" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#08111F"/>
+      <stop offset="1" stop-color="#17424F"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#48E5C2"/>
+      <stop offset="1" stop-color="#FFD978"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="760" rx="32" fill="url(#bg)"/>
+  <rect x="66" y="60" width="1068" height="640" rx="28" fill="#0B172A" stroke="#23466E"/>
+  <rect x="98" y="96" width="1004" height="54" rx="18" fill="#091524" stroke="#1D385A"/>
+  <text x="132" y="131" fill="#DCEBFF" font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600">Schedules, Notifications and Channels</text>
+  <rect x="98" y="178" width="450" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <text x="130" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Calendar</text>
+  <rect x="130" y="248" width="386" height="388" rx="20" fill="#091524" stroke="#214268"/>
+  <rect x="160" y="286" width="326" height="18" rx="9" fill="url(#accent)"/>
+  <rect x="160" y="332" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="246" y="332" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="332" y="332" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="418" y="332" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="160" y="418" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="246" y="418" width="70" height="70" rx="18" fill="#132C48" stroke="#2B5F92"/>
+  <text x="270" y="462" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700">8</text>
+  <rect x="332" y="418" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="418" y="418" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="160" y="504" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="246" y="504" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="332" y="504" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="418" y="504" width="70" height="70" rx="18" fill="#10243E" stroke="#214268"/>
+  <rect x="582" y="178" width="238" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <text x="614" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Task callback</text>
+  <rect x="614" y="254" width="174" height="96" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="650" y="310" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Daily news</text>
+  <rect x="614" y="378" width="174" height="96" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="641" y="434" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Reminder</text>
+  <rect x="614" y="502" width="174" height="96" rx="20" fill="#10243E" stroke="#214268"/>
+  <text x="659" y="558" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">Terminal</text>
+  <rect x="854" y="178" width="248" height="490" rx="24" fill="#0D1F36" stroke="#1D385A"/>
+  <text x="886" y="218" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Delivery</text>
+  <rect x="886" y="254" width="184" height="140" rx="22" fill="#10243E" stroke="#214268"/>
+  <text x="928" y="334" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">WeChat</text>
+  <rect x="886" y="426" width="184" height="140" rx="22" fill="#10243E" stroke="#214268"/>
+  <text x="916" y="506" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Notification</text>
+  <path d="M916 608C952 572 992 572 1034 604" stroke="url(#accent)" stroke-width="8" stroke-linecap="round"/>
+</svg>
