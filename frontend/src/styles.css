@@ -7851,3 +7851,40 @@ button.social-platform-card:hover {
 .react-flow__attribution { display: none; }
 .react-flow__edge-path { stroke: var(--accent); stroke-width: 1.5; }
 .react-flow__connection-path { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 3; }
+
+/* Toolbar */
+.orch-rf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--hairline);
+}
+.orch-rf-toolbar-left { display: flex; align-items: center; gap: 8px; flex: 1; }
+.orch-rf-toolbar-right { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+/* Edge insert button */
+.orch-rf-edge-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-1);
+  border: 1px dashed var(--fg-4);
+  color: var(--fg-3);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+.orch-rf-edge-plus:hover .orch-rf-edge-btn,
+.orch-rf-edge-btn:hover {
+  opacity: 1;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
