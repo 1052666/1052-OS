@@ -180,3 +180,9 @@ export const IconSocial = (p: Props) => (
     <path d="M9.5 10.2 11 14M14.5 10.2 13 14M9.7 17h4.6" />
   </svg>
 )
+
+export const IconStop = (p: Props) => (
+  <svg {...base(p)}>
+    <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none" />
+  </svg>
+)

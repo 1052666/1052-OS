@@ -8,7 +8,7 @@ import {
   type MouseEvent,
 } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { IconPlus, IconSend, IconSparkle } from '../components/Icons'
+import { IconPlus, IconSend, IconSparkle, IconStop } from '../components/Icons'
 import Markdown from '../components/Markdown'
 import {
   AgentApi,
@@ -302,6 +302,7 @@ export default function Chat() {
   const persistInFlight = useRef(false)
   const pendingPersist = useRef<StoredChatMessage[] | null>(null)
   const lastSyncedKeyRef = useRef('')
+  const abortRef = useRef<AbortController | null>(null)
 
   const autosize = () => {
     const ta = taRef.current
@@ -348,6 +349,26 @@ export default function Chat() {
       persistInFlight.current = false
       if (pendingPersist.current) void persistMessages(messagesRef.current)
     }
+  }
+
+  const stop = () => {
+    if (abortRef.current) {
+      abortRef.current.abort()
+      abortRef.current = null
+    }
+    const streaming = messagesRef.current.find((m) => m.streaming)
+    if (streaming) {
+      patchMsg(
+        streaming.id,
+        {
+          streaming: false,
+          error: true,
+          content: streaming.content || '（已手动停止）',
+        },
+        true,
+      )
+    }
+    setLoading(false)
   }
 
   const clearConversation = async () => {
@@ -452,13 +473,23 @@ export default function Chat() {
         if (cancelled) return
 
         const restored = storedMessages.map((message) => ({ ...message }))
+        let needsPatch = false
+        for (const m of restored) {
+          if (m.streaming) {
+            m.streaming = false
+            m.error = true
+            if (!m.content) m.content = '（请求中断，未收到回复）'
+            needsPatch = true
+          }
+        }
         lastSyncedKeyRef.current = JSON.stringify(
           restored.map((message) => [message.id, message.ts, message.content.length, message.streaming === true]),
         )
         commitMessages(restored)
         nextId.current =
           restored.reduce((maxId, message) => Math.max(maxId, message.id), 0) + 1
-        setLoading(restored.some((message) => message.streaming))
+        setLoading(false)
+        if (needsPatch) void persistMessages(restored)
         setHistoryLoaded(true)
         requestAnimationFrame(() => {
           autosize()
@@ -682,21 +713,27 @@ export default function Chat() {
 
     try {
       if (useStream) {
-        await AgentApi.chatStream(history, {
-          onDelta: (chunk) => appendDelta(assistantId, chunk),
-          onUsage: (usage) => patchMsg(assistantId, { usage }, true),
-          onDone: () => patchMsg(assistantId, { streaming: false }, true),
-          onError: (message) =>
-            patchMsg(
-              assistantId,
-              {
-                streaming: false,
-                error: true,
-                content: '请求失败: ' + message,
-              },
-              true,
-            ),
-        })
+        const ctrl = new AbortController()
+        abortRef.current = ctrl
+        await AgentApi.chatStream(
+          history,
+          {
+            onDelta: (chunk) => appendDelta(assistantId, chunk),
+            onUsage: (usage) => patchMsg(assistantId, { usage }, true),
+            onDone: () => patchMsg(assistantId, { streaming: false }, true),
+            onError: (message) =>
+              patchMsg(
+                assistantId,
+                {
+                  streaming: false,
+                  error: true,
+                  content: '请求失败: ' + message,
+                },
+                true,
+              ),
+          },
+          ctrl.signal,
+        )
       } else {
         const { message } = await AgentApi.chat(history)
         patchMsg(
@@ -721,6 +758,7 @@ export default function Chat() {
         true,
       )
     } finally {
+      abortRef.current = null
       setLoading(false)
     }
   }
@@ -989,15 +1027,21 @@ export default function Chat() {
             rows={1}
             disabled={!historyLoaded}
           />
-          <button
-            className="icon-btn primary"
-            onClick={send}
-            disabled={!historyLoaded || !input.trim() || loading}
-            title="发送"
-            type="button"
-          >
-            <IconSend size={16} />
-          </button>
+          {loading ? (
+            <button className="icon-btn danger" onClick={stop} title="停止" type="button">
+              <IconStop size={16} />
+            </button>
+          ) : (
+            <button
+              className="icon-btn primary"
+              onClick={send}
+              disabled={!historyLoaded || !input.trim()}
+              title="发送"
+              type="button"
+            >
+              <IconSend size={16} />
+            </button>
+          )}
         </div>
         <div className="composer-hint">
           {historyLoaded

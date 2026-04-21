@@ -554,6 +554,13 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   cursor: not-allowed;
   filter: none;
 }
+.icon-btn.danger {
+  background: linear-gradient(180deg, #ef4444, #dc2626);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 8px 22px -8px rgba(239, 68, 68, 0.65);
+}
+.icon-btn.danger:hover { filter: brightness(1.08); }
 
 .search {
   display: flex;
