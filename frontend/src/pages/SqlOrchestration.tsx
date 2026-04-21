@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
-import { OrchestrationApi, type Orchestration, type OrchestrationExecution, type LogEntry } from '../api/orchestration'
+import { useEffect, useState, useCallback } from 'react'
+import { OrchestrationApi, type Orchestration, type OrchestrationNode, type OrchestrationExecution } from '../api/orchestration'
 import { SqlApi, type DataSource, type SqlFile } from '../api/sql'
 import { FlowEditor } from '../components/orchestration/FlowEditor'
-import { useOrchestrationEditor } from '../components/orchestration/hooks/useOrchestrationEditor'
+import { useOrchestrationEditor, type OrchNodeType } from '../components/orchestration/hooks/useOrchestrationEditor'
+import { useAutoLayout } from '../components/orchestration/hooks/useAutoLayout'
+import { Toolbar } from '../components/orchestration/Toolbar'
+import { NodeConfigDrawer } from '../components/orchestration/panels/NodeConfigDrawer'
+import { LogPanel } from '../components/orchestration/LogPanel'
+import { ContextMenu, type MenuItem } from '../components/orchestration/context-menus/ContextMenu'
+import { AddNodeDialog } from '../components/orchestration/AddNodeDialog'
 
 const EMPTY_ORCH: Orchestration = { id: '', name: '', description: '', nodes: [], edges: [], createdAt: 0, updatedAt: 0 }
 
@@ -16,10 +22,16 @@ export default function SqlOrchestration() {
   const [executing, setExecuting] = useState(false)
   const [execution, setExecution] = useState<OrchestrationExecution | null>(null)
   const [error, setError] = useState('')
-  const logPanelRef = useRef<HTMLDivElement>(null)
+  const [logCollapsed, setLogCollapsed] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
   const editorHook = useOrchestrationEditor(editing ?? EMPTY_ORCH)
+  const autoLayout = useAutoLayout()
+
+  // Context menu & add node dialog state
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'canvas' | 'node'; nodeId?: string } | null>(null)
+  const [addNodePos, setAddNodePos] = useState<{ x: number; y: number } | null>(null)
+  const [insertEdgeId, setInsertEdgeId] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -29,22 +41,12 @@ export default function SqlOrchestration() {
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
-  useEffect(() => {
-    if (execution && logPanelRef.current) logPanelRef.current.scrollIntoView({ behavior: 'smooth' })
-  }, [execution])
 
-  // Used by list view and Part 4 integration
-  void datasources; void sqlFiles
-  const startEditing = (orch: Orchestration) => {
-    setEditing(orch)
-    setExecution(null)
-    setError('')
-    setSelectedNodeId(null)
-    editorHook.resetFrom(orch)
-  }
-  void startEditing
+  const selectedNode = selectedNodeId
+    ? editorHook.nodes.find((n) => n.id === selectedNodeId)?.data as OrchestrationNode | undefined
+    : null
 
-  // ─── Save / Execute ───────────────────────────────────
+  // ─── Actions ──────────────────────────────────────────
 
   const handleSave = async () => {
     if (!editing) return
@@ -69,23 +71,17 @@ export default function SqlOrchestration() {
   const handleExecute = async () => {
     if (!editing?.id) return
     try { await handleSave() } catch { /* auto-save */ }
-    setExecuting(true); setExecution(null); setError('')
+    setExecuting(true); setExecution(null); setError(''); setLogCollapsed(false)
     try {
       const { executionId } = await OrchestrationApi.execute(editing.id)
       while (true) {
         const p = await OrchestrationApi.progress(editing.id, executionId)
-        setExecution({
-          id: executionId, orchestrationId: editing.id, orchestrationName: editing.name,
-          status: p.status, logs: p.logs, startTime: p.startTime, endTime: p.endTime,
-        })
+        setExecution({ id: executionId, orchestrationId: editing.id, orchestrationName: editing.name, status: p.status, logs: p.logs, startTime: p.startTime, endTime: p.endTime })
         if (p.status !== 'running') break
-        await new Promise(r => setTimeout(r, 1000))
+        await new Promise((r) => setTimeout(r, 1000))
       }
       const final = await OrchestrationApi.progress(editing.id, executionId)
-      setExecution({
-        id: executionId, orchestrationId: editing.id, orchestrationName: editing.name,
-        status: final.status, logs: final.logs, startTime: final.startTime, endTime: final.endTime ?? Date.now(),
-      })
+      setExecution({ id: executionId, orchestrationId: editing.id, orchestrationName: editing.name, status: final.status, logs: final.logs, startTime: final.startTime, endTime: final.endTime ?? Date.now() })
       if (final.status === 'failed') setError('编排执行失败')
       else if (final.status === 'warning') setError('编排执行完成，但有阈值警告')
     } catch (e) { setError(e instanceof Error ? e.message : '执行失败') }
@@ -94,15 +90,78 @@ export default function SqlOrchestration() {
 
   const handleStop = async () => {
     if (!editing?.id) return
-    try {
-      await OrchestrationApi.stop(editing.id)
-      setError('正在停止...')
-    } catch { setError('停止失败') }
+    try { await OrchestrationApi.stop(editing.id); setError('正在停止...') } catch { setError('停止失败') }
   }
 
   const handleDelete = async (id: string) => {
-    try { await OrchestrationApi.delete(id); if (editing?.id === id) setEditing(null); await load() }
-    catch { setError('删除失败') }
+    try { await OrchestrationApi.delete(id); if (editing?.id === id) setEditing(null); await load() } catch { setError('删除失败') }
+  }
+
+  const handleAutoLayout = () => {
+    const laid = autoLayout(editorHook.nodes, editorHook.edges)
+    editorHook.setNodes(laid)
+  }
+
+  // ─── Context menu ──────────────────────────────────
+
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setCtxMenu({ x: e.clientX, y: e.clientY, type: 'canvas' })
+  }, [])
+
+  const canvasMenuItems: MenuItem[] = [
+    { label: '添加 SQL 节点', action: 'add-sql' },
+    { label: '添加 Debug 节点', action: 'add-debug' },
+    { label: '添加 Load 节点', action: 'add-load' },
+    { label: '添加 Wait 节点', action: 'add-wait' },
+    { label: '自动布局', action: 'auto-layout' },
+  ]
+
+  const nodeMenuItems: MenuItem[] = [
+    { label: '编辑配置', action: 'edit' },
+    { label: '启用/禁用', action: 'toggle' },
+    { label: '删除节点', action: 'delete', danger: true },
+  ]
+
+  const handleCtxSelect = (action: string) => {
+    if (action.startsWith('add-')) editorHook.addNode(action.slice(4) as OrchNodeType)
+    else if (action === 'auto-layout') handleAutoLayout()
+    else if (action === 'edit' && ctxMenu?.nodeId) setSelectedNodeId(ctxMenu.nodeId)
+    else if (action === 'toggle' && ctxMenu?.nodeId) {
+      const node = editorHook.nodes.find((n) => n.id === ctxMenu.nodeId)
+      if (node) editorHook.updateNodeData(ctxMenu.nodeId, { enabled: !(node.data as OrchestrationNode).enabled })
+    }
+    else if (action === 'delete' && ctxMenu?.nodeId) editorHook.removeNode(ctxMenu.nodeId)
+  }
+
+  // ─── Edge insert listener ──────────────────────────
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { edgeId: string; x: number; y: number }
+      setInsertEdgeId(detail.edgeId)
+      setAddNodePos({ x: detail.x + 200, y: detail.y })
+    }
+    window.addEventListener('orch-edge-insert', handler)
+    return () => window.removeEventListener('orch-edge-insert', handler)
+  }, [])
+
+  const handleInsertNode = (type: OrchNodeType) => {
+    if (!insertEdgeId) { setAddNodePos(null); return }
+    const edge = editorHook.edges.find((e) => e.id === insertEdgeId)
+    if (!edge) { setInsertEdgeId(null); setAddNodePos(null); return }
+    editorHook.addNode(type)
+    const newNodeId = editorHook.nodes[editorHook.nodes.length - 1]?.id
+    if (newNodeId) {
+      editorHook.removeEdge(insertEdgeId)
+      editorHook.setEdges((eds) => [
+        ...eds.filter((e) => e.id !== insertEdgeId),
+        { id: `e-${Date.now().toString(36)}`, source: edge.source, target: newNodeId, type: 'custom' as const },
+        { id: `e-${Date.now().toString(36)}-2`, source: newNodeId, target: edge.target, type: 'custom' as const },
+      ])
+    }
+    setInsertEdgeId(null)
+    setAddNodePos(null)
   }
 
   // ─── Render ───────────────────────────────────────────
@@ -110,46 +169,58 @@ export default function SqlOrchestration() {
   if (loading) return <div className="page"><p>加载中...</p></div>
 
   if (editing) return (
-    <div className="page orch-editor-page">
-      <div className="orch-page-header">
-        <div className="page-header-left">
-          <button className="chip" onClick={() => { setEditing(null); setExecution(null); setError('') }}>&larr; 返回</button>
-          <input className="orch-name-input" type="text" placeholder="编排名称" value={editing.name}
-            onChange={e => setEditing({ ...editing, name: e.target.value })} />
-        </div>
-        <div className="page-header-right">
-          <button className="chip" onClick={() => editorHook.addNode('sql')}>+ SQL</button>
-          <button className="chip" onClick={() => editorHook.addNode('debug')}>+ Debug</button>
-          <button className="chip" onClick={() => editorHook.addNode('load')}>+ 加载</button>
-          <button className="chip" onClick={() => editorHook.addNode('wait')}>+ Wait</button>
-          <button className="chip primary" onClick={handleSave} disabled={saving}>{saving ? '保存中...' : '保存'}</button>
-          {editing.id && !executing && <button className="chip accent" onClick={handleExecute}>执行</button>}
-          {editing.id && executing && <button className="chip danger" onClick={handleStop}>停止</button>}
-        </div>
-      </div>
+    <div className="page orch-editor-page" onContextMenu={handleCanvasContextMenu}>
+      <Toolbar
+        name={editing.name}
+        saving={saving}
+        executing={executing}
+        hasId={!!editing.id}
+        onNameChange={(name) => setEditing({ ...editing, name })}
+        onBack={() => { setEditing(null); setExecution(null); setError(''); setSelectedNodeId(null) }}
+        onSave={handleSave}
+        onExecute={handleExecute}
+        onStop={handleStop}
+        onAutoLayout={handleAutoLayout}
+        onAddNode={(type) => editorHook.addNode(type)}
+      />
       {error && <div className="orch-error">{error}</div>}
 
-      <FlowEditor
-        orch={editing}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={setSelectedNodeId}
-        editorHook={editorHook}
-      />
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <FlowEditor
+          orch={editing}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          editorHook={editorHook}
+        />
+        {selectedNode && (
+          <NodeConfigDrawer
+            node={selectedNode}
+            datasources={datasources}
+            sqlFiles={sqlFiles}
+            onChange={(updates) => editorHook.updateNodeData(selectedNodeId!, updates)}
+            onEnableToggle={() => editorHook.updateNodeData(selectedNodeId!, { enabled: !selectedNode.enabled })}
+            onDelete={() => { editorHook.removeNode(selectedNodeId!); setSelectedNodeId(null) }}
+            onClose={() => setSelectedNodeId(null)}
+          />
+        )}
+      </div>
 
-      {/* Log panel */}
-      {execution && (
-        <div className="orch-log-panel" ref={logPanelRef}>
-          <div className="orch-log-header">
-            <h3>执行日志</h3>
-            <span className={`orch-status-badge ${execution.status}`}>
-              {execution.status === 'success' ? '成功' : execution.status === 'failed' ? '失败' : execution.status === 'running' ? '执行中' : '警告'}
-            </span>
-            {execution.endTime ? <span className="orch-log-duration">{((execution.endTime - execution.startTime) / 1000).toFixed(1)}s</span> : <span className="orch-log-duration">执行中...</span>}
-          </div>
-          <div className="orch-log-entries">
-            {execution.logs.map(log => <LogEntryCard key={log.nodeId} log={log} />)}
-          </div>
-        </div>
+      <LogPanel execution={execution} collapsed={logCollapsed} onToggle={() => setLogCollapsed(!logCollapsed)} />
+
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x} y={ctxMenu.y}
+          items={ctxMenu.type === 'canvas' ? canvasMenuItems : nodeMenuItems}
+          onSelect={handleCtxSelect}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+      {addNodePos && (
+        <AddNodeDialog
+          position={addNodePos}
+          onSelect={handleInsertNode}
+          onClose={() => { setAddNodePos(null); setInsertEdgeId(null) }}
+        />
       )}
     </div>
   )
@@ -160,7 +231,7 @@ export default function SqlOrchestration() {
       <div className="orch-page-header">
         <h1>SQL 编排</h1>
         <button className="chip primary"
-          onClick={() => setEditing({ id: '', name: '', description: '', nodes: [], edges: [], createdAt: 0, updatedAt: 0 })}>
+          onClick={() => setEditing(EMPTY_ORCH)}>
           + 新建编排
         </button>
       </div>
@@ -168,7 +239,7 @@ export default function SqlOrchestration() {
         <div className="sql-var-empty card"><p>暂无编排</p></div>
       ) : (
         <div className="orch-list">
-          {orchestrations.map(orch => (
+          {orchestrations.map((orch) => (
             <div key={orch.id} className="orch-card card">
               <div className="orch-card-header">
                 <h3>{orch.name}</h3>
@@ -176,63 +247,17 @@ export default function SqlOrchestration() {
               </div>
               {orch.description && <p className="orch-card-desc">{orch.description}</p>}
               <div className="orch-card-nodes">
-                {orch.nodes.map(node => <span key={node.id} className={`orch-mini-node ${node.type}`}>{node.name}</span>)}
+                {orch.nodes.map((node) => <span key={node.id} className={`orch-mini-node ${node.type}`}>{node.name}</span>)}
               </div>
               <div className="orch-card-actions">
-                <button className="chip" onClick={() => { setEditing(orch); setExecution(null); setError('') }}>编辑</button>
+                <button className="chip" onClick={() => {
+                  setEditing(orch); setExecution(null); setError(''); setSelectedNodeId(null)
+                  editorHook.resetFrom(orch)
+                }}>编辑</button>
                 <button className="chip danger" onClick={() => handleDelete(orch.id)}>删除</button>
               </div>
             </div>
           ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Log Entry ──────────────────────────────────────────────
-
-function LogEntryCard({ log }: { log: LogEntry }) {
-  const [expanded, setExpanded] = useState(true)
-  const icons: Record<string, string> = { success: '\u2713', failed: '\u2717', warning: '\u26A0', skipped: '\u2014', running: '\u23F3' }
-  return (
-    <div className={`orch-log-entry ${log.status}`} onClick={() => setExpanded(!expanded)}>
-      <div className="orch-log-entry-header">
-        <span className={`orch-log-status-icon ${log.status === 'running' ? 'spin' : ''}`}>{icons[log.status]}</span>
-        <span className="orch-log-node-name">{log.nodeName}</span>
-        <span className={`orch-node-type-badge small ${log.nodeType}`}>{log.nodeType === 'sql' ? 'SQL' : log.nodeType === 'debug' ? 'Debug' : log.nodeType === 'load' ? '加载' : '等待'}</span>
-        <span className="orch-log-duration">{log.status === 'running' ? '等待中...' : `${(log.duration / 1000).toFixed(2)}s`}</span>
-        {log.nodeType === 'debug' && log.thresholdPassed !== undefined && (
-          <span className={`orch-threshold-result ${log.thresholdPassed ? 'pass' : 'fail'}`}>
-            {log.thresholdPassed ? '通过' : '未通过'}
-          </span>
-        )}
-      </div>
-      {expanded && (
-        <div className="orch-log-entry-body">
-          <div className="orch-log-sql"><label>SQL:</label><code>{log.sql}</code></div>
-          {log.affectedRows !== undefined && <div className="orch-log-detail"><label>影响行数:</label><span>{log.affectedRows}</span></div>}
-          {log.result && (
-            <div className="orch-log-detail"><label>结果:</label>
-              <div className="orch-log-result-table"><table>
-                <thead><tr>{log.result.columns.map(c => <th key={c}>{c}</th>)}</tr></thead>
-                <tbody>{log.result.rows.map((row, i) => <tr key={i}>{log.result!.columns.map(c => <td key={c}>{String(row[c] ?? '')}</td>)}</tr>)}</tbody>
-              </table></div>
-            </div>
-          )}
-          {log.nodeType === 'debug' && log.actualValue !== undefined && (
-            <div className="orch-log-detail">
-              <label>实际值:</label><span>{log.actualValue}</span>
-              {log.expectedValue !== undefined && <><span className="orch-log-sep">|</span><label>期望:</label><span>{log.expectedValue}</span></>}
-            </div>
-          )}
-          {log.nodeType === 'wait' && log.actualValue !== undefined && (
-            <div className="orch-log-detail">
-              <label>数据条数:</label><span>{log.actualValue}</span>
-              {log.expectedValue !== undefined && <><span className="orch-log-sep">|</span><span>{log.expectedValue}</span></>}
-            </div>
-          )}
-          {log.error && <div className="orch-log-error"><label>错误:</label><span>{log.error}</span></div>}
         </div>
       )}
     </div>
