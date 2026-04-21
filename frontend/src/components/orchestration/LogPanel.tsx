@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { OrchestrationExecution, LogEntry } from '../../api/orchestration'
 
 function LogEntryCard({ log }: { log: LogEntry }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const icons: Record<string, string> = { success: '\u2713', failed: '\u2717', warning: '\u26A0', skipped: '\u2014', running: '\u23F3' }
   return (
     <div className={`orch-log-entry ${log.status}`} onClick={() => setExpanded(!expanded)}>

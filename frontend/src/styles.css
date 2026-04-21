@@ -7595,11 +7595,10 @@ button.social-platform-card:hover {
   border: 1px solid var(--hairline);
   border-radius: var(--r-lg);
   background: var(--surface-0);
-  overflow: hidden;
-  flex-shrink: 0;
-  max-height: 45vh;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  height: 300px;
 }
 
 .orch-log-header {
@@ -7607,8 +7606,9 @@ button.social-platform-card:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
 }
 
 .orch-log-header strong {
@@ -7634,12 +7634,12 @@ button.social-platform-card:hover {
 }
 
 .orch-log-entries {
-  padding: 12px 16px;
+  padding: 10px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  flex: 1;
+  gap: 8px;
   overflow-y: auto;
+  flex: 1;
   min-height: 0;
 }
 
@@ -7693,8 +7693,6 @@ button.social-platform-card:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 250px;
-  overflow-y: auto;
 }
 
 .orch-log-sql {
