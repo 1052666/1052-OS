@@ -7228,7 +7228,7 @@ button.social-platform-card:hover {
   flex-direction: column;
   gap: 14px;
   height: 100%;
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 .page-header-left {
