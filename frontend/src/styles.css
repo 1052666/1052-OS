@@ -7960,3 +7960,62 @@ button.social-platform-card:hover {
   min-height: 60px;
 }
 .orch-drawer-textarea:focus { border-color: var(--accent-ring); }
+
+/* Context menu */
+.orch-context-menu {
+  position: fixed;
+  z-index: 100;
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--r-md);
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: var(--sh-2);
+}
+.orch-context-item {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+.orch-context-item:hover { background: var(--surface-hover); color: var(--fg); }
+.orch-context-item.danger { color: var(--danger); }
+.orch-context-item.danger:hover { background: rgba(248,113,113,0.1); }
+
+/* Add node dialog */
+.orch-add-node-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.orch-add-node-dialog {
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--r-lg);
+  padding: 10px;
+  min-width: 220px;
+  box-shadow: var(--sh-3);
+}
+.orch-add-node-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.orch-add-node-item:hover { background: var(--surface-hover); }
