@@ -131,6 +131,10 @@ export default function SqlDataSources() {
       showNotice('SQLite 文件路径不能为空')
       return
     }
+    if ((draft.type === 'mysql' || draft.type === 'hive') && !draft.database.trim()) {
+      showNotice('数据库名不能为空')
+      return
+    }
     setSaving(true)
     try {
       const payload = {
@@ -282,7 +286,7 @@ export default function SqlDataSources() {
                   />
                 </label>
                 <label>
-                  <span>数据库</span>
+                  <span>数据库{(draft.type === 'mysql' || draft.type === 'hive') && ' *'}</span>
                   <input
                     value={draft.database}
                     onChange={(e) => setDraft((c) => ({ ...c, database: e.target.value }))}

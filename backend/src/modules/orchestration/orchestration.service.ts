@@ -247,6 +247,11 @@ function escapeCol(name: string) {
   return `\`${name.replace(/`/g, '``')}\``
 }
 
+function escapeTableRef(name: string) {
+  const parts = name.replace(/[`";]/g, '').split('.').map(p => p.trim()).filter(Boolean)
+  return parts.map(p => escapeCol(p)).join('.')
+}
+
 function escapeVal(v: unknown): string {
   if (v === null || v === undefined) return 'NULL'
   return `'${String(v).replace(/'/g, "''")}'`
@@ -259,9 +264,14 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
     if (!node.targetTable) throw new Error('未配置目标表')
 
     const resolved = await resolveNodeSql(node)
+    if (!resolved.sql?.trim()) throw new Error('未配置源查询 SQL')
     const sql = await resolveVariables(resolved.sql)
     const srcDs = await getDataSource(resolved.datasourceId)
     const tgtDs = await getDataSource(node.targetDatasourceId)
+
+    const needsDb = (t: string) => t === 'mysql' || t === 'hive'
+    if (needsDb(srcDs.type) && !srcDs.database) throw new Error(`源数据源「${srcDs.name}」未配置数据库名`)
+    if (needsDb(tgtDs.type) && !tgtDs.database) throw new Error(`目标数据源「${tgtDs.name}」未配置数据库名`)
 
     const srcConfig = { type: srcDs.type, host: srcDs.host, port: srcDs.port, user: srcDs.user, password: srcDs.password, database: srcDs.database, filePath: srcDs.filePath }
     const tgtConfig = { type: tgtDs.type, host: tgtDs.host, port: tgtDs.port, user: tgtDs.user, password: tgtDs.password, database: tgtDs.database, filePath: tgtDs.filePath }
@@ -304,14 +314,14 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
     const partitionMappings = rawMappings.filter(m => m.isPartition)
     const sortedMappings = [...normalMappings, ...partitionMappings]
 
-    const table = node.targetTable.replace(/[`";]/g, '')
+    const tableRef = escapeTableRef(node.targetTable)
     const mode = node.mode || 'insert'
 
     // TRUNCATE + INSERT mode
     if (mode === 'truncate_insert') {
       const truncateSql = isHive
-        ? `TRUNCATE TABLE \`${table}\``
-        : `DELETE FROM \`${table}\``
+        ? `TRUNCATE TABLE ${tableRef}`
+        : `DELETE FROM ${tableRef}`
       await Promise.race([
         executeDbQuery(tgtConfig, truncateSql, 1),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('清空目标表超时')), QUERY_TIMEOUT_MS)),
@@ -330,11 +340,11 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
         // Hive: INSERT INTO TABLE t PARTITION (p1, p2) (c1, c2, p1, p2) VALUES (...)
         const partColList = partitionMappings.map(m => escapeCol(m.target)).join(', ')
         const allColList = sortedMappings.map(m => escapeCol(m.target)).join(', ')
-        return `${prefix} INTO TABLE \`${table}\` PARTITION (${partColList}) (${allColList}) VALUES\n${values}`
+        return `${prefix} INTO TABLE ${tableRef} PARTITION (${partColList}) (${allColList}) VALUES\n${values}`
       }
 
       const colList = sortedMappings.map(m => escapeCol(m.target)).join(', ')
-      return `${prefix} INTO \`${table}\` (${colList}) VALUES\n${values}`
+      return `${prefix} INTO ${tableRef} (${colList}) VALUES\n${values}`
     }
 
     // Batch insert
