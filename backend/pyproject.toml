@@ -1,0 +1,15 @@
+[project]
+name = "1052-os-backend"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pyhive>=0.7",
+    "thrift>=0.20",
+    "pymysql>=1.1",
+    "oracledb>=3.0",
+    "thrift-sasl>=0.4.3",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

@@ -11,6 +11,11 @@ import Settings from './pages/Settings'
 import Notifications from './pages/Notifications'
 import Memory from './pages/Memory'
 import SocialChannels from './pages/SocialChannels'
+import SqlDataSources from './pages/SqlDataSources'
+import SqlFiles from './pages/SqlFiles'
+import SqlVariables from './pages/SqlVariables'
+import SqlOrchestration from './pages/SqlOrchestration'
+import SqlLoads from './pages/SqlLoads'
 
 export default function App() {
   return (
@@ -28,6 +33,11 @@ export default function App() {
           <Route path="/memory" element={<Memory />} />
           <Route path="/social-channels" element={<SocialChannels />} />
           <Route path="/social-channels/:channel" element={<SocialChannels />} />
+          <Route path="/sql/datasources" element={<SqlDataSources />} />
+          <Route path="/sql/files" element={<SqlFiles />} />
+          <Route path="/sql/variables" element={<SqlVariables />} />
+          <Route path="/sql/orchestration" element={<SqlOrchestration />} />
+          <Route path="/sql/loads" element={<SqlLoads />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/search-sources" element={<SearchSources />} />
           <Route path="/skills" element={<Skills />} />

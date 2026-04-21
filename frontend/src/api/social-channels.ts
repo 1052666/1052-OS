@@ -43,6 +43,27 @@ export type WechatDeliveryTarget = {
   lastMessageAt?: number
 }
 
+export type WecomWebhookSummary = {
+  id: string
+  name: string
+  webhookKey: string
+  enabled: boolean
+  savedAt: string
+  lastSentAt?: number
+  lastError?: string
+}
+
+export type WecomWebhookInput = {
+  name?: string
+  webhookUrl?: string
+  enabled?: boolean
+}
+
+export type WecomStatus = {
+  available: true
+  webhooks: WecomWebhookSummary[]
+}
+
 export const SocialChannelsApi = {
   wechatStatus: () => api.get<WechatStatus>('/channels/wechat/status'),
   wechatDeliveryTargets: () =>
@@ -62,4 +83,15 @@ export const SocialChannelsApi = {
     ),
   deleteWechatAccount: (accountId: string) =>
     api.delete<{ ok: true }>('/channels/wechat/accounts/' + encodeURIComponent(accountId)),
+
+  wecomStatus: () => api.get<WecomStatus>('/channels/wecom/status'),
+  wecomListWebhooks: () => api.get<WecomWebhookSummary[]>('/channels/wecom/webhooks'),
+  wecomCreateWebhook: (payload: WecomWebhookInput) =>
+    api.post<WecomWebhookSummary>('/channels/wecom/webhooks', payload),
+  wecomUpdateWebhook: (id: string, payload: Partial<WecomWebhookInput>) =>
+    api.patch<WecomWebhookSummary>('/channels/wecom/webhooks/' + encodeURIComponent(id), payload),
+  wecomDeleteWebhook: (id: string) =>
+    api.delete<{ ok: true }>('/channels/wecom/webhooks/' + encodeURIComponent(id)),
+  wecomTestWebhook: (id: string) =>
+    api.post<{ ok: true; message: string }>('/channels/wecom/webhooks/' + encodeURIComponent(id) + '/test', {}),
 }

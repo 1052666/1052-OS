@@ -16,6 +16,8 @@ import { scheduleTools } from './tools/schedule.tools.js'
 import { skillsTools } from './tools/skills.tools.js'
 import { terminalTools } from './tools/terminal.tools.js'
 import { websearchTools } from './tools/websearch.tools.js'
+import { sqlTools } from './tools/sql.tools.js'
+import { orchestrationTools } from './tools/orchestration.tools.js'
 import { getSettings } from '../settings/settings.service.js'
 
 const AGENT_TOOLS: AgentTool[] = [
@@ -30,6 +32,8 @@ const AGENT_TOOLS: AgentTool[] = [
   ...websearchTools,
   ...filesystemTools,
   ...terminalTools,
+  ...sqlTools,
+  ...orchestrationTools,
 ]
 const TOOL_MAP = new Map(AGENT_TOOLS.map((tool) => [tool.name, tool]))
 

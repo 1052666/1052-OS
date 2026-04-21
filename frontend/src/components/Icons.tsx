@@ -181,6 +181,52 @@ export const IconSocial = (p: Props) => (
   </svg>
 )
 
+export const IconDatabase = (p: Props) => (
+  <svg {...base(p)}>
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+  </svg>
+)
+
+export const IconSqlFile = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+    <path d="M14 2v6h6" />
+    <path d="M8 13h2" />
+    <path d="M14 13h2" />
+    <path d="M8 17h2" />
+    <path d="M14 17h2" />
+  </svg>
+)
+
+export const IconVariable = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M4 7V4h16v3" />
+    <path d="M9 20h6" />
+    <path d="M12 4v16" />
+  </svg>
+)
+
+export const IconLoad = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M12 3v12" />
+    <path d="m8 11 4 4 4-4" />
+    <path d="M20 21H4" />
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+  </svg>
+)
+
+export const IconOrchestration = (p: Props) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="6" height="6" rx="1" />
+    <rect x="15" y="3" width="6" height="6" rx="1" />
+    <rect x="9" y="15" width="6" height="6" rx="1" />
+    <path d="M9 6h6" />
+    <path d="M18 9v3l-6 3" />
+  </svg>
+)
+
 export const IconStop = (p: Props) => (
   <svg {...base(p)}>
     <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none" />

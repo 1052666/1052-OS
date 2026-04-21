@@ -7,6 +7,8 @@ import {
   type WechatDeliveryTarget,
   type WechatLoginStart,
   type WechatStatus,
+  type WecomStatus,
+  type WecomWebhookSummary,
 } from '../api/social-channels'
 import { IconChevron, IconRefresh, IconSocial, IconTrash } from '../components/Icons'
 
@@ -56,28 +58,42 @@ export default function SocialChannels() {
   const [notice, setNotice] = useState<Notice | null>(null)
   const pollingCancelled = useRef(false)
 
+  const [, setWecomStatus] = useState<WecomStatus | null>(null)
+  const [wecomWebhooks, setWecomWebhooks] = useState<WecomWebhookSummary[]>([])
+  const [wecomFormName, setWecomFormName] = useState('')
+  const [wecomFormUrl, setWecomFormUrl] = useState('')
+  const [wecomSaving, setWecomSaving] = useState(false)
+  const [wecomTesting, setWecomTesting] = useState<string | null>(null)
+  const [wecomPendingDelete, setWecomPendingDelete] = useState('')
+
   const accounts = status?.accounts ?? []
   const runningCount = useMemo(
     () => accounts.filter((account) => account.running).length,
     [accounts],
   )
-  const activeChannel = channel === 'wechat' ? 'wechat' : null
-  const isUnknownChannel = Boolean(channel && channel !== 'wechat')
+  const activeChannel = channel === 'wechat' ? 'wechat' : channel === 'wecom' ? 'wecom' : null
+  const isUnknownChannel = Boolean(channel && channel !== 'wechat' && channel !== 'wecom')
   const wechatState = runningCount > 0 ? '接收中' : accounts.length > 0 ? '已接入' : '未接入'
   const wechatStateClass = runningCount > 0 ? ' running' : accounts.length > 0 ? ' connected' : ''
+  const wecomState = wecomWebhooks.length > 0 ? '已接入' : '未接入'
+  const wecomStateClass = wecomWebhooks.length > 0 ? ' connected' : ''
 
   const showNotice = (message: string, type: Notice['type'] = 'info') => {
     setNotice({ message, type })
+    window.setTimeout(() => setNotice(null), 4000)
   }
 
   const loadStatus = async () => {
     try {
-      const [nextStatus, targets] = await Promise.all([
+      const [nextStatus, targets, wecom] = await Promise.all([
         SocialChannelsApi.wechatStatus(),
         SocialChannelsApi.wechatDeliveryTargets(),
+        SocialChannelsApi.wecomStatus(),
       ])
       setStatus(nextStatus)
       setDeliveryTargets(targets)
+      setWecomStatus(wecom)
+      setWecomWebhooks(wecom.webhooks ?? [])
     } catch (error) {
       showNotice(getErrorMessage(error, '社交通道状态加载失败'), 'error')
     } finally {
@@ -201,15 +217,76 @@ export default function SocialChannels() {
     }
   }
 
+  const createWecomWebhook = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!wecomFormName.trim() || !wecomFormUrl.trim()) {
+      showNotice('请填写名称和 Webhook URL。', 'error')
+      return
+    }
+    setWecomSaving(true)
+    try {
+      await SocialChannelsApi.wecomCreateWebhook({ name: wecomFormName, webhookUrl: wecomFormUrl })
+      setWecomFormName('')
+      setWecomFormUrl('')
+      const ws = await SocialChannelsApi.wecomStatus()
+      setWecomStatus(ws)
+      setWecomWebhooks(ws.webhooks ?? [])
+      showNotice('Webhook 创建成功。', 'success')
+    } catch (error) {
+      showNotice(getErrorMessage(error, '创建 Webhook 失败'), 'error')
+    } finally {
+      setWecomSaving(false)
+    }
+  }
+
+  const testWecomWebhook = async (id: string) => {
+    setWecomTesting(id)
+    try {
+      const result = await SocialChannelsApi.wecomTestWebhook(id)
+      showNotice(result.message || '测试消息已发送。', 'success')
+    } catch (error) {
+      showNotice(getErrorMessage(error, 'Webhook 测试失败'), 'error')
+    } finally {
+      setWecomTesting(null)
+    }
+  }
+
+  const deleteWecomWebhook = async (id: string) => {
+    try {
+      await SocialChannelsApi.wecomDeleteWebhook(id)
+      showNotice('Webhook 已删除。', 'success')
+      setWecomPendingDelete('')
+      const ws = await SocialChannelsApi.wecomStatus()
+      setWecomStatus(ws)
+      setWecomWebhooks(ws.webhooks ?? [])
+    } catch (error) {
+      showNotice(getErrorMessage(error, 'Webhook 删除失败'), 'error')
+    }
+  }
+
+  const toggleWecomWebhook = async (id: string, enabled: boolean) => {
+    try {
+      await SocialChannelsApi.wecomUpdateWebhook(id, { enabled })
+      showNotice(enabled ? 'Webhook 已启用。' : 'Webhook 已禁用。', 'success')
+      const ws = await SocialChannelsApi.wecomStatus()
+      setWecomStatus(ws)
+      setWecomWebhooks(ws.webhooks ?? [])
+    } catch (error) {
+      showNotice(getErrorMessage(error, 'Webhook 状态切换失败'), 'error')
+    }
+  }
+
   return (
     <div className="page social-page">
       <div className="page-head social-head">
         <div>
           <div className="eyebrow">Social Channels</div>
-          <h1>{activeChannel === 'wechat' ? '微信通道' : '社交通道'}</h1>
+          <h1>{activeChannel === 'wechat' ? '微信通道' : activeChannel === 'wecom' ? '企业微信通道' : '社交通道'}</h1>
           <p>
             {activeChannel === 'wechat'
               ? '管理微信扫码接入、账号启停、媒体收发和定时任务推送目标。'
+              : activeChannel === 'wecom'
+              ? '管理企业微信群机器人 Webhook，支持创建、编辑、测试和删除。'
               : '把微信等外部平台接入同一个 Agent 聊天流。每个平台会进入独立二级页面，避免配置混在一起。'}
           </p>
         </div>
@@ -240,6 +317,28 @@ export default function SocialChannels() {
             <div className="social-platform-foot">
               <span className={'social-platform-status' + wechatStateClass}>{wechatState}</span>
               <span>{accounts.length} 个账号 / {runningCount} 个接收中</span>
+              <IconChevron size={16} />
+            </div>
+          </button>
+
+          <button
+            className="social-platform-card wecom"
+            type="button"
+            onClick={() => navigate('/social-channels/wecom')}
+          >
+            <div className="social-platform-main">
+              <div className="social-platform-mark">
+                <IconSocial size={22} />
+              </div>
+              <div>
+                <span className="social-platform-kicker">WeCom</span>
+                <strong>企业微信</strong>
+                <small>Webhook 群机器人推送，支持文本和 Markdown 消息格式。</small>
+              </div>
+            </div>
+            <div className="social-platform-foot">
+              <span className={'social-platform-status' + wecomStateClass}>{wecomState}</span>
+              <span>{wecomWebhooks.length} 个 Webhook</span>
               <IconChevron size={16} />
             </div>
           </button>
@@ -455,6 +554,130 @@ export default function SocialChannels() {
                   </article>
                 ))}
               </div>
+            </div>
+          </section>
+        </section>
+      ) : activeChannel === 'wecom' ? (
+        <section className="social-channel-detail">
+          <div className="social-channel-detail-head">
+            <div>
+              <div className="eyebrow">Active Channel</div>
+              <h2>企业微信通道</h2>
+              <p>管理企业微信群机器人 Webhook，支持创建、编辑、测试和删除。</p>
+            </div>
+            <div className="social-channel-actions">
+              <button
+                className="secondary-btn"
+                type="button"
+                onClick={() => navigate('/social-channels')}
+              >
+                返回通道列表
+              </button>
+              <span className="social-platform-status">{wecomWebhooks.length} 个 Webhook</span>
+            </div>
+          </div>
+
+          <section className="social-layout">
+            <div className="social-card">
+              <div className="social-card-head">
+                <div>
+                  <h2>Webhook 列表</h2>
+                  <p>已配置的企业微信群机器人 Webhook。</p>
+                </div>
+              </div>
+
+              {wecomWebhooks.length === 0 ? (
+                <div className="social-empty-note">还没有 Webhook。在右侧添加一个新的群机器人。</div>
+              ) : (
+                <div className="social-account-list">
+                  {wecomWebhooks.map((wh) => (
+                    <article className="social-account-card" key={wh.id}>
+                      <div className="social-account-main">
+                        <div>
+                          <div className="social-account-title">{wh.name}</div>
+                          <div className="social-account-id">{wh.webhookKey}</div>
+                        </div>
+                        <span className={'social-status' + (wh.enabled ? ' running' : '')}>
+                          {wh.enabled ? '已启用' : '已禁用'}
+                        </span>
+                      </div>
+                      <div className="social-account-grid">
+                        <span>保存时间：{formatTime(wh.savedAt)}</span>
+                        <span>最近发送：{formatTime(wh.lastSentAt)}</span>
+                      </div>
+                      {wh.lastError ? <div className="social-error">{wh.lastError}</div> : null}
+                      <div className="social-account-actions">
+                        <button
+                          className={wh.enabled ? 'secondary-btn' : 'primary-btn'}
+                          type="button"
+                          onClick={() => void toggleWecomWebhook(wh.id, !wh.enabled)}
+                        >
+                          {wh.enabled ? '禁用' : '启用'}
+                        </button>
+                        <button
+                          className="secondary-btn"
+                          type="button"
+                          disabled={wecomTesting === wh.id || !wh.enabled}
+                          onClick={() => void testWecomWebhook(wh.id)}
+                        >
+                          {wecomTesting === wh.id ? '发送中...' : '测试'}
+                        </button>
+                        {wecomPendingDelete === wh.id ? (
+                          <>
+                            <button
+                              className="danger-btn"
+                              type="button"
+                              onClick={() => void deleteWecomWebhook(wh.id)}
+                            >
+                              确认删除
+                            </button>
+                            <button className="secondary-btn" type="button" onClick={() => setWecomPendingDelete('')}>
+                              取消
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="icon-btn danger-ghost"
+                            type="button"
+                            title="删除 Webhook"
+                            onClick={() => setWecomPendingDelete(wh.id)}
+                          >
+                            <IconTrash size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="social-card">
+              <div className="social-card-head">
+                <div>
+                  <h2>添加 Webhook</h2>
+                  <p>输入企业微信群机器人的 Webhook URL 来创建新的推送通道。</p>
+                </div>
+              </div>
+              <form onSubmit={(e) => void createWecomWebhook(e)}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input
+                    className="social-wecom-input"
+                    placeholder="名称"
+                    value={wecomFormName}
+                    onChange={(e) => setWecomFormName(e.target.value)}
+                  />
+                  <input
+                    className="social-wecom-input"
+                    placeholder="Webhook URL"
+                    value={wecomFormUrl}
+                    onChange={(e) => setWecomFormUrl(e.target.value)}
+                  />
+                  <button className="primary-btn" type="submit" disabled={wecomSaving}>
+                    {wecomSaving ? '保存中...' : '添加'}
+                  </button>
+                </div>
+              </form>
             </div>
           </section>
         </section>
