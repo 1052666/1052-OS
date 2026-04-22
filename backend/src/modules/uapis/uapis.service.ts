@@ -197,10 +197,68 @@ export async function formatUapisRuntimeContext() {
 
 function normalizeObject(value: unknown, field: string) {
   if (value === undefined || value === null) return {}
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return {}
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch {
+      // fall through to unified validation error below
+    }
+    throw new HttpError(400, `${field} must be an object`)
+  }
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new HttpError(400, `${field} must be an object`)
   }
   return value as Record<string, unknown>
+}
+
+function normalizeCallInput(
+  rawInput: UapisCallInput,
+  api: UapisApiDefinition,
+): {
+  params: Record<string, unknown>
+  body: Record<string, unknown>
+} {
+  const input = normalizeObject(rawInput, 'input')
+  const params = normalizeObject(input.params ?? input.query, 'params')
+  const body = normalizeObject(input.body ?? input.data ?? input.payload, 'body')
+  const reserved = new Set([
+    'apiId',
+    'id',
+    'params',
+    'query',
+    'body',
+    'data',
+    'payload',
+    'confirmed',
+    '__runtimeContext',
+  ])
+  const extras = Object.entries(input).filter(([key]) => !reserved.has(key))
+  if (extras.length === 0) return { params, body }
+
+  if (api.method === 'GET') {
+    return {
+      params: { ...params, ...Object.fromEntries(extras) },
+      body,
+    }
+  }
+
+  const declaredParamNames = new Set(api.params.map((param) => param.name))
+  const extraParams: Record<string, unknown> = {}
+  const extraBody: Record<string, unknown> = {}
+  for (const [key, value] of extras) {
+    if (declaredParamNames.has(key)) extraParams[key] = value
+    else extraBody[key] = value
+  }
+
+  return {
+    params: { ...params, ...extraParams },
+    body: { ...body, ...extraBody },
+  }
 }
 
 function normalizeQueryValue(value: unknown) {
@@ -235,14 +293,14 @@ async function saveBinaryResponse(contentType: string, buffer: ArrayBuffer) {
 }
 
 export async function callUapis(input: UapisCallInput): Promise<UapisCallResult> {
-  const api = findUapisApi(input.apiId)
+  const normalizedInput = normalizeObject(input, 'input')
+  const api = findUapisApi(normalizedInput.apiId ?? normalizedInput.id)
   if (!(await isUapisApiEnabled(api.id))) {
     throw new HttpError(403, `UAPIs API is disabled: ${api.id}`)
   }
 
   const settings = await getSettings()
-  const params = normalizeObject(input.params, 'params')
-  const body = normalizeObject(input.body, 'body')
+  const { params, body } = normalizeCallInput(normalizedInput, api)
   const url = new URL(api.path, UAPIS_BASE_URL)
   Object.entries(params).forEach(([key, value]) => {
     const normalized = normalizeQueryValue(value)

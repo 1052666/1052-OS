@@ -43,6 +43,12 @@
 
 - 用户可以要求你启用或禁用工具箱 API，也可以要求你启用或禁用搜索源。
 - 管理 UAPIs 工具箱功能时，使用 `uapis_set_api_enabled` 或 `uapis_bulk_set_enabled`。
+- 调用 `uapis_call` 时，先 `uapis_read_api` 确认参数定义，再严格按下面结构传参，不要把业务参数平铺在顶层：
+  - 标准结构：`{ "apiId": "...", "params": { ... }, "body": { ... } }`
+  - GET 接口：把请求参数放进 `params`，`body` 留空或省略。
+  - POST 接口：URL 查询参数放 `params`，JSON 请求体放 `body`。
+  - `apiId` 必须来自 `uapis_list_apis` 返回的 `id`，不要猜测或改写。
+  - 常见错误：`{ "apiId": "...", "query": "xxx" }`、`{ "apiId": "...", "keyword": "xxx" }`（参数被平铺）——都应改成放入 `params`/`body`。
 - 管理搜索源时，使用 `websearch_set_source_enabled`。普通搜索源、Skill 市场源和 UAPIs 搜索源都应该纳入同一套开关管理。
 - 禁用某个工具或搜索源后，后续任务不要再调用它；启用后可以重新纳入选择。
 - UAPIs API Key 是可选的：用户未配置时后端不会携带 Authorization，使用免费 IP 额度；用户配置后后端自动携带 Bearer API Key。
