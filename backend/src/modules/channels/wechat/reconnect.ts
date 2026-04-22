@@ -8,7 +8,7 @@ import type { ReconnectEvent } from './reconnect.types.js'
 
 const DEFAULT_INITIAL_MS = 5_000
 const DEFAULT_MAX_MS = 3_600_000
-const FIXED_DELAYS_MS = [5_000, 10_000, 30_000, 60_000, 120_000] as const
+const FIXED_DELAYS_MS: readonly number[] = [5_000, 10_000, 30_000, 60_000, 120_000]
 
 export interface ReconnectOptions {
   initialMs?: number
