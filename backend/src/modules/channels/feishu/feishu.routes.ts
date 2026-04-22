@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from 'express'
 import multer from 'multer'
 import { HttpError } from '../../../http-error.js'
+import { setupWizardRouter } from './native-qr-auth/setup-wizard.routes.js'
 import {
   createFeishuTestCard,
   getFeishuCardWebhookHandler,
@@ -39,6 +40,10 @@ import {
 } from './feishu.workspace.service.js'
 
 export const feishuRouter: Router = Router()
+
+// One-shot QR setup wizard (native, no external CLI)
+feishuRouter.use('/setup-wizard', setupWizardRouter)
+
 const feishuMediaUpload = multer({
   storage: multer.memoryStorage(),
   limits: {

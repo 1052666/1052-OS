@@ -98,6 +98,16 @@ export default function SocialChannels() {
   >('auto')
   const [feishuSendFile, setFeishuSendFile] = useState<File | null>(null)
   const [feishuSendFileKey, setFeishuSendFileKey] = useState(0)
+
+  // One-Shot wizard state
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardSessionId, setWizardSessionId] = useState<string | null>(null)
+  const [wizardQrUrl, setWizardQrUrl] = useState<string>('')
+  const [wizardQrDataUrl, setWizardQrDataUrl] = useState<string>('')
+  const [wizardStatus, setWizardStatus] = useState<'idle' | 'starting' | 'pending' | 'approved' | 'failed' | 'cancelled'>('idle')
+  const [wizardMessage, setWizardMessage] = useState<string>('')
+  const wizardEsRef = useRef<EventSource | null>(null)
+
   const [wecomStatus, setWecomStatus] = useState<WecomStatus | null>(null)
   const [wecomWebhooks, setWecomWebhooks] = useState<WecomWebhookSummary[]>([])
   const [wecomFormName, setWecomFormName] = useState('')
@@ -326,6 +336,87 @@ export default function SocialChannels() {
     value: FeishuFormState[K],
   ) => {
     setFeishuForm((current) => ({ ...current, [key]: value }))
+  }
+
+  // ---------------------------------------------------------------------------
+  // One-Shot Wizard handlers
+  // ---------------------------------------------------------------------------
+
+  const closeWizard = () => {
+    wizardEsRef.current?.close()
+    wizardEsRef.current = null
+    if (wizardSessionId) {
+      // Fire-and-forget cancel
+      fetch(`/api/channels/feishu/setup-wizard/cancel/${wizardSessionId}`, { method: 'POST' }).catch(() => undefined)
+    }
+    setWizardOpen(false)
+    setWizardSessionId(null)
+    setWizardQrUrl('')
+    setWizardQrDataUrl('')
+    setWizardStatus('idle')
+    setWizardMessage('')
+  }
+
+  const startWizard = async () => {
+    setWizardStatus('starting')
+    setWizardMessage('正在连接飞书授权服务…')
+    setWizardOpen(true)
+    try {
+      const res = await fetch('/api/channels/feishu/setup-wizard/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brand: 'feishu' }),
+      })
+      const data = await res.json() as { ok: boolean; sessionId?: string; qrUrl?: string; error?: string; warning?: string }
+      if (!data.ok || !data.sessionId || !data.qrUrl) {
+        throw new Error(data.error ?? 'Failed to start wizard')
+      }
+      setWizardSessionId(data.sessionId)
+      setWizardQrUrl(data.qrUrl)
+      setWizardStatus('pending')
+      setWizardMessage(data.warning ? `注意：${data.warning}` : '请用飞书 App 扫描下方二维码')
+
+      // Generate QR image
+      try {
+        const dataUrl = await QRCode.toDataURL(data.qrUrl, { width: 240, margin: 2 })
+        setWizardQrDataUrl(dataUrl)
+      } catch {
+        setWizardQrDataUrl('')
+      }
+
+      // Subscribe to SSE stream
+      const es = new EventSource(`/api/channels/feishu/setup-wizard/stream/${data.sessionId}`)
+      wizardEsRef.current = es
+
+      es.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data as string) as { status: string; message: string; credentials?: { appId: string } }
+          setWizardMessage(event.message)
+          if (event.status === 'approved') {
+            setWizardStatus('approved')
+            es.close()
+            // Reload feishu status
+            SocialChannelsApi.feishuStatus().then(syncFeishuStatus).catch(() => undefined)
+            showNotice(`飞书 Bot 接入成功！App ID: ${event.credentials?.appId ?? ''}`, 'success')
+          } else if (event.status === 'failed' || event.status === 'cancelled') {
+            setWizardStatus(event.status as 'failed' | 'cancelled')
+            es.close()
+          } else {
+            setWizardStatus('pending')
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      es.onerror = () => {
+        setWizardMessage('SSE 连接中断，请重试')
+        setWizardStatus('failed')
+        es.close()
+      }
+    } catch (err) {
+      setWizardStatus('failed')
+      setWizardMessage(err instanceof Error ? err.message : '启动失败，请重试')
+    }
   }
 
   const saveFeishuConfig = async () => {
@@ -891,7 +982,69 @@ export default function SocialChannels() {
                   <h2>飞书应用配置</h2>
                   <p>留空的凭据字段会保留后端已保存值，不会因为这里为空而清掉已有配置。</p>
                 </div>
+                <div className="social-channel-actions">
+                  <button
+                    className="primary-btn"
+                    type="button"
+                    onClick={() => void startWizard()}
+                    title="扫码一键建立飞书 Bot，无需手动填写 App ID / Secret"
+                  >
+                    ✦ One-Shot 接入
+                  </button>
+                </div>
               </div>
+
+              {/* One-Shot Wizard Modal */}
+              {wizardOpen && (
+                <div className="social-wizard-overlay" role="dialog" aria-modal="true" aria-label="飞书一键接入">
+                  <div className="social-wizard-modal">
+                    <div className="social-wizard-head">
+                      <h3>飞书 One-Shot 接入</h3>
+                      <button className="social-wizard-close" type="button" aria-label="关闭" onClick={closeWizard}>✕</button>
+                    </div>
+
+                    {wizardStatus === 'starting' && (
+                      <div className="social-wizard-body">
+                        <div className="social-wizard-spinner" />
+                        <p>{wizardMessage}</p>
+                      </div>
+                    )}
+
+                    {wizardStatus === 'pending' && (
+                      <div className="social-wizard-body">
+                        {wizardQrDataUrl ? (
+                          <img src={wizardQrDataUrl} alt="飞书扫码二维码" className="social-wizard-qr" width={240} height={240} />
+                        ) : (
+                          <div className="social-wizard-qr-fallback">
+                            <a href={wizardQrUrl} target="_blank" rel="noopener noreferrer">{wizardQrUrl}</a>
+                          </div>
+                        )}
+                        <p className="social-wizard-hint">用飞书 App 扫描上方二维码，按提示完成机器人创建</p>
+                        <p className="social-wizard-status">{wizardMessage}</p>
+                      </div>
+                    )}
+
+                    {wizardStatus === 'approved' && (
+                      <div className="social-wizard-body social-wizard-success">
+                        <div className="social-wizard-icon">✓</div>
+                        <p>{wizardMessage}</p>
+                        <button className="primary-btn" type="button" onClick={closeWizard}>完成</button>
+                      </div>
+                    )}
+
+                    {(wizardStatus === 'failed' || wizardStatus === 'cancelled') && (
+                      <div className="social-wizard-body social-wizard-error">
+                        <div className="social-wizard-icon">✕</div>
+                        <p>{wizardMessage || '授权失败，请重试'}</p>
+                        <div className="social-wizard-actions">
+                          <button className="primary-btn" type="button" onClick={() => void startWizard()}>重试</button>
+                          <button className="secondary-btn" type="button" onClick={closeWizard}>关闭</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="social-form">
                 <label className="social-field">

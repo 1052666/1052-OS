@@ -4,14 +4,5 @@ dist
 *.log
 data/logs/*.log
 !data/logs/.gitkeep
-.venv/
-__pycache__/
-*.pyc
-*.egg-info/
-uv.lock
-*.tsbuildinfo
-data/
-.env
-.claude/
-.superpowers/
-docs/
+data/.env
+data/.env.bak

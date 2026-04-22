@@ -298,6 +298,22 @@ Agent 在权限允许时可管理本地文件，包括：
 
 ---
 
+## 飞书一键接入（One-Shot Bot Setup）
+
+无需手动创建飞书应用或填写 App ID / Secret。
+
+**步骤：**
+1. 启动 1052 OS 后端，打开 **Social Channels → 飞书** 页面。
+2. 点击右上角 **✦ One-Shot 接入** 按钮，弹窗会展示二维码。
+3. 用飞书手机 App 扫码，按提示完成机器人创建（约 30 秒）。
+4. 扫码成功后，凭证自动保存并启动飞书长连接，无需任何手动操作。
+
+**技术说明：** 通过飞书官方 `accounts.feishu.cn/oauth/v1/app/registration` Device Flow 实现，
+不依赖任何外部 CLI，完全内化在 1052 OS 后端。凭证以 JSON 形式存储于 `data/` 目录，
+同时可选写入 `data/.env`（已加入 `.gitignore` 防止意外提交）。
+
+---
+
 ## Contributing
 
 欢迎提交 Issue、建议和 Pull Request。
