@@ -42,6 +42,8 @@ import type {
   WechatLoginWait,
   WechatMessage,
 } from './wechat.types.js'
+import { scheduleReconnect } from './reconnect.js'
+import type { ReconnectHandle } from './reconnect.js'
 
 const LOGIN_TTL_MS = 5 * 60_000
 const LOGIN_WAIT_TIMEOUT_MS = 35_000
@@ -78,6 +80,7 @@ export type WechatDeliveryTarget = {
 
 const activeLogins = new Map<string, ActiveLogin>()
 const monitors = new Map<string, MonitorRuntime>()
+const reconnectHandles = new Map<string, ReconnectHandle>()
 let inboundQueue: Promise<void> = Promise.resolve()
 
 function isLoginFresh(login: ActiveLogin) {
@@ -508,6 +511,34 @@ export async function startWechatAccount(accountIdInput: unknown) {
       current.running = false
       current.lastError = sanitizeError(error)
     }
+    // session-failure hook: schedule reconnect unless explicitly stopped
+    if (!controller.signal.aborted) {
+      reconnectHandles.get(account.accountId)?.cancel()
+      const handle = scheduleReconnect(
+        async () => {
+          const acc = await loadWechatAccount(account.accountId)
+          if (!acc?.token) return false
+          if (!acc.enabled) return true // disabled — user stopped it, not a failure
+          const existing = monitors.get(acc.accountId)
+          if (existing?.running) return true
+          await startWechatAccount(acc.accountId)
+          return monitors.get(acc.accountId)?.running === true
+        },
+        {
+          onEvent(e) {
+            const rt = monitors.get(account.accountId)
+            if (rt) {
+              rt.lastError = e.type === 'failed'
+                ? `断线重连失败 (第 ${e.attempt} 次)${e.error ? `：${e.error}` : ''}`
+                : e.type === 'giving-up'
+                  ? '已放弃重连'
+                  : rt.lastError
+            }
+          },
+        },
+      )
+      reconnectHandles.set(account.accountId, handle)
+    }
   })
 
   return summarizeAccount({ ...account, enabled: true })
@@ -519,6 +550,8 @@ export async function stopWechatAccount(accountIdInput: unknown) {
   const runtime = monitors.get(accountId)
   runtime?.controller.abort()
   if (runtime) runtime.running = false
+  reconnectHandles.get(accountId)?.cancel()
+  reconnectHandles.delete(accountId)
   const account = await loadWechatAccount(accountId)
   if (account) {
     const saved = await saveWechatAccount(accountId, { enabled: false })
@@ -532,6 +565,8 @@ export async function deleteWechatAccount(accountIdInput: unknown) {
   if (!accountId) throw new HttpError(400, '微信账号 ID 不能为空')
   monitors.get(accountId)?.controller.abort()
   monitors.delete(accountId)
+  reconnectHandles.get(accountId)?.cancel()
+  reconnectHandles.delete(accountId)
   await removeWechatAccount(accountId)
   return { ok: true as const }
 }
