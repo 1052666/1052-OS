@@ -152,6 +152,7 @@ const REMARK_PLUGINS = [
   remarkMath,
   remarkDirective,
   remarkCustomContainers,
+  remarkFixInvalidDirectives,
 ]
 
 const SANITIZE_PLUGIN: [typeof rehypeSanitize, SanitizeSchema] = [
@@ -266,6 +267,28 @@ function remarkCustomContainers() {
         className: ['markdown-container', `markdown-container-${kind}`],
         dataTitle: explicitTitle || CONTAINER_TITLES[rawName] || toTitle(rawName),
       }
+    })
+  }
+}
+
+function remarkFixInvalidDirectives() {
+  return (tree: Node) => {
+    visit(tree, 'textDirective' as any, (node: any, index: any, parent: any) => {
+      if (!parent || index == null) return
+      const name = String(node.name ?? '')
+      if (/^[a-zA-Z_]/.test(name)) return
+      let text = ':' + name
+      if (Array.isArray(node.children)) {
+        const label = node.children.map((c: any) => c.value ?? '').join('')
+        if (label) text += '[' + label + ']'
+      }
+      if (node.attributes && typeof node.attributes === 'object') {
+        const attrs = Object.entries(node.attributes as Record<string, string>)
+          .map(([k, v]) => k + '="' + String(v) + '"')
+          .join(' ')
+        if (attrs) text += '{' + attrs + '}'
+      }
+      parent.children[index] = { type: 'text', value: text }
     })
   }
 }
