@@ -4,3 +4,5 @@ dist
 *.log
 data/logs/*.log
 !data/logs/.gitkeep
+data/.env
+data/.env.bak
