@@ -276,7 +276,7 @@ function remarkFixInvalidDirectives() {
     visit(tree, 'textDirective' as any, (node: any, index: any, parent: any) => {
       if (!parent || index == null) return
       const name = String(node.name ?? '')
-      if (/^[a-zA-Z]/.test(name)) return
+      if (/^[a-zA-Z_]/.test(name)) return
       let text = ':' + name
       if (Array.isArray(node.children)) {
         const label = node.children.map((c: any) => c.value ?? '').join('')
