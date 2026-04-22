@@ -1,0 +1,29 @@
+{
+  "name": "agent-backend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.61.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "multer": "^2.0.2",
+    "ssh2": "^1.17.0",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.9.0",
+    "@types/ssh2": "^1.15.5",
+    "@types/unzipper": "^0.10.11",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,1008 @@
+.icon-btn.danger {
+  background: linear-gradient(180deg, #ef4444, #dc2626);
+  color: #fff;
+  border-color: transparent;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 10px 24px -12px rgba(239, 68, 68, 0.72);
+}
+
+.icon-btn.danger:hover {
+  filter: brightness(1.06);
+}
+
+.social-wecom-input {
+  width: 100%;
+}
+
+.sidebar-ribbon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  margin: 0 6px -4px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: var(--fg-4);
+  background:
+    linear-gradient(90deg, rgba(99, 102, 241, 0.14), rgba(14, 165, 233, 0.08)),
+    var(--surface-1);
+  border: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 10px;
+  overflow: hidden;
+}
+
+.sidebar-ribbon::before,
+.sidebar-ribbon::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  transform: rotate(45deg);
+  background: rgba(129, 140, 248, 0.12);
+}
+
+.sidebar-ribbon span {
+  color: var(--fg-2);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-ribbon i {
+  font-style: normal;
+  opacity: 0.75;
+}
+
+.sidebar.collapsed .sidebar-ribbon {
+  margin-inline: 0;
+  padding-inline: 0;
+  gap: 0;
+}
+
+.sidebar.collapsed .sidebar-ribbon span,
+.sidebar.collapsed .sidebar-ribbon i {
+  display: none;
+}
+
+.sql-workbench-page {
+  gap: 18px;
+}
+
+.sql-workbench-hero {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(circle at 82% 24%, rgba(96, 165, 250, 0.2), transparent 30%),
+    linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(14, 165, 233, 0.05)),
+    var(--surface-0);
+  overflow: hidden;
+}
+
+.sql-workbench-hero h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(28px, 4vw, 46px);
+  letter-spacing: -0.04em;
+}
+
+.sql-workbench-hero p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--fg-3);
+  line-height: 1.8;
+}
+
+.sql-workbench-orb {
+  width: 128px;
+  height: 128px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 38px;
+  background:
+    linear-gradient(135deg, rgba(129, 140, 248, 0.28), rgba(34, 211, 238, 0.12)),
+    var(--surface-1);
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  box-shadow: 0 28px 72px -40px rgba(96, 165, 250, 0.9);
+}
+
+.sql-workbench-orb span {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+}
+
+.sql-workbench-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sql-workbench-metrics div {
+  padding: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-0);
+}
+
+.sql-workbench-metrics span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--fg-4);
+  font-size: 12px;
+}
+
+.sql-workbench-metrics strong {
+  font-size: 26px;
+}
+
+.sql-workbench-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.sql-workbench-card {
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
+    var(--surface-0);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 0.18s var(--ease),
+    border-color 0.18s var(--ease),
+    background-color 0.18s var(--ease);
+}
+
+.sql-workbench-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-ring);
+  background:
+    linear-gradient(180deg, rgba(129, 140, 248, 0.08), transparent),
+    var(--surface-0);
+}
+
+.sql-workbench-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.sql-workbench-card-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 16px;
+  color: #bfdbfe;
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.24), rgba(99, 102, 241, 0.12)),
+    var(--surface-1);
+  border: 1px solid rgba(96, 165, 250, 0.24);
+}
+
+.sql-workbench-card span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--fg-4);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sql-workbench-card strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.sql-workbench-card p {
+  margin: 0;
+  color: var(--fg-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.sql-workbench-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--fg-4);
+  font-size: 12px;
+}
+
+.card {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    var(--surface-0);
+  box-shadow: var(--sh-1);
+}
+
+.chip.small {
+  min-height: 28px;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.chip.accent {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.chip.inactive {
+  opacity: 0.56;
+}
+
+.sql-datasources-page,
+.sql-files-page,
+.orch-editor-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+}
+
+.sql-ds-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  min-height: 0;
+}
+
+.sql-ds-form-card,
+.sql-ds-main {
+  padding: 18px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sql-ds-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.sql-ds-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sql-ds-form label,
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sql-ds-form label,
+.form-field label {
+  color: var(--fg-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sql-ds-form input,
+.sql-ds-form select,
+.form-field input,
+.form-field select,
+.form-field textarea,
+.sql-create-bar input,
+.sql-editor-limit,
+.orch-name-input,
+.orch-drawer-input,
+.orch-drawer-select,
+.orch-drawer-textarea {
+  width: 100%;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid var(--hairline-2);
+  background: var(--surface-1);
+  color: var(--fg);
+  padding: 9px 11px;
+  font: inherit;
+}
+
+.sql-ds-form input:focus,
+.sql-ds-form select:focus,
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus,
+.sql-create-bar input:focus,
+.sql-editor-limit:focus,
+.orch-name-input:focus,
+.orch-drawer-input:focus,
+.orch-drawer-select:focus,
+.orch-drawer-textarea:focus {
+  outline: none;
+  border-color: var(--accent-ring);
+  box-shadow: var(--focus-ring);
+}
+
+.form-field textarea,
+.orch-drawer-textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.form-field-full {
+  grid-column: 1 / -1;
+}
+
+.sql-ds-list,
+.sql-file-list,
+.sql-var-list,
+.orch-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.sql-ds-card,
+.sql-file-card,
+.sql-var-card,
+.orch-card {
+  padding: 16px;
+}
+
+.sql-ds-card-head,
+.sql-file-card-head,
+.sql-var-card-header,
+.orch-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.sql-ds-meta,
+.sql-file-card-footer,
+.sql-history-meta,
+.orch-node-count {
+  color: var(--fg-4);
+  font-size: 12px;
+}
+
+.sql-ds-card-actions,
+.sql-file-card-actions,
+.sql-var-card-actions,
+.orch-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sql-ds-type-badge,
+.sql-file-ds-badge,
+.sql-var-type-badge,
+.orch-node-type-badge,
+.orch-mini-node,
+.orch-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sql-ds-type-badge,
+.sql-file-ds-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sql-ds-card-footer,
+.sql-file-card-footer,
+.sql-var-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sql-create-bar,
+.sql-editor-title-row,
+.sql-editor-toolbar,
+.sql-var-form-actions,
+.orch-page-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sql-editor-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sql-editor-name {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sql-editor-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+}
+
+.sql-editor-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-0);
+  overflow: hidden;
+}
+
+.sql-editor-textarea {
+  width: 100%;
+  min-height: 460px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--fg);
+  padding: 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.sql-editor-results {
+  min-height: 460px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-0);
+  padding: 14px;
+  overflow: auto;
+}
+
+.sql-results-error,
+.sql-var-error,
+.orch-error,
+.orch-log-error {
+  border-radius: 12px;
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+
+.sql-results-info,
+.sql-results-truncated,
+.sql-var-hint,
+.orch-card-desc {
+  color: var(--fg-3);
+  font-size: 12.5px;
+}
+
+.sql-results-scroll,
+.orch-log-result-table {
+  overflow: auto;
+}
+
+.sql-results-table,
+.orch-log-result-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sql-results-table th,
+.orch-log-result-table th {
+  text-align: left;
+  padding: 7px 10px;
+  background: var(--surface-1);
+  color: var(--fg-2);
+  border-bottom: 1px solid var(--hairline-2);
+  white-space: nowrap;
+}
+
+.sql-results-table td,
+.orch-log-result-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+
+.sql-results-empty,
+.sql-var-empty {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  text-align: center;
+  color: var(--fg-4);
+}
+
+.sql-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sql-history-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+  color: var(--fg-3);
+}
+
+.sql-history-item.error {
+  border-color: rgba(248, 113, 113, 0.24);
+}
+
+.sql-var-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sql-var-name,
+.sql-var-value,
+.sql-var-sql {
+  font-family: var(--mono);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.sql-var-name {
+  color: var(--fg);
+  font-weight: 700;
+}
+
+.sql-var-type-badge.static {
+  background: rgba(59, 130, 246, 0.14);
+  color: #93c5fd;
+}
+
+.sql-var-type-badge.sql {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+
+.sql-var-ds-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--fg-3);
+  font-size: 11px;
+}
+
+.orch-page-header {
+  justify-content: space-between;
+}
+
+.orch-card-nodes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.orch-mini-node.sql,
+.orch-node-type-badge.sql {
+  background: rgba(99, 102, 241, 0.14);
+  color: #a5b4fc;
+}
+
+.orch-mini-node.debug,
+.orch-node-type-badge.debug {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+.orch-mini-node.load,
+.orch-node-type-badge.load {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+
+.orch-mini-node.wait,
+.orch-node-type-badge.wait {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+.orch-rf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-0);
+}
+
+.orch-rf-toolbar-left,
+.orch-rf-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.orch-rf-canvas {
+  min-height: 520px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(circle at top, rgba(96, 165, 250, 0.08), transparent 32%),
+    var(--surface-0) !important;
+  overflow: hidden;
+}
+
+.orch-rf-controls,
+.orch-rf-minimap {
+  background: var(--surface-1) !important;
+  border: 1px solid var(--hairline) !important;
+  border-radius: 14px !important;
+  box-shadow: var(--sh-2) !important;
+}
+
+.orch-rf-controls button {
+  background: transparent !important;
+  color: var(--fg-2) !important;
+  border-bottom: 1px solid var(--hairline) !important;
+}
+
+.orch-rf-controls button:hover {
+  background: var(--surface-2) !important;
+}
+
+.orch-rf-node {
+  min-width: 220px;
+  border: 1px solid var(--hairline-2);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--surface-1);
+  box-shadow: var(--sh-2);
+}
+
+.orch-rf-node.selected {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 4px var(--accent-soft), var(--sh-2);
+}
+
+.orch-rf-node.disabled {
+  opacity: 0.5;
+}
+
+.orch-rf-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background: var(--accent) !important;
+  border: 2px solid var(--bg) !important;
+}
+
+.orch-rf-edge-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px dashed var(--hairline-2);
+  background: var(--surface-1);
+  color: var(--fg-3);
+  cursor: pointer;
+}
+
+.orch-drawer {
+  width: 340px;
+  border-left: 1px solid var(--hairline);
+  background: var(--surface-0);
+  display: flex;
+  flex-direction: column;
+}
+
+.orch-drawer-header,
+.orch-drawer-footer {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.orch-drawer-footer {
+  border-bottom: none;
+  border-top: 1px solid var(--hairline);
+  margin-top: auto;
+}
+
+.orch-drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow: auto;
+}
+
+.orch-drawer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orch-drawer-label {
+  color: var(--fg-3);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.orch-drawer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.orch-context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--hairline-2);
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: var(--sh-3);
+}
+
+.orch-context-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--fg-2);
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.orch-context-item:hover {
+  background: var(--surface-1);
+}
+
+.orch-context-item.danger {
+  color: #fca5a5;
+}
+
+.orch-add-node-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+}
+
+.orch-add-node-dialog {
+  min-width: 240px;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid var(--hairline-2);
+  background: var(--surface-2);
+  box-shadow: var(--sh-3);
+}
+
+.orch-add-node-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.orch-add-node-item:hover {
+  background: var(--surface-1);
+}
+
+.orch-log-panel {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface-0);
+  overflow: hidden;
+  box-shadow: var(--sh-2);
+}
+
+.orch-log-resize-handle {
+  height: 8px;
+  cursor: ns-resize;
+  background: linear-gradient(180deg, transparent, rgba(148, 163, 184, 0.16), transparent);
+}
+
+.orch-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.orch-status-badge.running {
+  background: rgba(99, 102, 241, 0.14);
+  color: #a5b4fc;
+}
+
+.orch-status-badge.success {
+  background: rgba(16, 185, 129, 0.14);
+  color: #6ee7b7;
+}
+
+.orch-status-badge.warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+.orch-status-badge.failed {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+.orch-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.orch-log-entry {
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.orch-log-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-0);
+}
+
+.orch-log-status-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orch-log-status-icon.spin {
+  animation: orch-spin 1s linear infinite;
+}
+
+@keyframes orch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.orch-log-node-name {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.orch-log-duration,
+.orch-log-detail {
+  color: var(--fg-3);
+  font-size: 12px;
+}
+
+.orch-log-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.orch-log-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-0);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.orch-threshold-result.pass {
+  color: #6ee7b7;
+}
+
+.orch-threshold-result.fail {
+  color: #fca5a5;
+}
+
+.orch-log-sep {
+  color: var(--fg-5);
+}
+
+@media (max-width: 1080px) {
+  .sql-ds-layout,
+  .sql-editor-body {
+    grid-template-columns: 1fr;
+  }
+
+  .orch-drawer {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--hairline);
+  }
+}
+
+@media (max-width: 720px) {
+  .sql-var-form-grid,
+  .sql-ds-list,
+  .sql-file-list,
+  .sql-var-list,
+  .orch-list {
+    grid-template-columns: 1fr;
+  }
+
+  .orch-rf-toolbar,
+  .orch-page-header,
+  .sql-create-bar,
+  .sql-editor-title-row,
+  .sql-editor-toolbar,
+  .sql-var-form-actions {
+    align-items: stretch;
+  }
+}
