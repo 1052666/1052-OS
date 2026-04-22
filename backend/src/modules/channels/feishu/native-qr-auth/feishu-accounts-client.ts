@@ -69,6 +69,30 @@ async function postRegistration(
     )
   }
 
+  // Feishu follows RFC 8628 device flow: pending/slow_down/expired states are
+  // returned as HTTP 400 with a structured body { error, error_description, code }.
+  // We must parse the body before deciding whether it's a real HTTP error.
+  let payload: Record<string, unknown>
+  try {
+    payload = (await response.json()) as Record<string, unknown>
+  } catch {
+    if (!response.ok) {
+      throw new FeishuQrAuthError(
+        `accounts.feishu.cn returned HTTP ${response.status} with non-JSON body for action=${params['action'] ?? 'unknown'}`,
+        response.status,
+      )
+    }
+    throw new FeishuQrAuthError('Failed to parse JSON response from accounts.feishu.cn', 'PARSE_ERROR')
+  }
+
+  // If the body carries a RFC 8628-style error field, surface it as the canonical
+  // error code so callers (pollQrStatus) can branch on 'authorization_pending' etc.
+  const bodyError = typeof payload['error'] === 'string' ? (payload['error'] as string) : null
+  if (bodyError) {
+    const description = typeof payload['error_description'] === 'string' ? (payload['error_description'] as string) : bodyError
+    throw new FeishuQrAuthError(description, bodyError)
+  }
+
   if (!response.ok) {
     throw new FeishuQrAuthError(
       `accounts.feishu.cn returned HTTP ${response.status} for action=${params['action'] ?? 'unknown'}`,
@@ -76,11 +100,7 @@ async function postRegistration(
     )
   }
 
-  try {
-    return await response.json()
-  } catch {
-    throw new FeishuQrAuthError('Failed to parse JSON response from accounts.feishu.cn', 'PARSE_ERROR')
-  }
+  return payload
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +218,31 @@ export async function pollQrStatus(
     throw new FeishuQrAuthError(`Network error during poll: ${String(err)}`, 'NETWORK_ERROR')
   }
 
+  // RFC 8628: pending/slow_down/expired all come back as HTTP 400 with a body
+  // containing {error, error_description}. Parse body first, decide after.
+  let data: PollResponse
+  try {
+    data = (await response.json()) as PollResponse
+  } catch {
+    throw new FeishuQrAuthError(
+      `Poll returned HTTP ${response.status} with non-JSON body`,
+      response.status,
+    )
+  }
+
+  // Non-terminal / terminal states from the RFC 8628 error field
+  if ('error' in data && typeof (data as { error?: unknown }).error === 'string') {
+    const status = (data as { error: string }).error
+    if (status === 'expired' || status === 'expired_token') {
+      throw new FeishuQrAuthError('QR session expired — call beginQrAuth() again', 'EXPIRED')
+    }
+    if (status === 'access_denied') {
+      throw new FeishuQrAuthError('User denied the authorisation request', 'ACCESS_DENIED')
+    }
+    // authorization_pending / slow_down / other — not terminal, re-throw with status code
+    throw new FeishuQrAuthError(`Poll pending: ${status}`, status)
+  }
+
   if (!response.ok) {
     throw new FeishuQrAuthError(
       `Poll returned HTTP ${response.status}`,
@@ -205,23 +250,9 @@ export async function pollQrStatus(
     )
   }
 
-  const data = (await response.json()) as PollResponse
-
-  // Non-terminal pending states — callers should retry after interval
-  if ('error' in data) {
-    const status = data.error
-    if (status === 'expired') {
-      throw new FeishuQrAuthError('QR session expired — call beginQrAuth() again', 'EXPIRED')
-    }
-    if (status === 'access_denied') {
-      throw new FeishuQrAuthError('User denied the authorisation request', 'ACCESS_DENIED')
-    }
-    // authorization_pending / slow_down — not terminal, re-throw with status code
-    throw new FeishuQrAuthError(`Poll pending: ${status}`, status)
-  }
-
-  // Success path
-  const { client_id, client_secret, user_info } = data
+  // Success path — narrow to PollSuccessResponse after error branches returned
+  const success = data as { client_id?: string; client_secret?: string; user_info?: { tenant_brand?: string; open_id?: string } }
+  const { client_id, client_secret, user_info } = success
   if (!client_id || !client_secret) {
     throw new FeishuQrAuthError('Poll success response missing client_id or client_secret', 'INVALID_RESPONSE')
   }
