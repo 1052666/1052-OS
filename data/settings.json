@@ -1,0 +1,29 @@
+{
+  "llm": {
+    "baseUrl": "https://api.minimaxi.com/v1",
+    "modelId": "MiniMax-M2.7-HighSpeed",
+    "apiKey": "sk-cp-yH2UKlBnOEqsMSugbG0ABoPHeG_6Ij0u-ApClpxg6rDucQVDJzR8c8QnNnQH9CEoEz4owtns4mUrM3wdTOBLSJeMpE9dYPkigAtyxbSEIIQAj4uZ1uS1WB4"
+  },
+  "imageGeneration": {
+    "baseUrl": "",
+    "modelId": "gpt-image-1",
+    "apiKey": "",
+    "size": "auto",
+    "quality": "auto",
+    "background": "auto",
+    "outputFormat": "png",
+    "outputCompression": 80
+  },
+  "appearance": {
+    "theme": "dark"
+  },
+  "agent": {
+    "streaming": true,
+    "userPrompt": "",
+    "fullAccess": false,
+    "contextMessageLimit": 50
+  },
+  "uapis": {
+    "apiKey": ""
+  }
+}
