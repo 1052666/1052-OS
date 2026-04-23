@@ -69,6 +69,32 @@ function joinUrl(base: string, p: string): string {
   return base.replace(/\/+$/, '') + '/' + p.replace(/^\/+/, '')
 }
 
+function normalizeMiniMaxBaseUrl(cfg: LLMConfig): string {
+  const trimmed = cfg.baseUrl.trim()
+  if (!isMiniMaxCompatible(cfg)) return trimmed
+
+  try {
+    const url = new URL(trimmed)
+    const host = url.hostname.toLowerCase()
+
+    if (host === 'platform.minimax.io') {
+      url.hostname = 'api.minimax.io'
+    } else if (host === 'platform.minimaxi.com') {
+      url.hostname = 'api.minimaxi.com'
+    }
+
+    if (url.pathname === '' || url.pathname === '/') {
+      url.pathname = '/v1'
+    }
+
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    if (/^https?:\/\/api\.minimax\.io\/?$/i.test(trimmed)) return 'https://api.minimax.io/v1'
+    if (/^https?:\/\/api\.minimaxi\.com\/?$/i.test(trimmed)) return 'https://api.minimaxi.com/v1'
+    return trimmed
+  }
+}
+
 function toApiMessage(message: LLMConversationMessage): Record<string, unknown> {
   if (message.role === 'tool') {
     return {
@@ -179,7 +205,8 @@ async function postChatCompletion(
 
   let res: Response
   try {
-    res = await fetch(joinUrl(cfg.baseUrl, 'chat/completions'), {
+    const requestBaseUrl = normalizeMiniMaxBaseUrl(cfg)
+    res = await fetch(joinUrl(requestBaseUrl, 'chat/completions'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
 import type { LLMConfig } from './llm.client.js'
 
 export function isMiniMaxCompatible(cfg: LLMConfig): boolean {
-  return /minimax\.io|minimaxi\.com/i.test(cfg.baseUrl) || /^MiniMax-/i.test(cfg.modelId)
+  return /minimax|minimaxi/i.test(cfg.baseUrl) || /^MiniMax-/i.test(cfg.modelId)
 }
