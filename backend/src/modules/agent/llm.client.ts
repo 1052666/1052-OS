@@ -79,8 +79,10 @@ function normalizeMiniMaxBaseUrl(cfg: LLMConfig): string {
 
     if (host === 'platform.minimax.io') {
       url.hostname = 'api.minimax.io'
+      url.pathname = '/v1'
     } else if (host === 'platform.minimaxi.com') {
       url.hostname = 'api.minimaxi.com'
+      url.pathname = '/v1'
     }
 
     if (url.pathname === '' || url.pathname === '/') {
@@ -227,6 +229,16 @@ async function postChatCompletion(
     ) {
       const retryPayload = { ...payload }
       delete retryPayload.stream_options
+      return postChatCompletion(cfg, retryPayload, tools)
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'reasoning_split') &&
+      /reasoning_split/i.test(body) &&
+      /unsupported|invalid|unknown|not support|extra/i.test(body)
+    ) {
+      const retryPayload = { ...payload }
+      delete retryPayload.reasoning_split
       return postChatCompletion(cfg, retryPayload, tools)
     }
 
