@@ -142,7 +142,7 @@ function TrendChart(props: { buckets: TokenUsageBucket[] }) {
         {guideValues.map((value, index) => {
           const y = chartBottom - (value / maxValue) * chartHeight
           return (
-            <g key={value}>
+            <g key={index}>
               <line x1="0" y1={y} x2={width} y2={y} className="usage-trend-grid" />
               <text x="0" y={y - 6} className="usage-trend-guide">
                 {index === 0 ? `峰值 ${formatCompact(value)}` : formatCompact(value)}
@@ -160,7 +160,7 @@ function TrendChart(props: { buckets: TokenUsageBucket[] }) {
           const showLabel = index === 0 || index === props.buckets.length - 1 || index % 3 === 0
 
           return (
-            <g key={bucket.date}>
+            <g key={index}>
               <rect
                 x={x}
                 y={baseY - userHeight}
