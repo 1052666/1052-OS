@@ -1,6 +1,7 @@
 import { readJson, writeJson } from '../../storage.js'
 import type {
   AgentSettings,
+  AppearanceSettings,
   ImageGenerationSettings,
   Settings,
   PublicSettings,
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS: Settings = {
   },
   appearance: {
     theme: 'dark',
+    language: 'zh-CN',
   },
   agent: {
     streaming: true,
@@ -154,6 +156,21 @@ function normalizeUapisSettings(uapis: Partial<UapisSettings> | undefined): Uapi
   }
 }
 
+function normalizeAppearanceSettings(
+  appearance: Partial<AppearanceSettings> | undefined,
+): AppearanceSettings {
+  return {
+    theme:
+      appearance?.theme === 'dark' || appearance?.theme === 'light' || appearance?.theme === 'auto'
+        ? appearance.theme
+        : DEFAULT_SETTINGS.appearance.theme,
+    language:
+      appearance?.language === 'zh-CN' || appearance?.language === 'en-US'
+        ? appearance.language
+        : DEFAULT_SETTINGS.appearance.language,
+  }
+}
+
 function maskKey(key: string): string {
   if (!key) return ''
   if (key.length <= 8) return '****'
@@ -199,6 +216,7 @@ export async function getSettings(): Promise<Settings> {
   return mergeSettings(DEFAULT_SETTINGS, {
     ...raw,
     imageGeneration: normalizeImageGenerationSettings(raw.imageGeneration),
+    appearance: normalizeAppearanceSettings(raw.appearance),
     agent: normalizeAgentSettings(raw.agent),
     uapis: normalizeUapisSettings(raw.uapis),
   })
@@ -236,7 +254,10 @@ export async function updateSettings(patch: SettingsPatch): Promise<PublicSettin
           ? patch.imageGeneration.apiKey.trim()
           : current.imageGeneration.apiKey,
     },
-    appearance: { ...current.appearance, ...(patch.appearance ?? {}) },
+    appearance: normalizeAppearanceSettings({
+      ...current.appearance,
+      ...(patch.appearance ?? {}),
+    }),
     agent: normalizeAgentSettings({
       ...current.agent,
       ...(patch.agent ?? {}),

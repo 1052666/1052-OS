@@ -18,6 +18,7 @@ export type ImageGenerationSettings = {
 
 export type AppearanceSettings = {
   theme: 'dark' | 'light' | 'auto'
+  language: 'zh-CN' | 'en-US'
 }
 
 export type AgentSettings = {

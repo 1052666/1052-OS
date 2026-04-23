@@ -19,7 +19,7 @@ export type PublicSettings = {
     hasApiKey: boolean
     apiKeyMask: string
   }
-  appearance: { theme: 'dark' | 'light' | 'auto' }
+  appearance: { theme: 'dark' | 'light' | 'auto'; language: 'zh-CN' | 'en-US' }
   agent: {
     streaming: boolean
     userPrompt: string

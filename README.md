@@ -7,6 +7,10 @@
 <h1 align="center">1052 OS</h1>
 
 <p align="center">
+  中文 | <a href="./README.en.md">English</a>
+</p>
+
+<p align="center">
   <strong>一个本地优先、工具驱动、可接入社交通道的 AI Agent 工作台。</strong>
 </p>
 
