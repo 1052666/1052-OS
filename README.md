@@ -303,6 +303,20 @@ http://localhost:10052
 | OpenRouter | `https://openrouter.ai/api/v1` | `openai/gpt-4.1-mini` |
 | SiliconFlow | `https://api.siliconflow.cn/v1` | `Qwen/Qwen3-32B` |
 
+设置页在 LLM 的 API Key 一栏中会自动根据当前 Base URL / Model ID 判断供应商；当未配置 API Key 时，会显示“点击获取”并跳转到对应平台。
+
+API Key 获取地址汇总：
+
+| 服务商 | 获取地址 | 说明 |
+| --- | --- | --- |
+| OpenAI | `https://platform.openai.com/api-keys` | 登录 OpenAI 平台后创建和管理 API Key。 |
+| MiniMax Global / 中国区 | `https://platform.minimaxi.com/` | Global 和中国区使用同一平台，仅 Base URL 不同。 |
+| Gemini（OpenAI 兼容） | `https://aistudio.google.com/app/apikey` | 在 Google AI Studio 中创建 API Key。 |
+| DeepSeek | `https://platform.deepseek.com/` | 在控制台的 API Keys 页面创建密钥。 |
+| Moonshot（Kimi） | `https://platform.moonshot.cn/` | 在 API Key 管理页面创建密钥。 |
+| OpenRouter | `https://openrouter.ai/` | 登录后在 Keys 页面创建密钥。 |
+| SiliconFlow（硅基流动） | `https://cloud.siliconflow.cn/i/QOxdzxkd` | 在控制台 API 密钥页面创建密钥。 |
+
 ### 8. 配置图像生成
 
 设置页中的图像生成支持两类格式：

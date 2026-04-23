@@ -70,6 +70,36 @@ const IMAGE_ENDPOINT_PRESETS = [
   },
 ] as const
 
+type LlmProviderKey =
+  | 'openai'
+  | 'minimax'
+  | 'gemini'
+  | 'deepseek'
+  | 'moonshot'
+  | 'openrouter'
+  | 'siliconflow'
+
+const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }> = {
+  openai: { name: 'OpenAI', url: 'https://platform.openai.com/api-keys' },
+  minimax: { name: 'MiniMax', url: 'https://platform.minimaxi.com/' },
+  gemini: { name: 'Gemini', url: 'https://aistudio.google.com/app/apikey' },
+  deepseek: { name: 'DeepSeek', url: 'https://platform.deepseek.com/' },
+  moonshot: { name: 'Moonshot', url: 'https://platform.moonshot.cn/' },
+  openrouter: { name: 'OpenRouter', url: 'https://openrouter.ai/' },
+  siliconflow: { name: 'SiliconFlow', url: 'https://cloud.siliconflow.cn/i/QOxdzxkd' },
+}
+
+function detectLlmProvider(baseUrl: string, modelId: string): LlmProviderKey {
+  const value = `${baseUrl} ${modelId}`.toLowerCase()
+  if (value.includes('openrouter')) return 'openrouter'
+  if (value.includes('minimax') || value.includes('minimaxi')) return 'minimax'
+  if (value.includes('googleapis.com') || value.includes('gemini')) return 'gemini'
+  if (value.includes('deepseek')) return 'deepseek'
+  if (value.includes('moonshot') || value.includes('kimi')) return 'moonshot'
+  if (value.includes('siliconflow')) return 'siliconflow'
+  return 'openai'
+}
+
 function SettingsFoldout({
   title,
   defaultOpen = false,
@@ -129,6 +159,8 @@ export default function Settings() {
   const [contextMessageLimit, setContextMessageLimit] = useState(50)
   const [state, setState] = useState<SaveState>('idle')
   const [error, setError] = useState('')
+  const llmProvider = detectLlmProvider(baseUrl, modelId)
+  const llmApiKeyPortal = LLM_API_KEY_PORTALS[llmProvider]
 
   useEffect(() => {
     SettingsApi.get()
@@ -294,7 +326,14 @@ export default function Settings() {
                   <div className="settings-row-desc">
                     {loaded?.llm.hasApiKey
                       ? `已配置 (${loaded.llm.apiKeyMask})，留空则保持不变`
-                      : '尚未配置'}
+                      : (
+                        <>
+                          尚未配置，点击获取（{llmApiKeyPortal.name}）：
+                          <a href={llmApiKeyPortal.url} target="_blank" rel="noreferrer">
+                            {llmApiKeyPortal.url}
+                          </a>
+                        </>
+                      )}
                   </div>
                 </div>
                 <input
