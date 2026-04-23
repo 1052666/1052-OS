@@ -6,10 +6,29 @@ Output: JSON via stdout
 """
 
 import json
+import os
 import sys
 import sqlite3
 
 _oracle_thick_initialized = False
+
+
+def _init_oracle_client(oracledb_mod):
+    """根据环境变量初始化 Oracle Client，支持降级到 thin 模式。"""
+    global _oracle_thick_initialized
+    if _oracle_thick_initialized:
+        return
+
+    oracle_client_path = os.environ.get('ORACLE_CLIENT_PATH', '')
+    if oracle_client_path:
+        oracledb_mod.init_oracle_client(lib_dir=oracle_client_path)
+    else:
+        try:
+            oracledb_mod.init_oracle_client()
+        except Exception:
+            pass  # thin mode
+
+    _oracle_thick_initialized = True
 
 
 def connect_mysql(cfg):
@@ -27,10 +46,7 @@ def connect_mysql(cfg):
 
 def connect_oracle(cfg):
     import oracledb
-    global _oracle_thick_initialized
-    if not _oracle_thick_initialized:
-        oracledb.init_oracle_client(lib_dir=r'C:\instantclient_11_2')
-        _oracle_thick_initialized = True
+    _init_oracle_client(oracledb)
     host = cfg.get('host', '127.0.0.1')
     port = int(cfg.get('port', 1521))
     database = cfg.get('database', '')

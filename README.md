@@ -194,6 +194,33 @@ flowchart LR
 - 飞书、微信、企业微信相关账号或开发者配置
 - UAPIs API Key，不填也可以使用免费 IP 额度
 
+SQL 功能额外依赖（不用可跳过）：
+
+- Python >= 3.10
+- uv（Python 包管理器）
+
+> 不使用 SQL 查询/编排功能时，可跳过 Python 和 uv，1052 OS 其他功能正常使用。
+
+安装 uv：
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 或通过 pip
+pip install uv
+```
+
+SQL 功能依赖安装：
+
+```bash
+cd backend
+uv sync
+```
+
 ### 2. 克隆仓库
 
 ```bash
