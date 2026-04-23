@@ -97,6 +97,17 @@ function normalizeMiniMaxBaseUrl(cfg: LLMConfig): string {
   }
 }
 
+export function normalizeMessagesForMiniMax(
+  messages: LLMConversationMessage[],
+): LLMConversationMessage[] {
+  const systemMessages = messages.filter((message) => message.role === 'system')
+  if (systemMessages.length <= 1) return messages
+
+  const mergedSystemContent = systemMessages.map((message) => message.content).join('\n\n')
+  const nonSystemMessages = messages.filter((message) => message.role !== 'system')
+  return [{ role: 'system', content: mergedSystemContent }, ...nonSystemMessages]
+}
+
 function toApiMessage(message: LLMConversationMessage): Record<string, unknown> {
   if (message.role === 'tool') {
     return {
@@ -172,9 +183,12 @@ function buildPayload(
   stream: boolean,
 ): Record<string, unknown> {
   const miniMaxCompatible = isMiniMaxCompatible(cfg)
+  const normalizedMessages = miniMaxCompatible
+    ? normalizeMessagesForMiniMax(messages)
+    : messages
   const payload: Record<string, unknown> = {
     model: cfg.modelId,
-    messages: messages.map((message) => toApiMessage(message)),
+    messages: normalizedMessages.map((message) => toApiMessage(message)),
     stream,
   }
 
