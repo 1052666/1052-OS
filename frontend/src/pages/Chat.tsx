@@ -496,7 +496,10 @@ export default function Chat() {
     }, delay)
   }
 
-  const normalizeRestoredMessages = (storedMessages: StoredChatMessage[]) => {
+  const normalizeRestoredMessages = (
+    storedMessages: StoredChatMessage[],
+    now = Date.now(),
+  ) => {
     const restored = storedMessages.map((message) => ({ ...message }))
     let needsPatch = false
     for (const message of restored) {
@@ -506,6 +509,10 @@ export default function Chat() {
         needsPatch = true
       }
       if (message.streaming) {
+        // Skip normalization for recently created streaming messages
+        // — they may still be in progress after a navigation change
+        const age = now - message.ts
+        if (age < 60_000) continue
         message.streaming = false
         message.error = true
         if (!message.content) message.content = INTERRUPTED_MESSAGE_PLACEHOLDER
@@ -519,20 +526,37 @@ export default function Chat() {
     storedMessages: StoredChatMessage[],
     options: { allowEmpty?: boolean } = {},
   ) => {
+    // Collect in-memory streaming message IDs before normalization corrupts them
+    const liveStreamingIds = new Set(
+      messagesRef.current
+        .filter((m) => m.streaming)
+        .map((m) => m.id),
+    )
+
     const { restored, needsPatch } = normalizeRestoredMessages(storedMessages)
     if (!options.allowEmpty && restored.length === 0 && messagesRef.current.length > 0) {
       return false
     }
 
-    const syncKey = buildHistorySyncKey(restored)
+    // Preserve in-memory streaming messages to avoid race with EventSource sync
+    const isActivelyStreaming = !!abortRef.current
+    const merged = isActivelyStreaming && liveStreamingIds.size > 0
+      ? restored.map((m) => {
+          if (!liveStreamingIds.has(m.id)) return m
+          const live = messagesRef.current.find((im) => im.id === m.id)
+          return live ?? m
+        })
+      : restored
+
+    const syncKey = buildHistorySyncKey(merged)
     if (syncKey === lastSyncedKeyRef.current) return true
 
     lastSyncedKeyRef.current = syncKey
-    commitMessages(restored)
+    commitMessages(merged)
     nextId.current =
-      restored.reduce((maxId, message) => Math.max(maxId, message.id), 0) + 1
-    setLoading(restored.some((message) => message.streaming))
-    if (needsPatch) void persistMessages(restored)
+      merged.reduce((maxId, message) => Math.max(maxId, message.id), 0) + 1
+    setLoading(merged.some((message) => message.streaming))
+    if (needsPatch && !isActivelyStreaming) void persistMessages(merged)
     return true
   }
 
