@@ -73,10 +73,14 @@ const IMAGE_ENDPOINT_PRESETS = [
 function SettingsFoldout({
   title,
   defaultOpen = false,
+  collapseLabel = '收起',
+  expandLabel = '展开',
   children,
 }: {
   title: string
   defaultOpen?: boolean
+  collapseLabel?: string
+  expandLabel?: string
   children: ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -89,7 +93,7 @@ function SettingsFoldout({
         onClick={() => setOpen((current) => !current)}
       >
         <span>{title}</span>
-        <small>{open ? '收起' : '展开'}</small>
+        <small>{open ? collapseLabel : expandLabel}</small>
       </button>
       {open ? <div className="settings-foldout-body">{children}</div> : null}
     </section>
@@ -98,6 +102,9 @@ function SettingsFoldout({
 
 export default function Settings() {
   const { theme, setTheme } = useTheme()
+  const [uiLanguage, setUiLanguage] = useState<PublicSettings['appearance']['language']>('zh-CN')
+  const t = (zh: string, en: string) => (uiLanguage === 'en-US' ? en : zh)
+  const foldoutLabels = { collapseLabel: t('收起', 'Collapse'), expandLabel: t('展开', 'Expand') }
   const [loaded, setLoaded] = useState<PublicSettings | null>(null)
   const [baseUrl, setBaseUrl] = useState('')
   const [modelId, setModelId] = useState('')
@@ -142,6 +149,7 @@ export default function Settings() {
         setFullAccess(settings.agent.fullAccess)
         setContextMessageLimit(settings.agent.contextMessageLimit)
         setTheme(settings.appearance.theme)
+        setUiLanguage(settings.appearance.language)
       })
       .catch((err) => setError(err.message ?? '设置加载失败'))
   }, [setTheme])
@@ -181,7 +189,7 @@ export default function Settings() {
       uapis: {
         ...(uapisApiKey.trim() ? { apiKey: uapisApiKey.trim() } : {}),
       },
-      appearance: { theme },
+      appearance: { theme, language: uiLanguage },
       agent: { streaming, userPrompt, fullAccess, contextMessageLimit },
     }
 
@@ -195,7 +203,7 @@ export default function Settings() {
       window.setTimeout(() => setState('idle'), 1500)
     } catch (err) {
       const errorLike = err as { message?: string }
-      setError(errorLike.message ?? '设置保存失败')
+      setError(errorLike.message ?? t('设置保存失败', 'Failed to save settings'))
       setState('error')
     }
   }
@@ -204,14 +212,21 @@ export default function Settings() {
     <div className="page">
       <header className="page-header">
         <div>
-          <h1>设置</h1>
+          <h1>{t('设置', 'Settings')}</h1>
           <div className="muted">
-            左侧管理模型、图像生成、Agent 行为和外观；右侧查看 Token 使用与长期记忆摘要。
+            {t(
+              '左侧管理模型、图像生成、Agent 行为和外观；右侧查看 Token 使用与长期记忆摘要。',
+              'Configure models, image generation, agent behavior, and appearance on the left; review token usage and memory summary on the right.',
+            )}
           </div>
         </div>
         <div className="toolbar">
           <button className="chip primary" onClick={save} disabled={state === 'saving'} type="button">
-            {state === 'saving' ? '保存中...' : state === 'saved' ? '已保存' : '保存设置'}
+            {state === 'saving'
+              ? t('保存中...', 'Saving...')
+              : state === 'saved'
+                ? t('已保存', 'Saved')
+                : t('保存设置', 'Save Settings')}
           </button>
         </div>
       </header>
@@ -221,7 +236,7 @@ export default function Settings() {
       <div className="settings-layout">
         <div className="settings-main">
           <div className="settings">
-            <SettingsFoldout title="LLM 接入" defaultOpen>
+            <SettingsFoldout title={t('LLM 接入', 'LLM Access')} defaultOpen {...foldoutLabels}>
               <div className="settings-row settings-row-stack">
                 <div className="settings-row-label">
                   <div className="settings-row-title">常用端点预设</div>
@@ -293,7 +308,7 @@ export default function Settings() {
               </div>
             </SettingsFoldout>
 
-            <SettingsFoldout title="图像生成">
+            <SettingsFoldout title={t('图像生成', 'Image Generation')} {...foldoutLabels}>
               <div className="settings-row settings-row-stack">
                 <div className="settings-row-label">
                   <div className="settings-row-title">图像端点预设</div>
@@ -488,7 +503,7 @@ export default function Settings() {
               </div>
             </SettingsFoldout>
 
-            <SettingsFoldout title="UAPIs 工具箱">
+            <SettingsFoldout title={t('UAPIs 工具箱', 'UAPIs Toolbox')} {...foldoutLabels}>
 
               <div className="settings-row">
                 <div className="settings-row-label">
@@ -532,7 +547,7 @@ export default function Settings() {
               </div>
             </SettingsFoldout>
 
-            <SettingsFoldout title="Agent 行为" defaultOpen>
+            <SettingsFoldout title={t('Agent 行为', 'Agent Behavior')} defaultOpen {...foldoutLabels}>
 
               <div className="settings-row settings-row-stack">
                 <div className="settings-row-label">
@@ -605,14 +620,38 @@ export default function Settings() {
               </div>
             </SettingsFoldout>
 
-            <SettingsFoldout title="外观">
+            <SettingsFoldout title={t('外观', 'Appearance')} {...foldoutLabels}>
 
               <div className="settings-row">
                 <div className="settings-row-label">
-                  <div className="settings-row-title">主题模式</div>
-                  <div className="settings-row-desc">支持深色、浅色和自动跟随系统。</div>
+                  <div className="settings-row-title">{t('界面语言', 'Interface Language')}</div>
+                  <div className="settings-row-desc">
+                    {t(
+                      '设置面板支持中文与英文，保存后即时生效。',
+                      'The settings panel supports Chinese and English and applies immediately after saving.',
+                    )}
+                  </div>
                 </div>
-                <div className="segmented" role="tablist" aria-label="主题模式">
+                <select
+                  className="settings-input"
+                  value={uiLanguage}
+                  onChange={(event) =>
+                    setUiLanguage(event.target.value as PublicSettings['appearance']['language'])
+                  }
+                >
+                  <option value="zh-CN">中文</option>
+                  <option value="en-US">English</option>
+                </select>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">{t('主题模式', 'Theme Mode')}</div>
+                  <div className="settings-row-desc">
+                    {t('支持深色、浅色和自动跟随系统。', 'Supports dark, light, and system auto mode.')}
+                  </div>
+                </div>
+                <div className="segmented" role="tablist" aria-label={t('主题模式', 'Theme Mode')}>
                   {(['dark', 'light', 'auto'] as const).map((mode) => (
                     <button
                       key={mode}
@@ -620,7 +659,11 @@ export default function Settings() {
                       type="button"
                       onClick={() => setTheme(mode)}
                     >
-                      {mode === 'dark' ? '深色' : mode === 'light' ? '浅色' : '自动'}
+                      {mode === 'dark'
+                        ? t('深色', 'Dark')
+                        : mode === 'light'
+                          ? t('浅色', 'Light')
+                          : t('自动', 'Auto')}
                     </button>
                   ))}
                 </div>
