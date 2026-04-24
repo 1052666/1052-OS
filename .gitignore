@@ -15,3 +15,6 @@ data/
 
 backend/data/
 frontend/dist/
+
+AGENTS.md
+CHANGELOG.md
