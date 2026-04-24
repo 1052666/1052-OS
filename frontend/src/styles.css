@@ -3775,8 +3775,11 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 
 .settings-preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .settings-preset-card {
@@ -3784,6 +3787,8 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   flex-direction: column;
   gap: 5px;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 11px 12px;
   text-align: left;
   border: 1px solid var(--hairline);
@@ -3808,11 +3813,16 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 .settings-preset-card strong {
   font-size: 12.5px;
   font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .settings-preset-card span,
 .settings-preset-card small {
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
   color: var(--fg-4);
   font-size: 11px;
   text-overflow: ellipsis;
