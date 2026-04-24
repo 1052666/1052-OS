@@ -24,9 +24,14 @@ function assertConfirmed(value: unknown, action: string) {
   }
 }
 
-function normalizeLimit(value: unknown, fallback = 60) {
+function normalizeItemLimit(value: unknown, fallback = 60) {
   const raw = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback
   return Math.min(Math.max(raw, 1), 200)
+}
+
+function normalizeCharLimit(value: unknown, fallback = 24000) {
+  const raw = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback
+  return Math.min(Math.max(raw, 1), 100000)
 }
 
 export const wikiTools: AgentTool[] = [
@@ -59,7 +64,7 @@ export const wikiTools: AgentTool[] = [
     },
     execute: async (args) => {
       const input = (args ?? {}) as Record<string, unknown>
-      return readWikiRawFile(input.path, normalizeLimit(input.maxChars, 24000))
+      return readWikiRawFile(input.path, normalizeCharLimit(input.maxChars))
     },
   },
   {
@@ -77,7 +82,7 @@ export const wikiTools: AgentTool[] = [
     execute: async (args) => {
       const input = (args ?? {}) as Record<string, unknown>
       const pages = await listWikiPages(input.query)
-      return pages.slice(0, normalizeLimit(input.limit)).map((page) => ({
+      return pages.slice(0, normalizeItemLimit(input.limit)).map((page) => ({
         path: page.path,
         title: page.title,
         category: page.category,

@@ -18,6 +18,12 @@ async function exists(target: string) {
   }
 }
 
+function isInside(root: string, target: string) {
+  const resolvedRoot = path.resolve(root)
+  const resolvedTarget = path.resolve(target)
+  return resolvedTarget === resolvedRoot || resolvedTarget.startsWith(resolvedRoot + path.sep)
+}
+
 async function walkMarkdown(root: string) {
   await fs.mkdir(root, { recursive: true })
   const results: string[] = []
@@ -46,6 +52,17 @@ function parseLinks(content: string) {
   return links
 }
 
+function resolveRawSource(source: string) {
+  const normalized = source.trim().replace(/\\/g, '/').replace(/^raw\//, '')
+  if (!normalized || path.isAbsolute(normalized) || normalized.split('/').includes('..')) return null
+  const target = path.resolve(RAW_ROOT, normalized)
+  return isInside(RAW_ROOT, target) ? target : null
+}
+
+function parseIndexedPageLinks(content: string) {
+  return new Set(parseLinks(content).map((link) => link.replace(/\.md$/i, '')))
+}
+
 export async function lintWiki(): Promise<WikiLintResult> {
   const files = await walkMarkdown(PAGE_ROOT)
   const fileSet = new Set(files)
@@ -68,8 +85,10 @@ export async function lintWiki(): Promise<WikiLintResult> {
       result.missingFrontmatter.push(file)
     } else {
       for (const source of parsed.frontmatter.sources) {
-        const sourceTarget = path.resolve(RAW_ROOT, source.replace(/^raw\//, ''))
-        if (!(await exists(sourceTarget))) result.missingSources.push({ page: file, source })
+        const sourceTarget = resolveRawSource(source)
+        if (!sourceTarget || !(await exists(sourceTarget))) {
+          result.missingSources.push({ page: file, source })
+        }
       }
       if (parsed.frontmatter.source_count !== parsed.frontmatter.sources.length) {
         result.sourceCountMismatches.push({
@@ -89,7 +108,8 @@ export async function lintWiki(): Promise<WikiLintResult> {
   result.orphanPages = files.filter((file) => !linked.has(file))
 
   const indexContent = await fs.readFile(path.join(PAGE_ROOT, INDEX_PATH), 'utf-8').catch(() => '')
-  result.indexMissingPages = files.filter((file) => !indexContent.includes(file.replace(/\.md$/i, '')))
+  const indexedPageLinks = parseIndexedPageLinks(indexContent)
+  result.indexMissingPages = files.filter((file) => !indexedPageLinks.has(file.replace(/\.md$/i, '')))
   if (result.indexMissingPages.length > 0) result.autoFixable.push('index-rebuild')
   if (result.sourceCountMismatches.length > 0) result.autoFixable.push('source-count')
   return result
