@@ -50,4 +50,67 @@ describe('wiki service', () => {
     const service = await import('../wiki.service.js')
     await expect(service.readWikiRawFile('../secret.md')).rejects.toThrow('路径不能越过')
   })
+
+  it('allows wiki_raw_read to return more than 200 requested characters', async () => {
+    const service = await import('../wiki.service.js')
+    const { wikiTools } = await import('../../agent/tools/wiki.tools.js')
+    const tool = wikiTools.find((item) => item.name === 'wiki_raw_read')
+    expect(tool).toBeTruthy()
+
+    await service.saveWikiRawUpload({
+      buffer: Buffer.from('x'.repeat(500)),
+      fileName: 'long.md',
+    })
+
+    const result = (await tool?.execute({ path: 'long.md', maxChars: 400 })) as {
+      content: string
+      truncated: boolean
+    }
+
+    expect(result.content).toHaveLength(400)
+    expect(result.truncated).toBe(true)
+  })
+
+  it('reports raw sources that resolve outside the raw root even when the external file exists', async () => {
+    const service = await import('../wiki.service.js')
+    await fs.writeFile(path.join(tempDir, 'outside.md'), 'external')
+
+    await service.writeWikiPage({
+      title: '越界来源',
+      category: 'concept',
+      sources: ['../../outside.md'],
+      summary: '越界来源测试',
+      content: '# 越界来源\n',
+    })
+
+    const lint = await import('../wiki.lint.js').then((module) => module.lintWiki())
+    expect(lint.missingSources).toContainEqual({
+      page: '核心理念/越界来源.md',
+      source: '../../outside.md',
+    })
+  })
+
+  it('checks index coverage by exact WikiLink instead of substring matching', async () => {
+    const service = await import('../wiki.service.js')
+    await service.writeWikiPage({
+      title: 'Alpha',
+      category: 'concept',
+      summary: 'Alpha',
+      content: '# Alpha\n',
+    })
+    await service.writeWikiPage({
+      title: 'Alpha Extended',
+      category: 'concept',
+      summary: 'Alpha Extended',
+      content: '# Alpha Extended\n',
+    })
+    await fs.writeFile(
+      path.join(tempDir, 'wiki', 'wiki', '索引.md'),
+      '# 索引\n\n- [[核心理念/Alpha Extended]]\n',
+    )
+
+    const lint = await import('../wiki.lint.js').then((module) => module.lintWiki())
+    expect(lint.indexMissingPages).toContain('核心理念/Alpha.md')
+    expect(lint.indexMissingPages).not.toContain('核心理念/Alpha Extended.md')
+  })
 })
