@@ -6,6 +6,14 @@ import {
   describePackForRouting,
   REQUESTABLE_PACKS,
 } from './agent.pack.service.js'
+import {
+  buildTokenBudgetReport,
+  CONTEXT_UPGRADE_TOOL_SCHEMA_TOKEN_BUDGET,
+  P0_TOTAL_TOKEN_BUDGET,
+  P0_UAPIS_DIRECTORY_TOKEN_BUDGET,
+  textBudgetComponent,
+  toolSchemaBudgetComponent,
+} from './agent.budget.service.js'
 import { summarizeCheckpointForInjection } from './agent.checkpoint.service.js'
 import { formatUapisDirectorySummary } from '../uapis/uapis.service.js'
 import type { AgentCheckpoint, AgentPackName } from './agent.runtime.types.js'
@@ -134,20 +142,24 @@ export async function buildP0Messages(input: {
     getP0UapisSummary(),
   ])
   const checkpointSummary = summarizeCheckpointForInjection(input.checkpoint)
+  const mountedPacksSummary = renderMountedPacks(input.mountedPacks ?? [])
+  const extraSections = input.extraSections ?? []
+  const routingPrompt = getRoutingPrompt()
+  const systemContent = [
+    coreRules,
+    projectProfile,
+    checkpointSummary.text,
+    mountedPacksSummary,
+    uapisSummary,
+    ...extraSections,
+    routingPrompt,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   const messages: LLMConversationMessage[] = [
     {
       role: 'system',
-      content: [
-        coreRules,
-        projectProfile,
-        checkpointSummary.text,
-        renderMountedPacks(input.mountedPacks ?? []),
-        uapisSummary,
-        ...(input.extraSections ?? []),
-        getRoutingPrompt(),
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
+      content: systemContent,
     },
   ]
 
@@ -159,5 +171,40 @@ export async function buildP0Messages(input: {
   }
 
   messages.push(...input.history)
-  return { messages, injectedCheckpointTokens: checkpointSummary.injectedTokens }
+  const budgetReport = buildTokenBudgetReport({
+    key: 'p0-prompt',
+    label: 'P0 prompt',
+    limitTokens: P0_TOTAL_TOKEN_BUDGET,
+    components: [
+      textBudgetComponent({ key: 'core-rules', label: 'Core rules', text: coreRules }),
+      textBudgetComponent({ key: 'project-profile', label: 'Project profile', text: projectProfile }),
+      {
+        key: 'checkpoint',
+        label: 'Checkpoint summary',
+        tokens: checkpointSummary.injectedTokens,
+      },
+      textBudgetComponent({ key: 'mounted-packs', label: 'Mounted packs', text: mountedPacksSummary }),
+      textBudgetComponent({
+        key: 'uapis-directory',
+        label: 'UAPIs directory summary',
+        text: uapisSummary,
+        limitTokens: P0_UAPIS_DIRECTORY_TOKEN_BUDGET,
+      }),
+      ...extraSections.map((section, index) =>
+        textBudgetComponent({
+          key: `extra-section-${index + 1}`,
+          label: `Extra section ${index + 1}`,
+          text: section,
+        }),
+      ),
+      textBudgetComponent({ key: 'routing', label: 'Capability routing', text: routingPrompt }),
+      toolSchemaBudgetComponent({
+        key: 'context-upgrade-tool',
+        label: 'Context upgrade tool schema',
+        toolDefinitions: [getContextUpgradeToolDefinition()],
+        limitTokens: CONTEXT_UPGRADE_TOOL_SCHEMA_TOKEN_BUDGET,
+      }),
+    ],
+  })
+  return { messages, injectedCheckpointTokens: checkpointSummary.injectedTokens, budgetReport }
 }
