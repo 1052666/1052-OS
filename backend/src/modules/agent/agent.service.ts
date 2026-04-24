@@ -388,7 +388,10 @@ async function* runLegacyStream(
   let usage: TokenUsage = {}
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const stream = chatCompletionStream(settings.llm, messages, tools, options.abortSignal)
+    const stream = chatCompletionStream(settings.llm, messages, tools, {
+      abortSignal: options.abortSignal,
+      providerCachingEnabled: settings.agent.providerCachingEnabled,
+    })
     let step = await stream.next()
 
     while (!step.done) {
@@ -475,7 +478,10 @@ async function* runProgressiveStream(
         ? [getContextUpgradeToolDefinition(), ...mountedToolDefinitions]
         : [getContextUpgradeToolDefinition()]
 
-    const stream = chatCompletionStream(settings.llm, built.messages, tools, options.abortSignal)
+    const stream = chatCompletionStream(settings.llm, built.messages, tools, {
+      abortSignal: options.abortSignal,
+      providerCachingEnabled: settings.agent.providerCachingEnabled,
+    })
     let step = await stream.next()
 
     while (!step.done) {

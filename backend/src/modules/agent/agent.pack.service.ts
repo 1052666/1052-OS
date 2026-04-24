@@ -7,6 +7,7 @@ export const PACK_SCHEMA_TOKEN_BUDGETS: Partial<Record<AgentPackName, number>> =
 }
 
 const BASE_READ_PACK_TOOL_NAMES = [
+  'agent_runtime_status',
   'filesystem_stat_path',
   'filesystem_list_directory',
   'filesystem_search_files',

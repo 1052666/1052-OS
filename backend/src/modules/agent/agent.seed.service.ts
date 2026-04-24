@@ -65,7 +65,9 @@ async function summarizeSeedWithModel(input: string) {
       content: input,
     },
   ]
-  const response = await chatCompletion(settings.llm, messages, [])
+  const response = await chatCompletion(settings.llm, messages, [], {
+    providerCachingEnabled: settings.agent.providerCachingEnabled,
+  })
   try {
     const parsed = JSON.parse(response.content) as Record<string, unknown>
     return {

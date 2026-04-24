@@ -35,6 +35,7 @@ describe('agent progressive disclosure helpers', () => {
     expect(mountedPacks).toEqual(['base-read-pack', 'repo-pack', 'search-pack'])
 
     const toolNames = getToolNamesForMountedPacks(mountedPacks)
+    expect(toolNames).toContain('agent_runtime_status')
     expect(toolNames).toContain('filesystem_read_file')
     expect(toolNames).toContain('terminal_run_readonly')
     expect(toolNames).toContain('websearch_search')

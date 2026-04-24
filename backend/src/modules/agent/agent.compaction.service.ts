@@ -107,28 +107,33 @@ async function summarizeChunk(
   total: number,
 ) {
   const settings = await getSettings()
-  const response = await chatCompletion(settings.llm, [
-    {
-      role: 'system',
-      content:
-        '你是聊天上下文压缩器。只输出摘要正文，不要寒暄，不要调用工具，不要回答新问题。',
-    },
-    {
-      role: 'user',
-      content: [
-        `请压缩第 ${index}/${total} 段聊天历史。`,
-        '',
-        '要求：',
-        '- 提取这一段里用户目标、明确决定、已完成改动、失败点、待办、风险、关键文件与路径。',
-        '- 保留后续继续工作必需的信息，删掉寒暄和重复表述。',
-        '- 如果这一段包含此前压缩摘要，要把其中仍然有效的信息继续保留。',
-        '- 用中文输出，尽量结构化，控制在 600-1200 字。',
-        '',
-        '聊天历史：',
-        text,
-      ].join('\n'),
-    },
-  ])
+  const response = await chatCompletion(
+    settings.llm,
+    [
+      {
+        role: 'system',
+        content:
+          '你是聊天上下文压缩器。只输出摘要正文，不要寒暄，不要调用工具，不要回答新问题。',
+      },
+      {
+        role: 'user',
+        content: [
+          `请压缩第 ${index}/${total} 段聊天历史。`,
+          '',
+          '要求：',
+          '- 提取这一段里用户目标、明确决定、已完成改动、失败点、待办、风险、关键文件与路径。',
+          '- 保留后续继续工作必需的信息，删掉寒暄和重复表述。',
+          '- 如果这一段包含此前压缩摘要，要把其中仍然有效的信息继续保留。',
+          '- 用中文输出，尽量结构化，控制在 600-1200 字。',
+          '',
+          '聊天历史：',
+          text,
+        ].join('\n'),
+      },
+    ],
+    [],
+    { providerCachingEnabled: settings.agent.providerCachingEnabled },
+  )
 
   const summary = response.content.trim()
   if (!summary) {
@@ -145,43 +150,48 @@ async function summarizeFinal(
   chunkSummaries: string[],
 ) {
   const settings = await getSettings()
-  const response = await chatCompletion(settings.llm, [
-    {
-      role: 'system',
-      content:
-        '你是聊天上下文压缩器。只输出最终摘要正文，不要寒暄，不要调用工具，不要回答新问题。',
-    },
-    {
-      role: 'user',
-      content: [
-        '请把下面这些分段摘要合并成一个可继续对话使用的最终上下文摘要。',
-        '',
-        '必须覆盖这些部分：',
-        '- 用户长期目标、偏好、已确认决定',
-        '- 当前进行中的任务和下一步',
-        '- 已完成的重要改动、关键模块、文件路径、接口或命令',
-        '- 已知问题、风险、待确认事项、测试或重启要求',
-        '',
-        '输出格式：',
-        '## 长期目标与约束',
-        '## 当前状态',
-        '## 已完成改动',
-        '## 待继续事项',
-        '## 风险与提醒',
-        '',
-        '要求：',
-        '- 用中文输出。',
-        '- 不要遗漏仍然有效的旧信息。',
-        '- 不要编造历史中没有的信息。',
-        '- 尽量精炼，但覆盖要完整，控制在 1200-2800 字。',
-        '',
-        '分段摘要：',
-        chunkSummaries
-          .map((summary, index) => `### 分段 ${index + 1}\n${summary}`)
-          .join('\n\n'),
-      ].join('\n'),
-    },
-  ])
+  const response = await chatCompletion(
+    settings.llm,
+    [
+      {
+        role: 'system',
+        content:
+          '你是聊天上下文压缩器。只输出最终摘要正文，不要寒暄，不要调用工具，不要回答新问题。',
+      },
+      {
+        role: 'user',
+        content: [
+          '请把下面这些分段摘要合并成一个可继续对话使用的最终上下文摘要。',
+          '',
+          '必须覆盖这些部分：',
+          '- 用户长期目标、偏好、已确认决定',
+          '- 当前进行中的任务和下一步',
+          '- 已完成的重要改动、关键模块、文件路径、接口或命令',
+          '- 已知问题、风险、待确认事项、测试或重启要求',
+          '',
+          '输出格式：',
+          '## 长期目标与约束',
+          '## 当前状态',
+          '## 已完成改动',
+          '## 待继续事项',
+          '## 风险与提醒',
+          '',
+          '要求：',
+          '- 用中文输出。',
+          '- 不要遗漏仍然有效的旧信息。',
+          '- 不要编造历史中没有的信息。',
+          '- 尽量精炼，但覆盖要完整，控制在 1200-2800 字。',
+          '',
+          '分段摘要：',
+          chunkSummaries
+            .map((summary, index) => `### 分段 ${index + 1}\n${summary}`)
+            .join('\n\n'),
+        ].join('\n'),
+      },
+    ],
+    [],
+    { providerCachingEnabled: settings.agent.providerCachingEnabled },
+  )
 
   const summary = response.content.trim()
   if (!summary) {

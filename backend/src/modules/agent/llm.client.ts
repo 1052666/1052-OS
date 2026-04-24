@@ -1,4 +1,8 @@
 import { httpError } from '../../http-error.js'
+import {
+  buildProviderCachingPayloadFields,
+  normalizeCacheUsage,
+} from './agent.cache-policy.service.js'
 import { isMiniMaxCompatible } from './agent.provider.js'
 
 export type LLMConfig = {
@@ -65,6 +69,19 @@ type ToolCallAccumulator = {
     name?: string
     arguments?: string
   }
+}
+
+export type LLMRequestOptions = {
+  abortSignal?: AbortSignal
+  providerCachingEnabled?: boolean
+}
+
+function normalizeRequestOptions(input?: AbortSignal | LLMRequestOptions): LLMRequestOptions {
+  if (!input) return {}
+  if ('aborted' in input && typeof input.addEventListener === 'function') {
+    return { abortSignal: input }
+  }
+  return input as LLMRequestOptions
 }
 
 function joinUrl(base: string, p: string): string {
@@ -183,6 +200,7 @@ function buildPayload(
   messages: LLMConversationMessage[],
   tools: LLMToolDefinition[],
   stream: boolean,
+  options: LLMRequestOptions = {},
 ): Record<string, unknown> {
   const miniMaxCompatible = isMiniMaxCompatible(cfg)
   const normalizedMessages = miniMaxCompatible
@@ -193,6 +211,12 @@ function buildPayload(
     model: cfg.modelId,
     messages: normalizedMessages.map((message) => toApiMessage(message)),
     stream,
+    ...buildProviderCachingPayloadFields({
+      config: cfg,
+      enabled: options.providerCachingEnabled === true,
+      messages: normalizedMessages,
+      tools,
+    }),
   }
 
   if (stream) {
@@ -252,6 +276,16 @@ async function postChatCompletion(
     ) {
       const retryPayload = { ...payload }
       delete retryPayload.stream_options
+      return postChatCompletion(cfg, retryPayload, tools, abortSignal)
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'prompt_cache_key') &&
+      /prompt_cache_key|cache/i.test(body) &&
+      /unsupported|invalid|unknown|not support|extra|unrecognized|unexpected/i.test(body)
+    ) {
+      const retryPayload = { ...payload }
+      delete retryPayload.prompt_cache_key
       return postChatCompletion(cfg, retryPayload, tools, abortSignal)
     }
 
@@ -352,6 +386,13 @@ function numberField(value: Record<string, unknown>, key: string): number | unde
   return typeof item === 'number' && Number.isFinite(item) ? item : undefined
 }
 
+function objectField(value: Record<string, unknown>, key: string): Record<string, unknown> {
+  const item = value[key]
+  return item && typeof item === 'object' && !Array.isArray(item)
+    ? (item as Record<string, unknown>)
+    : {}
+}
+
 export function estimateTokenCount(text: string): number {
   const asciiWords = text.match(/[A-Za-z0-9_]+(?:['-][A-Za-z0-9_]+)*/g)?.length ?? 0
   const cjkChars = text.match(/[\u3400-\u9fff\uf900-\ufaff]/g)?.length ?? 0
@@ -369,9 +410,11 @@ function estimateMessagesTokens(messages: LLMConversationMessage[]): number {
   }, 0)
 }
 
-function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
+export function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
   if (!value || typeof value !== 'object') return undefined
   const usage = value as Record<string, unknown>
+  const promptDetails = objectField(usage, 'prompt_tokens_details')
+  const inputDetails = objectField(usage, 'input_tokens_details')
   const inputTokens =
     numberField(usage, 'prompt_tokens') ?? numberField(usage, 'input_tokens')
   const outputTokens =
@@ -382,12 +425,16 @@ function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
     numberField(usage, 'prompt_cache_hit_tokens') ??
     numberField(usage, 'cached_tokens') ??
     numberField(usage, 'input_cached_tokens') ??
-    numberField(usage, 'cache_hit_tokens')
+    numberField(usage, 'cache_hit_tokens') ??
+    numberField(promptDetails, 'cached_tokens') ??
+    numberField(inputDetails, 'cached_tokens')
   const cacheWriteTokens =
     numberField(usage, 'cache_write_tokens') ??
     numberField(usage, 'cache_creation_input_tokens') ??
     numberField(usage, 'prompt_cache_miss_tokens') ??
-    numberField(usage, 'cache_creation_tokens')
+    numberField(usage, 'cache_creation_tokens') ??
+    numberField(promptDetails, 'cache_creation_tokens') ??
+    numberField(inputDetails, 'cache_creation_tokens')
 
   if (
     inputTokens === undefined &&
@@ -399,7 +446,7 @@ function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
     return undefined
   }
 
-  return {
+  return normalizeCacheUsage({
     inputTokens,
     outputTokens,
     totalTokens:
@@ -409,7 +456,7 @@ function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
         : undefined),
     cacheReadTokens,
     cacheWriteTokens,
-  }
+  })
 }
 
 function fallbackUsage(messages: LLMConversationMessage[], content: string): LLMTokenUsage {
@@ -427,9 +474,15 @@ export async function chatCompletion(
   cfg: LLMConfig,
   messages: LLMConversationMessage[],
   tools: LLMToolDefinition[] = [],
-  abortSignal?: AbortSignal,
+  requestOptions?: AbortSignal | LLMRequestOptions,
 ): Promise<LLMAssistantMessage> {
-  const res = await postChatCompletion(cfg, buildPayload(cfg, messages, tools, false), tools, abortSignal)
+  const options = normalizeRequestOptions(requestOptions)
+  const res = await postChatCompletion(
+    cfg,
+    buildPayload(cfg, messages, tools, false, options),
+    tools,
+    options.abortSignal,
+  )
 
   const data = (await res.json().catch(() => null)) as {
     usage?: unknown
@@ -462,9 +515,16 @@ export async function* chatCompletionStream(
   cfg: LLMConfig,
   messages: LLMConversationMessage[],
   tools: LLMToolDefinition[] = [],
-  abortSignal?: AbortSignal,
+  requestOptions?: AbortSignal | LLMRequestOptions,
 ): AsyncGenerator<string, LLMAssistantMessage, void> {
-  const res = await postChatCompletion(cfg, buildPayload(cfg, messages, tools, true), tools, abortSignal)
+  const options = normalizeRequestOptions(requestOptions)
+  const abortSignal = options.abortSignal
+  const res = await postChatCompletion(
+    cfg,
+    buildPayload(cfg, messages, tools, true, options),
+    tools,
+    abortSignal,
+  )
   if (!res.body) {
     throw httpError(502, 'LLM 流式响应格式异常：缺少 body')
   }
