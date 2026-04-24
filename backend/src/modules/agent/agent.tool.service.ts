@@ -21,6 +21,7 @@ import { sqlTools } from './tools/sql.tools.js'
 import { terminalTools } from './tools/terminal.tools.js'
 import { uapisTools } from './tools/uapis.tools.js'
 import { websearchTools } from './tools/websearch.tools.js'
+import { wikiTools } from './tools/wiki.tools.js'
 import { getSettings } from '../settings/settings.service.js'
 
 const AGENT_TOOLS: AgentTool[] = [
@@ -34,6 +35,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...skillsTools,
   ...scheduleTools,
   ...websearchTools,
+  ...wikiTools,
   ...uapisTools,
   ...filesystemTools,
   ...feishuTools,

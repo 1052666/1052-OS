@@ -17,6 +17,7 @@ import {
   IconSkills,
   IconSocial,
   IconToolbox,
+  IconWiki,
 } from './Icons'
 import ProfileModal, { type Profile } from './ProfileModal'
 
@@ -26,6 +27,7 @@ const items = [
   { to: '/notifications', label: '通知中心', Icon: IconBell },
   { to: '/repository', label: '仓库', Icon: IconRepo },
   { to: '/notes', label: '笔记', Icon: IconNotes },
+  { to: '/wiki', label: 'Wiki', Icon: IconWiki },
   { to: '/resources', label: '资源列表', Icon: IconResources },
   { to: '/memory', label: '记忆中心', Icon: IconMemory },
   { to: '/social-channels', label: '社交通道', Icon: IconSocial },

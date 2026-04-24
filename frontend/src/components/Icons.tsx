@@ -39,6 +39,21 @@ export const IconNotes = (p: Props) => (
   </svg>
 )
 
+export const IconWiki = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M4 5a2 2 0 0 1 2-2h6l2 2h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+    <path d="M8 9h8M8 13h5M8 17h8" />
+  </svg>
+)
+
+export const IconUpload = (p: Props) => (
+  <svg {...base(p)}>
+    <path d="M12 16V4" />
+    <path d="m7 9 5-5 5 5" />
+    <path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3" />
+  </svg>
+)
+
 export const IconResources = (p: Props) => (
   <svg {...base(p)}>
     <path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />

@@ -1,11 +1,5 @@
 ﻿import type { AgentPackName } from './agent.runtime.types.js'
 
-export const PACK_SCHEMA_TOKEN_BUDGETS: Partial<Record<AgentPackName, number>> = {
-  'base-read-pack': 1200,
-  'repo-pack': 4000,
-  'search-pack': 2200,
-}
-
 const BASE_READ_PACK_TOOL_NAMES = [
   'agent_runtime_status',
   'filesystem_stat_path',
@@ -68,6 +62,21 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'resources_read',
     'sql_datasource_list',
     'sql_file_list',
+    'wiki_summary',
+    'wiki_raw_list',
+    'wiki_raw_read',
+    'wiki_page_search',
+    'wiki_page_read',
+    'wiki_lint_preview',
+    'wiki_ingest_preview',
+    'wiki_raw_upload_from_agent_workspace',
+    'wiki_page_write',
+    'wiki_page_append_section',
+    'wiki_ingest_commit',
+    'wiki_query_writeback',
+    'wiki_lint_fix',
+    'wiki_index_rebuild',
+    'wiki_log_append',
   ],
   'channel-pack': [
     'feishu_list_calendars',
@@ -107,10 +116,6 @@ export function getToolNamesForPack(pack: AgentPackName): string[] {
   return [...(PACK_TOOL_NAMES[pack] ?? [])]
 }
 
-export function getPackSchemaTokenBudget(pack: AgentPackName) {
-  return PACK_SCHEMA_TOKEN_BUDGETS[pack]
-}
-
 export function getToolNamesForMountedPacks(packs: readonly AgentPackName[]): string[] {
   const result: string[] = []
   for (const pack of packs) {
@@ -134,7 +139,7 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'plan-pack':
       return '日程、定时任务、计划类工具。'
     case 'data-pack':
-      return '笔记、资源列表、SQL 数据源和数据读取工具。'
+      return '笔记、资源列表、SQL 数据源、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。Wiki 写入、索引、日志和 lint 修复默认需要用户确认。'
     case 'channel-pack':
       return '微信、飞书等外部通道能力和飞书工作区工具。'
   }
