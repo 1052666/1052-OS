@@ -1,5 +1,11 @@
 ﻿import type { AgentPackName } from './agent.runtime.types.js'
 
+export const PACK_SCHEMA_TOKEN_BUDGETS: Partial<Record<AgentPackName, number>> = {
+  'base-read-pack': 1200,
+  'repo-pack': 4000,
+  'search-pack': 2200,
+}
+
 const BASE_READ_PACK_TOOL_NAMES = [
   'filesystem_stat_path',
   'filesystem_list_directory',
@@ -98,6 +104,10 @@ export function expandMountedPacks(
 export function getToolNamesForPack(pack: AgentPackName): string[] {
   if (pack === 'base-read-pack') return [...BASE_READ_PACK_TOOL_NAMES]
   return [...(PACK_TOOL_NAMES[pack] ?? [])]
+}
+
+export function getPackSchemaTokenBudget(pack: AgentPackName) {
+  return PACK_SCHEMA_TOKEN_BUDGETS[pack]
 }
 
 export function getToolNamesForMountedPacks(packs: readonly AgentPackName[]): string[] {

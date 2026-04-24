@@ -53,7 +53,7 @@ export const terminalTools: AgentTool[] = [
   {
     name: 'terminal_run_readonly',
     description:
-      'Run a read-only local terminal command on Windows using PowerShell or CMD. Commands that may modify files, processes, git state, dependencies, or system state are rejected.',
+      'Run a strictly allow-listed read-only terminal command on Windows using PowerShell or CMD. Allowed commands: ls, dir, cat, type, rg, git status, git diff, git log, git show.',
     parameters: {
       type: 'object',
       properties: {

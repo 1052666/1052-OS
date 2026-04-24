@@ -452,6 +452,13 @@ async function* runProgressiveStream(
       fullAccess: settings.agent.fullAccess === true,
     })
 
+    if (mountedPacks.length === 0 && built.budgetReport.overLimit) {
+      throw httpError(
+        500,
+        `P0 prompt budget exceeded: ${built.budgetReport.tokens}/${built.budgetReport.limitTokens} tokens`,
+      )
+    }
+
     if (settings.agent.checkpointEnabled) {
       checkpoint = await patchCheckpoint(sessionId, {
         summaryInjectedTokens: built.injectedCheckpointTokens,

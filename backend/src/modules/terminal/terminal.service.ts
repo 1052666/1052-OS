@@ -87,6 +87,13 @@ const READONLY_DENY_PATTERNS: RegExp[] = [
   /(^|[^<])>>?([^=]|$)/,
 ]
 
+const READONLY_ALLOWED_COMMAND_PATTERNS: RegExp[] = [
+  /^(dir|ls)(\s+[^;&|<>`\r\n]*)?$/i,
+  /^(cat|type)(\s+[^;&|<>`\r\n]+)?$/i,
+  /^(rg|rg\.exe)(\s+[^;&|<>`\r\n]+)?$/i,
+  /^git\s+(status|diff|log|show)(\s+[^;&|<>`\r\n]*)?$/i,
+]
+
 function workspaceRoot() {
   const cwd = process.cwd()
   return path.basename(cwd).toLowerCase() === 'backend' ? path.dirname(cwd) : cwd
@@ -163,8 +170,18 @@ function assertConfirmedForRisk(risk: TerminalRiskLevel, confirmed: unknown, com
 }
 
 function assertReadonlyCommand(command: string) {
-  if (!READONLY_DENY_PATTERNS.some((pattern) => pattern.test(command))) return
-  throw new HttpError(400, `Read-only terminal tool rejected a command that may modify state: ${command}`)
+  if (isReadonlyTerminalCommandAllowed(command)) return
+  throw new HttpError(400, `Read-only terminal tool only allows ls/dir/cat/type/rg and git status/diff/log/show: ${command}`)
+}
+
+export function isReadonlyTerminalCommandAllowed(command: string) {
+  const normalized = command.trim()
+  if (!normalized) return false
+
+  // This is the repo-pack safety boundary: readonly means a narrow allow-list,
+  // not "anything except known writes". Full-access must not expand this tool.
+  if (READONLY_DENY_PATTERNS.some((pattern) => pattern.test(normalized))) return false
+  return READONLY_ALLOWED_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
 function buildSpawnArgs(shell: TerminalShell, command: string) {

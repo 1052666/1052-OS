@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   describePackForRouting,
   expandMountedPacks,
+  getPackSchemaTokenBudget,
+  getToolNamesForPack,
   getToolNamesForMountedPacks,
   normalizeRequestedPacks,
 } from '../agent.pack.service.js'
+import { buildToolSchemaBudgetReport } from '../agent.budget.service.js'
 import {
   MAX_PACKS_PER_UPGRADE,
   MAX_UPGRADES_PER_MESSAGE,
@@ -16,6 +19,8 @@ import {
   summarizeCheckpointForInjection,
 } from '../agent.checkpoint.service.js'
 import { buildP0Messages } from '../agent.p0.service.js'
+import { getAgentToolDefinitionsForNames } from '../agent.tool.service.js'
+import { isReadonlyTerminalCommandAllowed } from '../../terminal/terminal.service.js'
 import { terminalTools } from '../tools/terminal.tools.js'
 
 describe('agent progressive disclosure helpers', () => {
@@ -54,6 +59,35 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('uapis_list_apis')
     expect(system).toContain('uapis_read_api')
     expect(system).toContain('uapis_call')
+    expect(built.budgetReport.overLimit).toBe(false)
+    expect(built.budgetReport.tokens).toBeLessThanOrEqual(built.budgetReport.limitTokens)
+
+    const uapisBudget = built.budgetReport.components.find(
+      (component) => component.key === 'uapis-directory',
+    )
+    expect(uapisBudget?.tokens).toBeLessThanOrEqual(uapisBudget?.limitTokens ?? 0)
+
+    const upgradeToolBudget = built.budgetReport.components.find(
+      (component) => component.key === 'context-upgrade-tool',
+    )
+    expect(upgradeToolBudget?.tokens).toBeLessThanOrEqual(upgradeToolBudget?.limitTokens ?? 0)
+  })
+
+  it('keeps phase-one pack schemas within their declared budgets', () => {
+    for (const pack of ['base-read-pack', 'repo-pack', 'search-pack'] as const) {
+      const limitTokens = getPackSchemaTokenBudget(pack)
+      expect(limitTokens).toBeTypeOf('number')
+
+      const report = buildToolSchemaBudgetReport({
+        key: pack,
+        label: pack,
+        limitTokens: limitTokens ?? 0,
+        toolDefinitions: getAgentToolDefinitionsForNames(getToolNamesForPack(pack)),
+      })
+
+      expect(report.overLimit).toBe(false)
+      expect(report.tokens).toBeLessThanOrEqual(report.limitTokens)
+    }
   })
 
   it('mounts memory write tools through memory-pack and advertises the route in P0', async () => {
@@ -116,20 +150,21 @@ describe('agent progressive disclosure helpers', () => {
     expect(normalizeSessionId('wechat:acc/peer?x')).toBe('wechat-acc-peer-x')
   })
 
-  it('allows full-access injected confirmation on read-only terminal commands', async () => {
-    const tool = terminalTools.find((item) => item.name === 'terminal_run_readonly')
-    expect(tool).toBeTruthy()
+  it('keeps read-only terminal commands on a strict allow-list', () => {
+    expect(isReadonlyTerminalCommandAllowed('ls')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('dir src')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('cat package.json')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('type package.json')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('rg request_context_upgrade src')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git status --short')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git diff -- src')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git log --oneline')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git show HEAD')).toBe(true)
 
-    const result = await tool?.execute({
-      command: '[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("ok"))',
-      confirmed: true,
-    })
-
-    expect(result).toMatchObject({
-      exitCode: 0,
-      risk: 'confirm',
-      stdout: 'b2s=',
-    })
+    expect(isReadonlyTerminalCommandAllowed('[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("ok"))')).toBe(false)
+    expect(isReadonlyTerminalCommandAllowed('git branch')).toBe(false)
+    expect(isReadonlyTerminalCommandAllowed('npm run build')).toBe(false)
+    expect(isReadonlyTerminalCommandAllowed('ls && rm package.json')).toBe(false)
   })
 
   it('keeps read-only terminal commands from modifying local state', async () => {
@@ -141,6 +176,6 @@ describe('agent progressive disclosure helpers', () => {
         command: 'Set-Content -Path should-not-exist.txt -Value no',
         confirmed: true,
       }),
-    ).rejects.toThrow('Read-only terminal tool rejected')
+    ).rejects.toThrow('Read-only terminal tool only allows')
   })
 })
