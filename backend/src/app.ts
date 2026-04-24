@@ -32,6 +32,10 @@ export function createApp(): Express {
   app.use(cors())
   app.use(express.json({ limit: '2mb' }))
   app.use(
+    '/api/agent/uploads',
+    express.static(path.join(config.dataDir, '1052', 'uploads')),
+  )
+  app.use(
     '/api/generated-images',
     express.static(path.join(config.dataDir, 'generated-images')),
   )

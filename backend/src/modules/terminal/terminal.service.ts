@@ -11,6 +11,7 @@ export type TerminalRunInput = {
   cwd?: string
   timeoutMs?: number
   confirmed?: boolean
+  readonly?: boolean
 }
 
 export type TerminalRunResult = {
@@ -73,6 +74,17 @@ const SAFE_COMMAND_PATTERNS: RegExp[] = [
   /^(type)(\s|$)/i,
   /^(more)(\s|$)/i,
   /^(Get-ChildItem|Get-Location|Get-Content|Get-Date|Test-Path|Select-String)(\s|$)/i,
+]
+
+const READONLY_DENY_PATTERNS: RegExp[] = [
+  /\b(Remove-Item|rm|del|erase|rmdir|rd)\b/i,
+  /\b(Set-Content|Add-Content|Out-File|New-Item|Copy-Item|Move-Item|Rename-Item)\b/i,
+  /\b(Stop-Process|Start-Process|taskkill|sc|net\s+stop|net\s+start)\b/i,
+  /\b(git\s+(add|commit|checkout|switch|reset|clean|merge|rebase|pull|push|tag|stash))(\s|$)/i,
+  /\b(npm|pnpm|yarn)\s+(install|add|remove|uninstall|publish|run)\b/i,
+  /\b(pip|uv)\s+(install|uninstall|sync)\b/i,
+  /\b(Set-ItemProperty|New-ItemProperty|Remove-ItemProperty)\b/i,
+  /(^|[^<])>>?([^=]|$)/,
 ]
 
 function workspaceRoot() {
@@ -150,6 +162,11 @@ function assertConfirmedForRisk(risk: TerminalRiskLevel, confirmed: unknown, com
   )
 }
 
+function assertReadonlyCommand(command: string) {
+  if (!READONLY_DENY_PATTERNS.some((pattern) => pattern.test(command))) return
+  throw new HttpError(400, `Read-only terminal tool rejected a command that may modify state: ${command}`)
+}
+
 function buildSpawnArgs(shell: TerminalShell, command: string) {
   if (shell === 'cmd') {
     return {
@@ -198,6 +215,9 @@ export async function terminalRun(input: TerminalRunInput): Promise<TerminalRunR
   const timeoutMs = normalizeTimeout(input.timeoutMs)
   const risk = classifyCommand(command)
 
+  if (input.readonly === true) {
+    assertReadonlyCommand(command)
+  }
   assertConfirmedForRisk(risk, input.confirmed, command)
 
   if (session.running) {

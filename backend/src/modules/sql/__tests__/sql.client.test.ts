@@ -19,7 +19,7 @@ const mockConfig = {
 }
 
 function mockExecResult(error: any, stdout: string, stderr: string) {
-  ;(execFile as Mock).mockImplementationOnce(
+  ;(execFile as unknown as Mock).mockImplementationOnce(
     (_cmd: string, _args: string[], _opts: any, cb: Function) => {
       const proc = { stdin: { end: vi.fn() } }
       cb(error, stdout, stderr)

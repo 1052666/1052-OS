@@ -26,6 +26,11 @@ export type AgentSettings = {
   userPrompt: string
   fullAccess: boolean
   contextMessageLimit: number
+  progressiveDisclosureEnabled: boolean
+  providerCachingEnabled: boolean
+  checkpointEnabled: boolean
+  seedOnResumeEnabled: boolean
+  upgradeDebugEventsEnabled: boolean
 }
 
 export type UapisSettings = {

@@ -43,6 +43,25 @@ export type WechatDeliveryTarget = {
   lastMessageAt?: number
 }
 
+export type WechatSendInput = {
+  accountId: string
+  peerId: string
+  text: string
+}
+
+export type WechatSendResult = {
+  ok: true
+  chunks: number
+  media: number
+}
+
+export type WechatMediaSendInput = {
+  accountId: string
+  peerId: string
+  text?: string
+  file: File
+}
+
 export type FeishuStatus = {
   available: true
   configured: boolean
@@ -196,6 +215,39 @@ export const SocialChannelsApi = {
   startWechatLogin: () => api.post<WechatLoginStart>('/channels/wechat/login/start', {}),
   waitWechatLogin: (sessionKey: string, timeoutMs = 10_000) =>
     api.post<WechatLoginWait>('/channels/wechat/login/wait', { sessionKey, timeoutMs }),
+  sendWechatMessage: (input: WechatSendInput) =>
+    api.post<WechatSendResult>('/channels/wechat/send', input),
+  sendWechatMedia: async (input: WechatMediaSendInput) => {
+    const form = new FormData()
+    form.set('accountId', input.accountId)
+    form.set('peerId', input.peerId)
+    if (input.text?.trim()) form.set('text', input.text.trim())
+    form.set('file', input.file)
+
+    const response = await fetch('/api/channels/wechat/send-media', {
+      method: 'POST',
+      body: form,
+    })
+    const text = await response.text()
+    let data: unknown = null
+    if (text) {
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = text
+      }
+    }
+    if (!response.ok) {
+      throw {
+        status: response.status,
+        message:
+          data && typeof data === 'object' && 'error' in data
+            ? String((data as { error: unknown }).error)
+            : response.statusText,
+      }
+    }
+    return data as WechatSendResult
+  },
   startWechatAccount: (accountId: string) =>
     api.post<WechatAccountSummary>(
       '/channels/wechat/accounts/' + encodeURIComponent(accountId) + '/start',

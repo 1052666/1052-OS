@@ -37,6 +37,11 @@ const DEFAULT_SETTINGS: Settings = {
     userPrompt: '',
     fullAccess: false,
     contextMessageLimit: 50,
+    progressiveDisclosureEnabled: true,
+    providerCachingEnabled: true,
+    checkpointEnabled: true,
+    seedOnResumeEnabled: true,
+    upgradeDebugEventsEnabled: true,
   },
   uapis: {
     apiKey: '',
@@ -147,6 +152,28 @@ function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSe
             300,
           )
         : DEFAULT_SETTINGS.agent.contextMessageLimit,
+    progressiveDisclosureEnabled:
+      typeof (agent as { progressiveDisclosureEnabled?: unknown }).progressiveDisclosureEnabled ===
+      'boolean'
+        ? Boolean((agent as { progressiveDisclosureEnabled?: unknown }).progressiveDisclosureEnabled)
+        : DEFAULT_SETTINGS.agent.progressiveDisclosureEnabled,
+    providerCachingEnabled:
+      typeof (agent as { providerCachingEnabled?: unknown }).providerCachingEnabled === 'boolean'
+        ? Boolean((agent as { providerCachingEnabled?: unknown }).providerCachingEnabled)
+        : DEFAULT_SETTINGS.agent.providerCachingEnabled,
+    checkpointEnabled:
+      typeof (agent as { checkpointEnabled?: unknown }).checkpointEnabled === 'boolean'
+        ? Boolean((agent as { checkpointEnabled?: unknown }).checkpointEnabled)
+        : DEFAULT_SETTINGS.agent.checkpointEnabled,
+    seedOnResumeEnabled:
+      typeof (agent as { seedOnResumeEnabled?: unknown }).seedOnResumeEnabled === 'boolean'
+        ? Boolean((agent as { seedOnResumeEnabled?: unknown }).seedOnResumeEnabled)
+        : DEFAULT_SETTINGS.agent.seedOnResumeEnabled,
+    upgradeDebugEventsEnabled:
+      typeof (agent as { upgradeDebugEventsEnabled?: unknown }).upgradeDebugEventsEnabled ===
+      'boolean'
+        ? Boolean((agent as { upgradeDebugEventsEnabled?: unknown }).upgradeDebugEventsEnabled)
+        : DEFAULT_SETTINGS.agent.upgradeDebugEventsEnabled,
   }
 }
 

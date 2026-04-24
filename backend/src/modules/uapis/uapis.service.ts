@@ -195,6 +195,39 @@ export async function formatUapisRuntimeContext() {
   return lines.join('\n')
 }
 
+export async function formatUapisDirectorySummary(options?: {
+  maxCategories?: number
+  maxApisPerCategory?: number
+}) {
+  const maxCategories =
+    typeof options?.maxCategories === 'number' && Number.isFinite(options.maxCategories)
+      ? Math.max(1, Math.floor(options.maxCategories))
+      : 6
+  const maxApisPerCategory =
+    typeof options?.maxApisPerCategory === 'number' && Number.isFinite(options.maxApisPerCategory)
+      ? Math.max(1, Math.floor(options.maxApisPerCategory))
+      : 3
+
+  const catalog = await getUapisCatalog()
+  const enabled = catalog.apis.filter((api) => api.enabled)
+  const lines = [
+    'UAPIs directory summary:',
+    `- enabled APIs: ${catalog.counts.enabled}/${catalog.counts.total}`,
+    '- workflow: uapis_list_apis -> uapis_read_api -> uapis_call',
+  ]
+
+  for (const category of catalog.categories.slice(0, maxCategories)) {
+    const items = enabled
+      .filter((api) => api.categoryId === category.id)
+      .slice(0, maxApisPerCategory)
+      .map((api) => api.id)
+    if (items.length === 0) continue
+    lines.push(`- ${category.name}: ${items.join(', ')}`)
+  }
+
+  return lines.join('\n')
+}
+
 function normalizeObject(value: unknown, field: string) {
   if (value === undefined || value === null) return {}
   if (typeof value === 'string') {

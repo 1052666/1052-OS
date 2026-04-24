@@ -7,7 +7,6 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
-  signal?: AbortSignal,
 ): Promise<T> {
   let res: Response
   try {
@@ -15,7 +14,6 @@ async function request<T>(
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
-      signal,
     })
   } catch (error) {
     logFrontendRuntime(
@@ -67,8 +65,8 @@ function safeParse(text: string): unknown {
 
 export const api = {
   get: <T>(p: string) => request<T>('GET', p),
-  patch: <T>(p: string, body: unknown, signal?: AbortSignal) => request<T>('PATCH', p, body, signal),
-  put: <T>(p: string, body: unknown, signal?: AbortSignal) => request<T>('PUT', p, body, signal),
-  post: <T>(p: string, body: unknown, signal?: AbortSignal) => request<T>('POST', p, body, signal),
+  patch: <T>(p: string, body: unknown) => request<T>('PATCH', p, body),
+  put: <T>(p: string, body: unknown) => request<T>('PUT', p, body),
+  post: <T>(p: string, body: unknown) => request<T>('POST', p, body),
   delete: <T>(p: string) => request<T>('DELETE', p),
 }

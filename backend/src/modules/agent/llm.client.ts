@@ -53,6 +53,8 @@ export type LLMTokenUsage = {
   inputTokens?: number
   outputTokens?: number
   totalTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
   estimated?: boolean
 }
 
@@ -163,7 +165,7 @@ function normalizeToolCalls(value: unknown): LLMToolCall[] {
           typeof toolCall.id === 'string' && toolCall.id.length > 0
             ? toolCall.id
             : `tool_call_${index + 1}`,
-        type: 'function' as const,
+        type: 'function',
         function: {
           name: toolCall.function.name,
           arguments:
@@ -186,6 +188,7 @@ function buildPayload(
   const normalizedMessages = miniMaxCompatible
     ? normalizeMessagesForMiniMax(messages)
     : messages
+
   const payload: Record<string, unknown> = {
     model: cfg.modelId,
     messages: normalizedMessages.map((message) => toApiMessage(message)),
@@ -214,10 +217,11 @@ async function postChatCompletion(
   cfg: LLMConfig,
   payload: Record<string, unknown>,
   tools: LLMToolDefinition[],
+  abortSignal?: AbortSignal,
 ): Promise<Response> {
-  if (!cfg.baseUrl) throw httpError(400, 'LLM baseUrl 未配置，请前往设置页')
-  if (!cfg.modelId) throw httpError(400, 'LLM modelId 未配置，请前往设置页')
-  if (!cfg.apiKey) throw httpError(400, 'LLM apiKey 未配置，请前往设置页')
+  if (!cfg.baseUrl) throw httpError(400, 'LLM baseUrl 未配置，请前往设置页填写')
+  if (!cfg.modelId) throw httpError(400, 'LLM modelId 未配置，请前往设置页填写')
+  if (!cfg.apiKey) throw httpError(400, 'LLM apiKey 未配置，请前往设置页填写')
 
   let res: Response
   try {
@@ -229,13 +233,18 @@ async function postChatCompletion(
         Authorization: `Bearer ${cfg.apiKey}`,
       },
       body: JSON.stringify(payload),
+      signal: abortSignal,
     })
-  } catch (e) {
-    throw httpError(502, `无法连接 LLM: ${(e as Error).message}`)
+  } catch (error) {
+    if (abortSignal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+      throw httpError(499, 'LLM request aborted')
+    }
+    throw httpError(502, `无法连接 LLM: ${(error as Error).message}`)
   }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '')
+
     if (
       payload.stream_options &&
       /stream_options|include_usage/i.test(body) &&
@@ -243,7 +252,7 @@ async function postChatCompletion(
     ) {
       const retryPayload = { ...payload }
       delete retryPayload.stream_options
-      return postChatCompletion(cfg, retryPayload, tools)
+      return postChatCompletion(cfg, retryPayload, tools, abortSignal)
     }
 
     if (
@@ -253,7 +262,7 @@ async function postChatCompletion(
     ) {
       const retryPayload = { ...payload }
       delete retryPayload.reasoning_split
-      return postChatCompletion(cfg, retryPayload, tools)
+      return postChatCompletion(cfg, retryPayload, tools, abortSignal)
     }
 
     const maybeToolError =
@@ -264,7 +273,7 @@ async function postChatCompletion(
     throw httpError(
       res.status,
       maybeToolError
-        ? '当前模型或网关不支持 Agent 工具调用，请更换支持 function calling 的模型或兼容网关。'
+        ? '当前模型或网关不支持 Agent 工具调用，请切换到支持 function calling 的模型或兼容网关。'
         : `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`,
     )
   }
@@ -272,10 +281,7 @@ async function postChatCompletion(
   return res
 }
 
-function mergeToolCallDelta(
-  toolCalls: Map<number, ToolCallAccumulator>,
-  value: unknown,
-) {
+function mergeToolCallDelta(toolCalls: Map<number, ToolCallAccumulator>, value: unknown) {
   if (!Array.isArray(value)) return
 
   for (const item of value) {
@@ -303,8 +309,7 @@ function mergeToolCallDelta(
         current.function.name = delta.function.name
       }
       if (typeof delta.function.arguments === 'string') {
-        current.function.arguments =
-          (current.function.arguments ?? '') + delta.function.arguments
+        current.function.arguments = (current.function.arguments ?? '') + delta.function.arguments
       }
     }
 
@@ -312,11 +317,9 @@ function mergeToolCallDelta(
   }
 }
 
-function normalizeAccumulatedToolCalls(
-  toolCalls: Map<number, ToolCallAccumulator>,
-): LLMToolCall[] {
+function normalizeAccumulatedToolCalls(toolCalls: Map<number, ToolCallAccumulator>): LLMToolCall[] {
   return [...toolCalls.entries()]
-    .sort(([a], [b]) => a - b)
+    .sort(([left], [right]) => left - right)
     .map(([index, toolCall]) => {
       if (toolCall.type && toolCall.type !== 'function') return null
       if (!toolCall.function?.name) return null
@@ -326,7 +329,7 @@ function normalizeAccumulatedToolCalls(
           typeof toolCall.id === 'string' && toolCall.id.length > 0
             ? toolCall.id
             : `tool_call_${index + 1}`,
-        type: 'function' as const,
+        type: 'function',
         function: {
           name: toolCall.function.name,
           arguments: toolCall.function.arguments ?? '{}',
@@ -336,10 +339,7 @@ function normalizeAccumulatedToolCalls(
     .filter((toolCall): toolCall is LLMToolCall => toolCall !== null)
 }
 
-function getStringField(
-  value: Record<string, unknown>,
-  keys: string[],
-): string {
+function getStringField(value: Record<string, unknown>, keys: string[]): string {
   for (const key of keys) {
     const item = value[key]
     if (typeof item === 'string' && item.length > 0) return item
@@ -377,11 +377,24 @@ function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
   const outputTokens =
     numberField(usage, 'completion_tokens') ?? numberField(usage, 'output_tokens')
   const totalTokens = numberField(usage, 'total_tokens')
+  const cacheReadTokens =
+    numberField(usage, 'cache_read_input_tokens') ??
+    numberField(usage, 'prompt_cache_hit_tokens') ??
+    numberField(usage, 'cached_tokens') ??
+    numberField(usage, 'input_cached_tokens') ??
+    numberField(usage, 'cache_hit_tokens')
+  const cacheWriteTokens =
+    numberField(usage, 'cache_write_tokens') ??
+    numberField(usage, 'cache_creation_input_tokens') ??
+    numberField(usage, 'prompt_cache_miss_tokens') ??
+    numberField(usage, 'cache_creation_tokens')
 
   if (
     inputTokens === undefined &&
     outputTokens === undefined &&
-    totalTokens === undefined
+    totalTokens === undefined &&
+    cacheReadTokens === undefined &&
+    cacheWriteTokens === undefined
   ) {
     return undefined
   }
@@ -394,13 +407,12 @@ function normalizeUsage(value: unknown): LLMTokenUsage | undefined {
       (inputTokens !== undefined && outputTokens !== undefined
         ? inputTokens + outputTokens
         : undefined),
+    cacheReadTokens,
+    cacheWriteTokens,
   }
 }
 
-function fallbackUsage(
-  messages: LLMConversationMessage[],
-  content: string,
-): LLMTokenUsage {
+function fallbackUsage(messages: LLMConversationMessage[], content: string): LLMTokenUsage {
   const inputTokens = estimateMessagesTokens(messages)
   const outputTokens = estimateTokenCount(content)
   return {
@@ -415,12 +427,9 @@ export async function chatCompletion(
   cfg: LLMConfig,
   messages: LLMConversationMessage[],
   tools: LLMToolDefinition[] = [],
+  abortSignal?: AbortSignal,
 ): Promise<LLMAssistantMessage> {
-  const res = await postChatCompletion(
-    cfg,
-    buildPayload(cfg, messages, tools, false),
-    tools,
-  )
+  const res = await postChatCompletion(cfg, buildPayload(cfg, messages, tools, false), tools, abortSignal)
 
   const data = (await res.json().catch(() => null)) as {
     usage?: unknown
@@ -438,7 +447,7 @@ export async function chatCompletion(
   const content = typeof message?.content === 'string' ? message.content : ''
 
   if (content.length === 0 && toolCalls.length === 0) {
-    throw httpError(502, 'LLM 响应格式异常: 未找到有效的回复内容或工具调用')
+    throw httpError(502, 'LLM 响应格式异常：未找到有效的回复内容或工具调用')
   }
 
   return {
@@ -453,14 +462,11 @@ export async function* chatCompletionStream(
   cfg: LLMConfig,
   messages: LLMConversationMessage[],
   tools: LLMToolDefinition[] = [],
+  abortSignal?: AbortSignal,
 ): AsyncGenerator<string, LLMAssistantMessage, void> {
-  const res = await postChatCompletion(
-    cfg,
-    buildPayload(cfg, messages, tools, true),
-    tools,
-  )
+  const res = await postChatCompletion(cfg, buildPayload(cfg, messages, tools, true), tools, abortSignal)
   if (!res.body) {
-    throw httpError(502, 'LLM 流式响应格式异常: 缺少 body')
+    throw httpError(502, 'LLM 流式响应格式异常：缺少 body')
   }
 
   const reader = res.body.getReader()
@@ -484,9 +490,7 @@ export async function* chatCompletionStream(
     yield chunk
   }
 
-  const emitReasoning = function* (
-    chunk: string,
-  ): Generator<string, void, void> {
+  const emitReasoning = function* (chunk: string): Generator<string, void, void> {
     if (!chunk) return
     if (!reasoningOpen) {
       const open = '<think>\n'
@@ -517,20 +521,18 @@ export async function* chatCompletionStream(
           }
         }[]
       }
+
       usage = normalizeUsage(obj.usage) ?? usage
       const delta = obj.choices?.[0]?.delta
       if (!delta) continue
 
-      const reasoning = getStringField(delta, [
-        'reasoning_content',
-        'reasoning',
-        'thinking',
-      ])
+      const reasoning = getStringField(delta, ['reasoning_content', 'reasoning', 'thinking'])
       yield* emitReasoning(reasoning)
 
       if (typeof delta.content === 'string' && delta.content.length > 0) {
         yield* emitContent(delta.content)
       }
+
       mergeToolCallDelta(toolCalls, delta.tool_calls)
     }
   }
@@ -555,8 +557,11 @@ export async function* chatCompletionStream(
     if (buffer.trim() && !done) {
       yield* handleEvent(buffer)
     }
-  } catch (e) {
-    throw httpError(502, `LLM 流式响应解析失败: ${(e as Error).message}`)
+  } catch (error) {
+    if (abortSignal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+      throw httpError(499, 'LLM stream aborted')
+    }
+    throw httpError(502, `LLM 流式响应解析失败: ${(error as Error).message}`)
   } finally {
     reader.releaseLock()
   }
@@ -568,8 +573,9 @@ export async function* chatCompletionStream(
     content += close
     yield close
   }
+
   if (content.length === 0 && normalizedToolCalls.length === 0) {
-    throw httpError(502, 'LLM 响应格式异常: 未找到有效的回复内容或工具调用')
+    throw httpError(502, 'LLM 响应格式异常：未找到有效的回复内容或工具调用')
   }
 
   return {

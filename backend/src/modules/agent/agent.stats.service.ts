@@ -18,6 +18,11 @@ export type TokenUsageAggregate = {
   outputTokens: number
   totalTokens: number
   contextTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  upgradeOverheadInputTokens: number
+  upgradeOverheadOutputTokens: number
+  upgradeOverheadTotalTokens: number
 }
 
 export type TokenUsageBucket = TokenUsageAggregate & {
@@ -56,6 +61,11 @@ function emptyAggregate(): TokenUsageAggregate {
     outputTokens: 0,
     totalTokens: 0,
     contextTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    upgradeOverheadInputTokens: 0,
+    upgradeOverheadOutputTokens: 0,
+    upgradeOverheadTotalTokens: 0,
   }
 }
 
@@ -96,6 +106,11 @@ function fingerprintMessage(message: StoredChatMessage) {
     message.usage?.inputTokens ?? null,
     message.usage?.outputTokens ?? null,
     message.usage?.totalTokens ?? null,
+    message.usage?.cacheReadTokens ?? null,
+    message.usage?.cacheWriteTokens ?? null,
+    message.usage?.upgradeOverheadInputTokens ?? null,
+    message.usage?.upgradeOverheadOutputTokens ?? null,
+    message.usage?.upgradeOverheadTotalTokens ?? null,
     message.usage?.estimated ?? null,
   ])
 }
@@ -125,6 +140,11 @@ function addMessageToAggregate(target: TokenUsageAggregate, message: StoredChatM
   target.outputTokens += outputTokens
   target.totalTokens += totalTokens
   target.contextTokens += contextTokens
+  target.cacheReadTokens += message.usage.cacheReadTokens ?? 0
+  target.cacheWriteTokens += message.usage.cacheWriteTokens ?? 0
+  target.upgradeOverheadInputTokens += message.usage.upgradeOverheadInputTokens ?? 0
+  target.upgradeOverheadOutputTokens += message.usage.upgradeOverheadOutputTokens ?? 0
+  target.upgradeOverheadTotalTokens += message.usage.upgradeOverheadTotalTokens ?? 0
 }
 
 function buildTrendDates(now = Date.now()) {

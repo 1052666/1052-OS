@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
+﻿import { useEffect, useState, type ReactNode } from 'react'
 import { SettingsApi, type PublicSettings, type SettingsPatch } from '../api/settings'
+import { AgentApi, type AgentMigrationPreview, type AgentMigrationResult } from '../api/agent'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
 import TokenUsagePanel from '../components/TokenUsagePanel'
 import { useTheme } from '../theme-context'
@@ -157,8 +158,18 @@ export default function Settings() {
   const [streaming, setStreaming] = useState(true)
   const [fullAccess, setFullAccess] = useState(false)
   const [contextMessageLimit, setContextMessageLimit] = useState(50)
+  const [progressiveDisclosureEnabled, setProgressiveDisclosureEnabled] = useState(true)
+  const [providerCachingEnabled, setProviderCachingEnabled] = useState(true)
+  const [checkpointEnabled, setCheckpointEnabled] = useState(true)
+  const [seedOnResumeEnabled, setSeedOnResumeEnabled] = useState(true)
+  const [upgradeDebugEventsEnabled, setUpgradeDebugEventsEnabled] = useState(true)
   const [state, setState] = useState<SaveState>('idle')
   const [error, setError] = useState('')
+  const [migrationSourcePath, setMigrationSourcePath] = useState('')
+  const [migrationPreview, setMigrationPreview] = useState<AgentMigrationPreview | null>(null)
+  const [migrationResult, setMigrationResult] = useState<AgentMigrationResult | null>(null)
+  const [migrationBusy, setMigrationBusy] = useState(false)
+  const [migrationError, setMigrationError] = useState('')
   const llmProvider = detectLlmProvider(baseUrl, modelId)
   const llmApiKeyPortal = LLM_API_KEY_PORTALS[llmProvider]
 
@@ -180,6 +191,11 @@ export default function Settings() {
         setStreaming(settings.agent.streaming)
         setFullAccess(settings.agent.fullAccess)
         setContextMessageLimit(settings.agent.contextMessageLimit)
+        setProgressiveDisclosureEnabled(settings.agent.progressiveDisclosureEnabled)
+        setProviderCachingEnabled(settings.agent.providerCachingEnabled)
+        setCheckpointEnabled(settings.agent.checkpointEnabled)
+        setSeedOnResumeEnabled(settings.agent.seedOnResumeEnabled)
+        setUpgradeDebugEventsEnabled(settings.agent.upgradeDebugEventsEnabled)
         setTheme(settings.appearance.theme)
         setUiLanguage(settings.appearance.language)
       })
@@ -222,7 +238,17 @@ export default function Settings() {
         ...(uapisApiKey.trim() ? { apiKey: uapisApiKey.trim() } : {}),
       },
       appearance: { theme, language: uiLanguage },
-      agent: { streaming, userPrompt, fullAccess, contextMessageLimit },
+      agent: {
+        streaming,
+        userPrompt,
+        fullAccess,
+        contextMessageLimit,
+        progressiveDisclosureEnabled,
+        providerCachingEnabled,
+        checkpointEnabled,
+        seedOnResumeEnabled,
+        upgradeDebugEventsEnabled,
+      },
     }
 
     try {
@@ -237,6 +263,45 @@ export default function Settings() {
       const errorLike = err as { message?: string }
       setError(errorLike.message ?? t('设置保存失败', 'Failed to save settings'))
       setState('error')
+    }
+  }
+
+  const previewMigration = async () => {
+    const sourcePath = migrationSourcePath.trim()
+    if (!sourcePath) {
+      setMigrationError(t('请先填写旧版本项目目录或 data 目录。', 'Enter the old project or data directory first.'))
+      return
+    }
+    setMigrationBusy(true)
+    setMigrationError('')
+    setMigrationResult(null)
+    try {
+      setMigrationPreview(await AgentApi.previewMigration(sourcePath))
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setMigrationError(errorLike.message ?? t('迁移预览失败', 'Migration preview failed'))
+    } finally {
+      setMigrationBusy(false)
+    }
+  }
+
+  const runMigration = async () => {
+    const sourcePath = migrationSourcePath.trim()
+    if (!sourcePath) {
+      setMigrationError(t('请先填写旧版本项目目录或 data 目录。', 'Enter the old project or data directory first.'))
+      return
+    }
+    setMigrationBusy(true)
+    setMigrationError('')
+    try {
+      const result = await AgentApi.runMigration(sourcePath)
+      setMigrationResult(result)
+      setMigrationPreview(result)
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setMigrationError(errorLike.message ?? t('迁移执行失败', 'Migration failed'))
+    } finally {
+      setMigrationBusy(false)
     }
   }
 
@@ -644,6 +709,86 @@ export default function Settings() {
 
               <div className="settings-row">
                 <div className="settings-row-label">
+                  <div className="settings-row-title">1052-PD 渐进披露</div>
+                  <div className="settings-row-desc">
+                    启用单引擎渐进式上下文加载，通过 `request_context_upgrade` 按需挂载工具包，降低首轮 token 消耗。
+                  </div>
+                </div>
+                <button
+                  className={'switch' + (progressiveDisclosureEnabled ? ' on' : '')}
+                  type="button"
+                  onClick={() => setProgressiveDisclosureEnabled((current) => !current)}
+                >
+                  <span className="switch-thumb" />
+                </button>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">模型前缀缓存</div>
+                  <div className="settings-row-desc">
+                    保持核心提示词前缀稳定，让支持缓存的模型供应商复用前缀，减少重复会话成本。
+                  </div>
+                </div>
+                <button
+                  className={'switch' + (providerCachingEnabled ? ' on' : '')}
+                  type="button"
+                  onClick={() => setProviderCachingEnabled((current) => !current)}
+                >
+                  <span className="switch-thumb" />
+                </button>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">检查点摘要</div>
+                  <div className="settings-row-desc">
+                    持久化精简工作检查点，后续轮次优先注入摘要，避免每次回放过长历史。
+                  </div>
+                </div>
+                <button
+                  className={'switch' + (checkpointEnabled ? ' on' : '')}
+                  type="button"
+                  onClick={() => setCheckpointEnabled((current) => !current)}
+                >
+                  <span className="switch-thumb" />
+                </button>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">老会话种子检查点</div>
+                  <div className="settings-row-desc">
+                    老会话续聊且缺少检查点时，自动生成一次种子检查点，尽量保留原有上下文。
+                  </div>
+                </div>
+                <button
+                  className={'switch' + (seedOnResumeEnabled ? ' on' : '')}
+                  type="button"
+                  onClick={() => setSeedOnResumeEnabled((current) => !current)}
+                >
+                  <span className="switch-thumb" />
+                </button>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">升级调试事件</div>
+                  <div className="settings-row-desc">
+                    在流式聊天中输出工具包申请和挂载事件，便于界面提示、排查升级链路和统计额外开销。
+                  </div>
+                </div>
+                <button
+                  className={'switch' + (upgradeDebugEventsEnabled ? ' on' : '')}
+                  type="button"
+                  onClick={() => setUpgradeDebugEventsEnabled((current) => !current)}
+                >
+                  <span className="switch-thumb" />
+                </button>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
                   <div className="settings-row-title">完全权限</div>
                   <div className="settings-row-desc">
                     开启后，Agent 对本地文件、笔记、资源、Skill、终端和长期记忆写入拥有最高权限，不再重复确认。
@@ -659,6 +804,67 @@ export default function Settings() {
               </div>
             </SettingsFoldout>
 
+            <SettingsFoldout title={t('历史版本迁移', 'Legacy Migration')} {...foldoutLabels}>
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">一键迁移旧版数据</div>
+                  <div className="settings-row-desc">
+                    填写旧版 1052 OS 项目根目录或旧 data 目录。迁移工具会先预览可导入项，执行时不会覆盖当前已有数据；冲突内容会放入 `data/1052/migrations/` 归档。
+                  </div>
+                </div>
+                <input
+                  className="settings-input"
+                  value={migrationSourcePath}
+                  onChange={(event) => setMigrationSourcePath(event.target.value)}
+                  placeholder="例如：D:\1052os-old 或 D:\1052os-old\data"
+                />
+                <div className="settings-actions">
+                  <button
+                    className="chip"
+                    type="button"
+                    disabled={migrationBusy}
+                    onClick={() => void previewMigration()}
+                  >
+                    {migrationBusy ? '处理中...' : '预览迁移'}
+                  </button>
+                  <button
+                    className="chip primary"
+                    type="button"
+                    disabled={migrationBusy || !migrationPreview}
+                    onClick={() => void runMigration()}
+                  >
+                    执行迁移
+                  </button>
+                </div>
+                {migrationError && <div className="settings-error">{migrationError}</div>}
+                {migrationPreview && (
+                  <div className="settings-help">
+                    <strong>预览结果</strong>
+                    <span>
+                      源数据：{migrationPreview.sourceDataDir}；目标数据：{migrationPreview.targetDataDir}
+                    </span>
+                    <span>
+                      可见文件数：{migrationPreview.totalFiles}；总大小：{migrationPreview.totalBytes} bytes
+                    </span>
+                    <ul>
+                      {migrationPreview.entries.map((entry) => (
+                        <li key={entry.key}>
+                          {entry.key}: {entry.exists ? entry.status : '未找到'}，{entry.fileCount ?? 0} 个文件
+                          {entry.reason ? `，${entry.reason}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {migrationResult && (
+                  <div className="settings-help">
+                    <strong>迁移完成</strong>
+                    <span>迁移 ID：{migrationResult.migrationId}</span>
+                    <span>清单文件：{migrationResult.manifestPath}</span>
+                  </div>
+                )}
+              </div>
+            </SettingsFoldout>
             <SettingsFoldout title={t('外观', 'Appearance')} {...foldoutLabels}>
 
               <div className="settings-row">

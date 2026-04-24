@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import multer from 'multer'
 import { HttpError, httpError } from '../../http-error.js'
 import {
   type ChatHistorySaveReason,
@@ -7,7 +8,9 @@ import {
   subscribeChatHistory,
 } from './agent.history.service.js'
 import { compactChatHistory } from './agent.compaction.service.js'
+import { previewAgentMigration, runAgentMigration } from './agent.migration.service.js'
 import { getTokenUsageStats } from './agent.stats.service.js'
+import { saveAgentUpload } from './agent.upload.service.js'
 import { sendMessage, sendMessageStream } from './agent.service.js'
 import type {
   ChatHistory,
@@ -18,6 +21,13 @@ import type {
 } from './agent.types.js'
 
 export const agentRouter: Router = Router()
+const agentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 30 * 1024 * 1024,
+    files: 8,
+  },
+})
 
 const VALID_ROLES: ChatMessage['role'][] = ['system', 'user', 'assistant']
 
@@ -28,11 +38,17 @@ function validateTokenUsage(value: unknown): TokenUsage | undefined {
     typeof usage[key] === 'number' && Number.isFinite(usage[key])
       ? (usage[key] as number)
       : undefined
+
   const normalized: TokenUsage = {
     userTokens: pick('userTokens'),
     inputTokens: pick('inputTokens'),
     outputTokens: pick('outputTokens'),
     totalTokens: pick('totalTokens'),
+    cacheReadTokens: pick('cacheReadTokens'),
+    cacheWriteTokens: pick('cacheWriteTokens'),
+    upgradeOverheadInputTokens: pick('upgradeOverheadInputTokens'),
+    upgradeOverheadOutputTokens: pick('upgradeOverheadOutputTokens'),
+    upgradeOverheadTotalTokens: pick('upgradeOverheadTotalTokens'),
     estimated: usage.estimated === true ? true : undefined,
   }
 
@@ -41,134 +57,139 @@ function validateTokenUsage(value: unknown): TokenUsage | undefined {
     : undefined
 }
 
-function validateMessages(x: unknown): ChatMessage[] {
-  if (!Array.isArray(x) || x.length === 0) {
+function validateMessages(value: unknown): ChatMessage[] {
+  if (!Array.isArray(value) || value.length === 0) {
     throw httpError(400, 'messages 必须是非空数组')
   }
-  return x.map((m, i) => {
+
+  return value.map((item, index) => {
     if (
-      !m ||
-      typeof m !== 'object' ||
-      typeof (m as any).role !== 'string' ||
-      typeof (m as any).content !== 'string'
+      !item ||
+      typeof item !== 'object' ||
+      typeof (item as Record<string, unknown>).role !== 'string' ||
+      typeof (item as Record<string, unknown>).content !== 'string'
     ) {
-      throw httpError(400, `messages[${i}] 格式错误`)
+      throw httpError(400, `messages[${index}] 格式错误`)
     }
-    const role = (m as any).role as ChatMessage['role']
+
+    const role = (item as { role: ChatMessage['role'] }).role
     if (!VALID_ROLES.includes(role)) {
-      throw httpError(400, `messages[${i}].role 非法: ${role}`)
-    }
-    return { role, content: (m as any).content }
-  })
-}
-
-function validateStoredMessages(x: unknown): StoredChatMessage[] {
-  if (!Array.isArray(x)) {
-    throw httpError(400, 'messages 必须是数组')
-  }
-
-  return x.map((m, i) => {
-    if (
-      !m ||
-      typeof m !== 'object' ||
-      typeof (m as any).id !== 'number' ||
-      !Number.isFinite((m as any).id) ||
-      typeof (m as any).ts !== 'number' ||
-      !Number.isFinite((m as any).ts) ||
-      typeof (m as any).role !== 'string' ||
-      typeof (m as any).content !== 'string'
-    ) {
-      throw httpError(400, `messages[${i}] 格式错误`)
-    }
-
-    const role = (m as any).role as ChatMessage['role']
-    if (!VALID_ROLES.includes(role)) {
-      throw httpError(400, `messages[${i}].role 非法: ${role}`)
+      throw httpError(400, `messages[${index}].role 非法: ${role}`)
     }
 
     return {
-      id: (m as any).id,
-      ts: (m as any).ts,
       role,
-      content: (m as any).content,
-      error: (m as any).error === true ? true : undefined,
-      streaming: (m as any).streaming === true ? true : undefined,
-      usage: validateTokenUsage((m as any).usage),
+      content: (item as { content: string }).content,
+    }
+  })
+}
+
+function validateStoredMessages(value: unknown): StoredChatMessage[] {
+  if (!Array.isArray(value)) {
+    throw httpError(400, 'messages 必须是数组')
+  }
+
+  return value.map((item, index) => {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      typeof (item as any).id !== 'number' ||
+      !Number.isFinite((item as any).id) ||
+      typeof (item as any).ts !== 'number' ||
+      !Number.isFinite((item as any).ts) ||
+      typeof (item as any).role !== 'string' ||
+      typeof (item as any).content !== 'string'
+    ) {
+      throw httpError(400, `messages[${index}] 格式错误`)
+    }
+
+    const role = (item as any).role as ChatMessage['role']
+    if (!VALID_ROLES.includes(role)) {
+      throw httpError(400, `messages[${index}].role 非法: ${role}`)
+    }
+
+    return {
+      id: (item as any).id,
+      ts: (item as any).ts,
+      role,
+      content: (item as any).content,
+      error: (item as any).error === true ? true : undefined,
+      streaming: (item as any).streaming === true ? true : undefined,
+      usage: validateTokenUsage((item as any).usage),
       compactSummary:
-        typeof (m as any).compactSummary === 'string' &&
-        (m as any).compactSummary.trim()
-          ? (m as any).compactSummary
+        typeof (item as any).compactSummary === 'string' && (item as any).compactSummary.trim()
+          ? (item as any).compactSummary
           : undefined,
       compactBackupPath:
-        typeof (m as any).compactBackupPath === 'string' &&
-        (m as any).compactBackupPath.trim()
-          ? (m as any).compactBackupPath
+        typeof (item as any).compactBackupPath === 'string' &&
+        (item as any).compactBackupPath.trim()
+          ? (item as any).compactBackupPath
           : undefined,
       compactOriginalCount:
-        typeof (m as any).compactOriginalCount === 'number' &&
-        Number.isFinite((m as any).compactOriginalCount) &&
-        (m as any).compactOriginalCount > 0
-          ? (m as any).compactOriginalCount
+        typeof (item as any).compactOriginalCount === 'number' &&
+        Number.isFinite((item as any).compactOriginalCount) &&
+        (item as any).compactOriginalCount > 0
+          ? (item as any).compactOriginalCount
           : undefined,
       meta:
-        (m as any).meta && typeof (m as any).meta === 'object'
+        (item as any).meta && typeof (item as any).meta === 'object'
           ? {
               source:
-                (m as any).meta.source === 'web' ||
-                (m as any).meta.source === 'wechat' ||
-                (m as any).meta.source === 'feishu' ||
-                (m as any).meta.source === 'scheduled-task'
-                  ? (m as any).meta.source
+                (item as any).meta.source === 'web' ||
+                (item as any).meta.source === 'wechat' ||
+                (item as any).meta.source === 'feishu' ||
+                (item as any).meta.source === 'scheduled-task'
+                  ? (item as any).meta.source
                   : undefined,
               channel:
-                (m as any).meta.channel === 'web' ||
-                (m as any).meta.channel === 'wechat' ||
-                (m as any).meta.channel === 'feishu'
-                  ? (m as any).meta.channel
+                (item as any).meta.channel === 'web' ||
+                (item as any).meta.channel === 'wechat' ||
+                (item as any).meta.channel === 'feishu'
+                  ? (item as any).meta.channel
                   : undefined,
               accountId:
-                typeof (m as any).meta.accountId === 'string'
-                  ? (m as any).meta.accountId
+                typeof (item as any).meta.accountId === 'string'
+                  ? (item as any).meta.accountId
                   : undefined,
               peerId:
-                typeof (m as any).meta.peerId === 'string'
-                  ? (m as any).meta.peerId
+                typeof (item as any).meta.peerId === 'string'
+                  ? (item as any).meta.peerId
                   : undefined,
               externalMessageId:
-                typeof (m as any).meta.externalMessageId === 'string'
-                  ? (m as any).meta.externalMessageId
+                typeof (item as any).meta.externalMessageId === 'string'
+                  ? (item as any).meta.externalMessageId
                   : undefined,
               delivery:
-                (m as any).meta.delivery && typeof (m as any).meta.delivery === 'object'
+                (item as any).meta.delivery && typeof (item as any).meta.delivery === 'object'
                   ? {
                       status:
-                        (m as any).meta.delivery.status === 'pending' ||
-                        (m as any).meta.delivery.status === 'sent' ||
-                        (m as any).meta.delivery.status === 'failed'
-                          ? (m as any).meta.delivery.status
+                        (item as any).meta.delivery.status === 'pending' ||
+                        (item as any).meta.delivery.status === 'sent' ||
+                        (item as any).meta.delivery.status === 'failed'
+                          ? (item as any).meta.delivery.status
                           : undefined,
                       targetChannel:
-                        (m as any).meta.delivery.targetChannel === 'wechat' ||
-                        (m as any).meta.delivery.targetChannel === 'feishu'
-                          ? (m as any).meta.delivery.targetChannel
+                        (item as any).meta.delivery.targetChannel === 'wechat' ||
+                        (item as any).meta.delivery.targetChannel === 'feishu'
+                          ? (item as any).meta.delivery.targetChannel
                           : undefined,
                       targetPeerId:
-                        typeof (m as any).meta.delivery.targetPeerId === 'string'
-                          ? (m as any).meta.delivery.targetPeerId
+                        typeof (item as any).meta.delivery.targetPeerId === 'string'
+                          ? (item as any).meta.delivery.targetPeerId
                           : undefined,
                       error:
-                        typeof (m as any).meta.delivery.error === 'string'
-                          ? (m as any).meta.delivery.error
+                        typeof (item as any).meta.delivery.error === 'string'
+                          ? (item as any).meta.delivery.error
                           : undefined,
                     }
                   : undefined,
               taskId:
-                typeof (m as any).meta.taskId === 'string'
-                  ? (m as any).meta.taskId
+                typeof (item as any).meta.taskId === 'string'
+                  ? (item as any).meta.taskId
                   : undefined,
               taskTitle:
-                typeof (m as any).meta.taskTitle === 'string'
-                  ? (m as any).meta.taskTitle
+                typeof (item as any).meta.taskTitle === 'string'
+                  ? (item as any).meta.taskTitle
                   : undefined,
             }
           : undefined,
@@ -189,8 +210,8 @@ function validateHistorySaveReason(value: unknown): ChatHistorySaveReason {
 agentRouter.get('/history', async (_req, res, next) => {
   try {
     res.json(await getChatHistory())
-  } catch (e) {
-    next(e)
+  } catch (error) {
+    next(error)
   }
 })
 
@@ -221,8 +242,8 @@ agentRouter.get('/history/events', (req, res) => {
 agentRouter.get('/stats/usage', async (_req, res, next) => {
   try {
     res.json(await getTokenUsageStats())
-  } catch (e) {
-    next(e)
+  } catch (error) {
+    next(error)
   }
 })
 
@@ -231,8 +252,8 @@ agentRouter.put('/history', async (req, res, next) => {
     const body = req.body as ChatHistory & { reason?: unknown }
     const messages = validateStoredMessages(body?.messages)
     res.json(await saveChatHistory(messages, validateHistorySaveReason(body?.reason)))
-  } catch (e) {
-    next(e)
+  } catch (error) {
+    next(error)
   }
 })
 
@@ -240,8 +261,49 @@ agentRouter.post('/history/compact', async (req, res, next) => {
   try {
     const body = req.body as { messages?: unknown }
     res.json(await compactChatHistory(body?.messages))
-  } catch (e) {
-    next(e)
+  } catch (error) {
+    next(error)
+  }
+})
+
+agentRouter.post('/migrations/preview', async (req, res, next) => {
+  try {
+    const body = req.body as { sourcePath?: unknown }
+    res.json(await previewAgentMigration(body?.sourcePath))
+  } catch (error) {
+    next(error)
+  }
+})
+
+agentRouter.post('/migrations/run', async (req, res, next) => {
+  try {
+    const body = req.body as { sourcePath?: unknown; dryRun?: unknown }
+    res.json(await runAgentMigration(body))
+  } catch (error) {
+    next(error)
+  }
+})
+
+agentRouter.post('/uploads', agentUpload.array('files', 8), async (req, res, next) => {
+  try {
+    const files = (req as typeof req & { files?: Express.Multer.File[] }).files ?? []
+    if (files.length === 0) {
+      throw httpError(400, '至少需要上传一个文件')
+    }
+
+    res.json({
+      items: await Promise.all(
+        files.map((file) =>
+          saveAgentUpload({
+            buffer: file.buffer,
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+          }),
+        ),
+      ),
+    })
+  } catch (error) {
+    next(error)
   }
 })
 
@@ -251,14 +313,14 @@ agentRouter.post('/chat', async (req, res, next) => {
     const messages = validateMessages(body?.messages)
     const message = await sendMessage(messages)
     res.json({ message })
-  } catch (e) {
-    next(e)
+  } catch (error) {
+    next(error)
   }
 })
 
-/** SSE 流式对话。data 行是 JSON: {type:'delta',content} / {type:'done'} / {type:'error',message} */
 agentRouter.post('/chat/stream', async (req, res, next) => {
   let headersSent = false
+
   try {
     const body = req.body as ChatRequest
     const messages = validateMessages(body?.messages)
@@ -274,36 +336,45 @@ agentRouter.post('/chat/stream', async (req, res, next) => {
       res.write(`data: ${JSON.stringify(payload)}\n\n`)
     }
 
-    // 心跳,避免某些代理在无数据时关闭连接
     const heartbeat = setInterval(() => {
       res.write(': hb\n\n')
     }, 15000)
-
-    // 客户端断连就停
+    const abortController = new AbortController()
     let aborted = false
+
     req.on('aborted', () => {
       aborted = true
+      abortController.abort()
     })
     res.on('close', () => {
-      if (!res.writableEnded) aborted = true
+      if (!res.writableEnded) {
+        aborted = true
+        abortController.abort()
+      }
     })
 
     try {
-      for await (const event of sendMessageStream(messages)) {
+      for await (const event of sendMessageStream(messages, {
+        abortSignal: abortController.signal,
+      })) {
         if (aborted) break
         write(event)
       }
-      if (!aborted) write({ type: 'done' })
-    } catch (e) {
-      const status = e instanceof HttpError ? e.status : 500
-      const message = e instanceof Error ? e.message : '流式调用失败'
-      write({ type: 'error', status, message })
+      if (!aborted) {
+        write({ type: 'done' })
+      }
+    } catch (error) {
+      const status = error instanceof HttpError ? error.status : 500
+      const message = error instanceof Error ? error.message : '流式调用失败'
+      if (!aborted) {
+        write({ type: 'error', status, message })
+      }
     } finally {
       clearInterval(heartbeat)
       res.end()
     }
-  } catch (e) {
-    if (!headersSent) next(e)
+  } catch (error) {
+    if (!headersSent) next(error)
     else res.end()
   }
 })

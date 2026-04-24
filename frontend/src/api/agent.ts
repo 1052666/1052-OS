@@ -6,6 +6,11 @@ export type TokenUsage = {
   inputTokens?: number
   outputTokens?: number
   totalTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  upgradeOverheadInputTokens?: number
+  upgradeOverheadOutputTokens?: number
+  upgradeOverheadTotalTokens?: number
   estimated?: boolean
 }
 export type ChatMessage = { role: ChatRole; content: string; usage?: TokenUsage }
@@ -38,6 +43,49 @@ export type CompactHistoryResponse = ChatHistory & {
   backupPath: string
   originalCount: number
 }
+export type AgentUploadItem = {
+  id: string
+  kind: 'image' | 'file'
+  fileName: string
+  originalFileName: string
+  mimeType: string
+  sizeBytes: number
+  relativePath: string
+  absolutePath: string
+  url: string
+  markdown: string
+}
+export type AgentUploadResponse = {
+  items: AgentUploadItem[]
+}
+
+export type AgentMigrationEntry = {
+  key: string
+  kind: 'file' | 'directory'
+  sourceRelativePath: string
+  targetRelativePath: string
+  exists: boolean
+  sizeBytes: number
+  fileCount?: number
+  status: 'planned' | 'copied' | 'staged' | 'skipped'
+  reason?: string
+}
+
+export type AgentMigrationPreview = {
+  sourcePath: string
+  sourceDataDir: string
+  targetDataDir: string
+  entries: AgentMigrationEntry[]
+  totalFiles: number
+  totalBytes: number
+}
+
+export type AgentMigrationResult = AgentMigrationPreview & {
+  migrationId: string
+  dryRun: boolean
+  manifestPath: string
+  createdAt: string
+}
 
 export type TokenUsageAggregate = {
   messageCount: number
@@ -49,6 +97,11 @@ export type TokenUsageAggregate = {
   outputTokens: number
   totalTokens: number
   contextTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  upgradeOverheadInputTokens: number
+  upgradeOverheadOutputTokens: number
+  upgradeOverheadTotalTokens: number
 }
 
 export type TokenUsageBucket = TokenUsageAggregate & {
@@ -74,15 +127,30 @@ export type TokenUsageStats = {
 export type StreamHandlers = {
   onDelta: (chunk: string) => void
   onUsage: (usage: TokenUsage) => void
+  onUpgradeRequested?: (packs: string[], reason: string) => void
+  onUpgradeApplying?: (packs: string[]) => void
+  onUpgradeApplied?: (packs: string[]) => void
+  onUpgradeAborted?: (stage: string) => void
   onDone: () => void
   onError: (message: string) => void
 }
 
 type StreamEvent = {
-  type: 'delta' | 'usage' | 'done' | 'error'
+  type:
+    | 'delta'
+    | 'usage'
+    | 'done'
+    | 'error'
+    | 'context-upgrade-requested'
+    | 'context-upgrade-applying'
+    | 'context-upgrade-applied'
+    | 'context-upgrade-aborted'
   content?: string
   usage?: TokenUsage
   message?: string
+  packs?: string[]
+  reason?: string
+  stage?: string
 }
 
 export type HistorySaveReason = 'sync' | 'clear' | 'replace' | 'compact' | 'repair'
@@ -95,8 +163,46 @@ export const AgentApi = {
   saveHistory: (messages: StoredChatMessage[], reason: HistorySaveReason = 'sync') =>
     api.put<ChatHistory>('/agent/history', { messages, reason }),
 
-  compactHistory: (messages: StoredChatMessage[], signal?: AbortSignal) =>
-    api.post<CompactHistoryResponse>('/agent/history/compact', { messages }, signal),
+  compactHistory: (messages: StoredChatMessage[]) =>
+    api.post<CompactHistoryResponse>('/agent/history/compact', { messages }),
+
+  uploadFiles: async (files: File[]) => {
+    const form = new FormData()
+    for (const file of files) {
+      form.append('files', file)
+    }
+
+    const response = await fetch('/api/agent/uploads', {
+      method: 'POST',
+      body: form,
+    })
+    const text = await response.text()
+    let data: unknown = null
+    if (text) {
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = text
+      }
+    }
+
+    if (!response.ok) {
+      throw {
+        status: response.status,
+        message:
+          data && typeof data === 'object' && 'error' in data
+            ? String((data as { error: unknown }).error)
+            : response.statusText,
+      }
+    }
+    return data as AgentUploadResponse
+  },
+
+  previewMigration: (sourcePath: string) =>
+    api.post<AgentMigrationPreview>('/agent/migrations/preview', { sourcePath }),
+
+  runMigration: (sourcePath: string, dryRun = false) =>
+    api.post<AgentMigrationResult>('/agent/migrations/run', { sourcePath, dryRun }),
 
   chat: (messages: ChatMessage[]) =>
     api.post<{ message: ChatMessage }>('/agent/chat', { messages }),
@@ -145,6 +251,14 @@ export const AgentApi = {
             handlers.onDelta(obj.content)
           } else if (obj.type === 'usage' && obj.usage) {
             handlers.onUsage(obj.usage)
+          } else if (obj.type === 'context-upgrade-requested' && Array.isArray(obj.packs)) {
+            handlers.onUpgradeRequested?.(obj.packs, obj.reason ?? '')
+          } else if (obj.type === 'context-upgrade-applying' && Array.isArray(obj.packs)) {
+            handlers.onUpgradeApplying?.(obj.packs)
+          } else if (obj.type === 'context-upgrade-applied' && Array.isArray(obj.packs)) {
+            handlers.onUpgradeApplied?.(obj.packs)
+          } else if (obj.type === 'context-upgrade-aborted' && typeof obj.stage === 'string') {
+            handlers.onUpgradeAborted?.(obj.stage)
           } else if (obj.type === 'done') {
             terminal = true
             handlers.onDone()

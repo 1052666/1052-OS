@@ -27,7 +27,7 @@ import {
   updateFeishuMessageCard,
 } from './feishu.api.js'
 import {
-  buildFeishuMediaMarkdown,
+  buildFeishuMediaContextMarkdown,
   downloadFeishuFileAttachment,
   downloadFeishuImageAttachment,
   extractOutboundFeishuMedia,
@@ -196,7 +196,7 @@ async function extractPostText(params: {
         }).catch(() => null)
         parts.push(
           media
-            ? buildFeishuMediaMarkdown(media)
+            ? await buildFeishuMediaContextMarkdown(media)
             : `[Feishu image: ${record.image_key}]`,
         )
       } else if (tag === 'media' && typeof record.file_key === 'string') {
@@ -214,7 +214,7 @@ async function extractPostText(params: {
         }).catch(() => null)
         parts.push(
           media
-            ? buildFeishuMediaMarkdown(media)
+            ? await buildFeishuMediaContextMarkdown(media)
             : `[Feishu media: ${record.file_key}]`,
         )
       } else if (tag === 'emotion' && typeof record.emoji_type === 'string') {
@@ -255,7 +255,7 @@ async function buildFeishuInboundContent(config: FeishuAppConfigRecord, message:
       imageKey: content.image_key,
       fileName: `${content.image_key}.jpg`,
     }).catch(() => null)
-    return media ? buildFeishuMediaMarkdown(media) : `[Feishu image: ${content.image_key}]`
+    return media ? buildFeishuMediaContextMarkdown(media) : `[Feishu image: ${content.image_key}]`
   }
   if (messageType === 'file' && typeof content?.file_key === 'string') {
     const fileKey = content.file_key
@@ -267,7 +267,7 @@ async function buildFeishuInboundContent(config: FeishuAppConfigRecord, message:
       fileName: typeof content?.file_name === 'string' ? content.file_name : `${fileKey}.bin`,
     }).catch(() => null)
     return media
-      ? buildFeishuMediaMarkdown(media)
+      ? buildFeishuMediaContextMarkdown(media)
       : `[Feishu file: ${typeof content?.file_name === 'string' ? content.file_name : fileKey}]`
   }
   if (messageType === 'audio' && typeof content?.file_key === 'string') {
@@ -282,7 +282,7 @@ async function buildFeishuInboundContent(config: FeishuAppConfigRecord, message:
           : `${content.file_key}.opus`,
       durationMs: typeof content?.duration === 'number' ? content.duration : undefined,
     }).catch(() => null)
-    return media ? buildFeishuMediaMarkdown(media) : '[Feishu audio]'
+    return media ? buildFeishuMediaContextMarkdown(media) : '[Feishu audio]'
   }
   if (messageType === 'media' && typeof content?.file_key === 'string') {
     const fileKey = content.file_key
@@ -297,7 +297,7 @@ async function buildFeishuInboundContent(config: FeishuAppConfigRecord, message:
       coverImageKey:
         typeof content?.image_key === 'string' ? content.image_key : undefined,
     }).catch(() => null)
-    return media ? buildFeishuMediaMarkdown(media) : `[Feishu media: ${fileKey}]`
+    return media ? buildFeishuMediaContextMarkdown(media) : `[Feishu media: ${fileKey}]`
   }
   if (messageType === 'interactive') {
     return '[Feishu interactive card]'

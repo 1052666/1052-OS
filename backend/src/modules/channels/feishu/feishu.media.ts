@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { config } from '../../../config.js'
 import { HttpError } from '../../../http-error.js'
+import { buildAttachmentContextMarkdown } from '../../agent/agent.attachment-context.js'
+import { resolveAgentUploadReference } from '../../agent/agent.upload.service.js'
 import { createFeishuClient, sendFeishuMessage } from './feishu.api.js'
 import type {
   FeishuAppConfigRecord,
@@ -165,6 +167,7 @@ function cleanMarkdownUrl(value: string) {
     .trim()
     .replace(/^<|>$/g, '')
     .replace(/^['"]|['"]$/g, '')
+    .replace(/^`|`$/g, '')
 }
 
 function assertMaxBytes(size: number, label: string, maxBytes: number) {
@@ -222,6 +225,9 @@ async function resolveOutboundMediaReference(reference: string) {
   const value = cleanMarkdownUrl(reference)
   if (!value) return null
 
+  const agentUpload = await resolveAgentUploadReference(value)
+  if (agentUpload) return agentUpload
+
   if (value.startsWith('/api/generated-images/')) {
     const relative = splitUrlPath(value.slice('/api/generated-images/'.length))
     return pathIfExisting(
@@ -270,7 +276,7 @@ export async function extractOutboundFeishuMedia(text: string): Promise<FeishuOu
   )
 
   cleaned = cleaned.replace(
-    /\[([^\]]+)]\(((?:\/api\/(?:generated-images|channels\/feishu\/media|channels\/wechat\/media)\/[^)\s]+)|(?:file:\/\/[^)\s]+))(?:(?:\s+"[^"]*"))?\)/g,
+    /\[([^\]]+)]\(((?:\/api\/(?:agent\/uploads|generated-images|channels\/feishu\/media|channels\/wechat\/media)\/[^)\s]+)|(?:file:\/\/[^)\s]+))(?:(?:\s+"[^"]*"))?\)/g,
     (_match, label: string, raw: string) => {
       references.push(raw)
       return label
@@ -278,12 +284,29 @@ export async function extractOutboundFeishuMedia(text: string): Promise<FeishuOu
   )
 
   cleaned = cleaned.replace(
-    /(^|\s)((?:\/api\/(?:generated-images|channels\/feishu\/media|channels\/wechat\/media)\/[^\s)]+)|(?:file:\/\/[^\s)]+))/g,
+    /(^|\s)((?:\/api\/(?:agent\/uploads|generated-images|channels\/feishu\/media|channels\/wechat\/media)\/[^\s)]+)|(?:file:\/\/[^\s)]+))/g,
     (match, prefix: string, raw: string) => {
       references.push(raw)
       return match.startsWith(prefix) ? prefix : ''
     },
   )
+
+  cleaned = cleaned
+    .split('\n')
+    .map((line) => {
+      const localPath = line.match(/^\s*-?\s*(?:本地路径|Local Path)\s*[：:]\s*(.+?)\s*$/i)
+      if (localPath?.[1]) {
+        references.push(localPath[1])
+        return ''
+      }
+      const standalonePath = line.match(/^\s*`?([A-Za-z]:[\\/].+?)`?\s*$/)
+      if (standalonePath?.[1]) {
+        references.push(standalonePath[1])
+        return ''
+      }
+      return line
+    })
+    .join('\n')
 
   const files: string[] = []
   const warnings: string[] = []
@@ -469,6 +492,34 @@ export function buildFeishuMediaMarkdown(media: SavedFeishuMedia) {
   }
   if (media.kind === 'sticker') return `[飞书表情包：${label}]`
   return `[飞书文件：${label}](${media.url})`
+}
+
+export async function buildFeishuMediaContextMarkdown(media: SavedFeishuMedia) {
+  const label = media.originalFileName || media.fileName
+  const sourceLabel =
+    media.kind === 'image'
+      ? '飞书图片'
+      : media.kind === 'audio'
+        ? '飞书音频'
+        : media.kind === 'media'
+          ? '飞书视频'
+          : media.kind === 'sticker'
+            ? '飞书表情'
+            : '飞书文件'
+  const markdown = await buildAttachmentContextMarkdown({
+    sourceLabel,
+    displayName: label,
+    url: media.url,
+    absolutePath: media.absolutePath,
+    mimeType: media.mimeType,
+    sizeBytes: media.sizeBytes,
+    isImage: media.kind === 'image',
+  })
+
+  if (media.kind === 'media' && media.coverUrl) {
+    return `${markdown}\n\n视频封面：${media.coverUrl}`
+  }
+  return markdown
 }
 
 function inferUploadMode(params: {

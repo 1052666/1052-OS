@@ -30,9 +30,10 @@ import {
   setWechatContextToken,
 } from './wechat.store.js'
 import {
-  buildWechatMediaMarkdown,
+  buildWechatMediaContextMarkdown,
   downloadWechatMediaAttachment,
   extractOutboundWechatMedia,
+  sendWechatMediaBuffer,
   sendWechatMediaFile,
 } from './wechat.media.js'
 import type {
@@ -181,7 +182,7 @@ async function buildWechatInboundContent(message: WechatMessage) {
       try {
         const media = await downloadWechatMediaAttachment(item)
         if (media) {
-          parts.push(buildWechatMediaMarkdown(media))
+          parts.push(await buildWechatMediaContextMarkdown(media))
         } else if (item.type === 2 || item.image_item) {
           parts.push('[微信图片：无法获取下载参数]')
         } else if (item.type === 3 || item.voice_item) {
@@ -401,6 +402,55 @@ export async function sendWechatDirectMessage(params: {
     params.contextToken ?? (await getWechatContextToken(account.accountId, peerId))
   const result = await sendWechatRichMessage({ account, peerId, text, contextToken })
   return { ok: true as const, chunks: result.chunks, media: result.media }
+}
+
+export async function sendWechatDirectMedia(params: {
+  accountId: string
+  peerId: string
+  fileName: string
+  mimeType?: string
+  buffer: Buffer
+  text?: string
+  contextToken?: string
+}) {
+  const accountId = normalizeAccountId(params.accountId)
+  const peerId = params.peerId.trim()
+  if (!accountId || !peerId) throw new HttpError(400, 'Wechat delivery target is required.')
+  if (!params.buffer?.byteLength || !params.fileName.trim()) {
+    throw new HttpError(400, 'A media file is required.')
+  }
+
+  const account = await loadWechatAccount(accountId)
+  if (!account?.token) throw new HttpError(404, 'Wechat account is not connected or has no token.')
+
+  const contextToken =
+    params.contextToken ?? (await getWechatContextToken(account.accountId, peerId))
+
+  let chunks = 0
+  if (params.text?.trim()) {
+    const textResult = await sendWechatRichMessage({
+      account,
+      peerId,
+      text: params.text.trim(),
+      contextToken,
+    })
+    chunks += textResult.chunks
+  }
+
+  await sendWechatMediaBuffer({
+    baseUrl: account.baseUrl,
+    token: account.token,
+    to: peerId,
+    fileName: params.fileName,
+    mimeType: params.mimeType,
+    buffer: params.buffer,
+    contextToken,
+  })
+
+  const runtime = monitors.get(account.accountId)
+  if (runtime) runtime.lastOutboundAt = Date.now()
+
+  return { ok: true as const, chunks, media: 1 }
 }
 
 export async function startWechatLogin(): Promise<WechatLoginStart> {

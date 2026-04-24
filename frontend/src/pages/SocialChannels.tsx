@@ -91,6 +91,13 @@ export default function SocialChannels() {
   const [loginPolling, setLoginPolling] = useState(false)
   const [busyAccount, setBusyAccount] = useState('')
   const [pendingDelete, setPendingDelete] = useState('')
+  const [wechatSending, setWechatSending] = useState(false)
+  const [wechatSendAccountId, setWechatSendAccountId] = useState('')
+  const [wechatSendPeerId, setWechatSendPeerId] = useState('')
+  const [wechatSendText, setWechatSendText] = useState('1052 OS 已接入微信。')
+  const [wechatSendMode, setWechatSendMode] = useState<'text' | 'media'>('text')
+  const [wechatSendFile, setWechatSendFile] = useState<File | null>(null)
+  const [wechatSendFileKey, setWechatSendFileKey] = useState(0)
 
   const [feishuStatus, setFeishuStatus] = useState<FeishuStatus | null>(null)
   const [feishuTargets, setFeishuTargets] = useState<FeishuDeliveryTarget[]>([])
@@ -187,6 +194,13 @@ export default function SocialChannels() {
       }
       if (wechatTargetsResult.status === 'fulfilled') {
         setWechatTargets(wechatTargetsResult.value)
+        if (
+          (!wechatSendAccountId || !wechatSendPeerId) &&
+          wechatTargetsResult.value.length > 0
+        ) {
+          setWechatSendAccountId(wechatTargetsResult.value[0].accountId)
+          setWechatSendPeerId(wechatTargetsResult.value[0].peerId)
+        }
       }
       if (feishuStatusResult.status === 'fulfilled') {
         syncFeishuStatus(feishuStatusResult.value)
@@ -335,6 +349,50 @@ export default function SocialChannels() {
       showNotice(getErrorMessage(error, '微信账号删除失败'), 'error')
     } finally {
       setBusyAccount('')
+    }
+  }
+
+  const selectWechatTarget = (target: WechatDeliveryTarget) => {
+    setWechatSendAccountId(target.accountId)
+    setWechatSendPeerId(target.peerId)
+  }
+
+  const sendWechatTest = async () => {
+    if (!wechatSendAccountId.trim() || !wechatSendPeerId.trim()) {
+      showNotice('请先选择一个微信会话，或手动填写 accountId 和 peerId。', 'error')
+      return
+    }
+
+    setWechatSending(true)
+    try {
+      if (wechatSendMode === 'media') {
+        if (!wechatSendFile) {
+          showNotice('请选择一个要发送到微信的媒体文件。', 'error')
+          return
+        }
+
+        await SocialChannelsApi.sendWechatMedia({
+          accountId: wechatSendAccountId.trim(),
+          peerId: wechatSendPeerId.trim(),
+          text: wechatSendText.trim(),
+          file: wechatSendFile,
+        })
+        setWechatSendFile(null)
+        setWechatSendFileKey((value) => value + 1)
+        showNotice('微信媒体消息已发送。', 'success')
+      } else {
+        await SocialChannelsApi.sendWechatMessage({
+          accountId: wechatSendAccountId.trim(),
+          peerId: wechatSendPeerId.trim(),
+          text: wechatSendText.trim(),
+        })
+        showNotice('微信测试消息已发送。', 'success')
+      }
+      await loadStatus()
+    } catch (error) {
+      showNotice(getErrorMessage(error, '微信消息发送失败'), 'error')
+    } finally {
+      setWechatSending(false)
     }
   }
 
@@ -864,7 +922,19 @@ export default function SocialChannels() {
               ) : (
                 <div className="social-target-list">
                   {wechatTargets.map((target) => (
-                    <div className={'social-target-item' + (target.running ? ' running' : '')} key={`${target.accountId}:${target.peerId}`}>
+                    <button
+                      type="button"
+                      className={
+                        'social-target-item selectable' +
+                        (target.running ? ' running' : '') +
+                        (wechatSendAccountId === target.accountId &&
+                        wechatSendPeerId === target.peerId
+                          ? ' active'
+                          : '')
+                      }
+                      key={`${target.accountId}:${target.peerId}`}
+                      onClick={() => selectWechatTarget(target)}
+                    >
                       <div>
                         <strong>{target.label}</strong>
                         <span>{target.accountId}</span>
@@ -873,10 +943,87 @@ export default function SocialChannels() {
                         <span>{target.running ? '接收中' : '未运行'}</span>
                         <span>最近：{formatTime(target.lastMessageAt)}</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="social-card">
+              <div className="social-card-head">
+                <div>
+                  <h2>微信发送测试</h2>
+                  <p>这里可以向最近微信会话直接发送文本或媒体文件，用来核对通道出站链路是否正常。</p>
+                </div>
+              </div>
+
+              <div className="social-form">
+                <label className="social-field">
+                  <span>accountId</span>
+                  <input
+                    value={wechatSendAccountId}
+                    onChange={(event) => setWechatSendAccountId(event.target.value)}
+                    placeholder="wx_xxx"
+                  />
+                </label>
+                <label className="social-field">
+                  <span>peerId</span>
+                  <input
+                    value={wechatSendPeerId}
+                    onChange={(event) => setWechatSendPeerId(event.target.value)}
+                    placeholder="wxid_xxx"
+                  />
+                </label>
+                <label className="social-field">
+                  <span>发送类型</span>
+                  <select
+                    value={wechatSendMode}
+                    onChange={(event) =>
+                      setWechatSendMode(event.target.value as 'text' | 'media')
+                    }
+                  >
+                    <option value="text">文本消息</option>
+                    <option value="media">媒体文件</option>
+                  </select>
+                </label>
+                {wechatSendMode === 'media' ? (
+                  <label className="social-field">
+                    <span>媒体文件</span>
+                    <input
+                      key={wechatSendFileKey}
+                      type="file"
+                      onChange={(event) => setWechatSendFile(event.target.files?.[0] ?? null)}
+                    />
+                    {wechatSendFile ? (
+                      <small>
+                        已选择：{wechatSendFile.name} ·{' '}
+                        {Math.max(1, Math.round(wechatSendFile.size / 1024))} KB
+                      </small>
+                    ) : (
+                      <small>支持图片、文档、音频、视频等微信可接受的媒体文件。</small>
+                    )}
+                  </label>
+                ) : null}
+                <label className="social-field">
+                  <span>发送内容</span>
+                  <textarea
+                    rows={5}
+                    value={wechatSendText}
+                    onChange={(event) => setWechatSendText(event.target.value)}
+                    placeholder="输入要发给微信会话的内容"
+                  />
+                </label>
+                <div className="social-account-actions">
+                  <button
+                    className="primary-btn"
+                    type="button"
+                    disabled={wechatSending}
+                    onClick={() => void sendWechatTest()}
+                  >
+                    {wechatSending ? '发送中...' : '发送测试'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="social-card">

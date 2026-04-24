@@ -150,6 +150,11 @@ function sanitizeUsage(value: unknown): StoredChatMessage['usage'] {
     inputTokens: pick('inputTokens'),
     outputTokens: pick('outputTokens'),
     totalTokens: pick('totalTokens'),
+    cacheReadTokens: pick('cacheReadTokens'),
+    cacheWriteTokens: pick('cacheWriteTokens'),
+    upgradeOverheadInputTokens: pick('upgradeOverheadInputTokens'),
+    upgradeOverheadOutputTokens: pick('upgradeOverheadOutputTokens'),
+    upgradeOverheadTotalTokens: pick('upgradeOverheadTotalTokens'),
     estimated: usage.estimated === true ? true : undefined,
   }
 

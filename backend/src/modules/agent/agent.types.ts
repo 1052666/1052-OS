@@ -11,6 +11,11 @@ export type TokenUsage = {
   inputTokens?: number
   outputTokens?: number
   totalTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  upgradeOverheadInputTokens?: number
+  upgradeOverheadOutputTokens?: number
+  upgradeOverheadTotalTokens?: number
   estimated?: boolean
 }
 

@@ -10,6 +10,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { config } from '../../../config.js'
 import { HttpError } from '../../../http-error.js'
+import { buildAttachmentContextMarkdown } from '../../agent/agent.attachment-context.js'
+import { resolveAgentUploadReference } from '../../agent/agent.upload.service.js'
 import {
   getWechatUploadUrl,
   sendWechatMessageItem,
@@ -426,11 +428,38 @@ export function buildWechatMediaMarkdown(media: SavedWechatMedia) {
   return `[微信文件：${label}](${media.url})`
 }
 
+export async function buildWechatMediaContextMarkdown(media: SavedWechatMedia) {
+  const label = media.originalFileName || media.fileName
+  const sourceLabel =
+    media.kind === 'image'
+      ? '微信图片'
+      : media.kind === 'voice'
+        ? '微信语音'
+        : media.kind === 'video'
+          ? '微信视频'
+          : '微信文件'
+  const markdown = await buildAttachmentContextMarkdown({
+    sourceLabel,
+    displayName: label,
+    url: media.url,
+    absolutePath: media.absolutePath,
+    mimeType: media.mimeType,
+    sizeBytes: media.sizeBytes,
+    isImage: media.kind === 'image',
+  })
+
+  if (media.kind === 'voice' && media.text?.trim()) {
+    return `${markdown}\n\n语音转写：\n${media.text.trim()}`
+  }
+  return markdown
+}
+
 function cleanMarkdownUrl(value: string) {
   return value
     .trim()
     .replace(/^<|>$/g, '')
     .replace(/^['"]|['"]$/g, '')
+    .replace(/^`|`$/g, '')
 }
 
 function splitUrlPath(value: string) {
@@ -471,6 +500,9 @@ async function resolveOutboundMediaReference(reference: string) {
   const value = cleanMarkdownUrl(reference)
   if (!value) return null
 
+  const agentUpload = await resolveAgentUploadReference(value)
+  if (agentUpload) return agentUpload
+
   if (value.startsWith('/api/generated-images/')) {
     const relative = splitUrlPath(value.slice('/api/generated-images/'.length))
     return pathIfExisting(assertInside(GENERATED_IMAGE_ROOT, path.join(GENERATED_IMAGE_ROOT, relative)))
@@ -479,6 +511,12 @@ async function resolveOutboundMediaReference(reference: string) {
   if (value.startsWith('/api/channels/wechat/media/')) {
     const relative = splitUrlPath(value.slice('/api/channels/wechat/media/'.length))
     return pathIfExisting(assertInside(WECHAT_MEDIA_ROOT, path.join(WECHAT_MEDIA_ROOT, relative)))
+  }
+
+  if (value.startsWith('/api/channels/feishu/media/')) {
+    const feishuRoot = path.join(config.dataDir, 'channels', 'feishu', 'media')
+    const relative = splitUrlPath(value.slice('/api/channels/feishu/media/'.length))
+    return pathIfExisting(assertInside(feishuRoot, path.join(feishuRoot, relative)))
   }
 
   if (value.startsWith('file://')) {
@@ -509,7 +547,7 @@ export async function extractOutboundWechatMedia(text: string): Promise<Outbound
   )
 
   cleaned = cleaned.replace(
-    /\[([^\]]+)]\((\/api\/(?:generated-images|channels\/wechat\/media)\/[^)\s]+)(?:\s+"[^"]*")?\)/g,
+    /\[([^\]]+)]\(((?:\/api\/(?:agent\/uploads|generated-images|channels\/wechat\/media|channels\/feishu\/media)\/[^)\s]+)|(?:file:\/\/[^)\s]+))(?:\s+"[^"]*")?\)/g,
     (_match, label: string, raw: string) => {
       references.push(raw)
       return label
@@ -517,12 +555,29 @@ export async function extractOutboundWechatMedia(text: string): Promise<Outbound
   )
 
   cleaned = cleaned.replace(
-    /(^|\s)(\/api\/(?:generated-images|channels\/wechat\/media)\/[^\s)]+)/g,
+    /(^|\s)((?:\/api\/(?:agent\/uploads|generated-images|channels\/wechat\/media|channels\/feishu\/media)\/[^\s)]+)|(?:file:\/\/[^\s)]+))/g,
     (match, prefix: string, raw: string) => {
       references.push(raw)
       return match.startsWith(prefix) ? prefix : ''
     },
   )
+
+  cleaned = cleaned
+    .split('\n')
+    .map((line) => {
+      const localPath = line.match(/^\s*-?\s*(?:本地路径|Local Path)\s*[：:]\s*(.+?)\s*$/i)
+      if (localPath?.[1]) {
+        references.push(localPath[1])
+        return ''
+      }
+      const standalonePath = line.match(/^\s*`?([A-Za-z]:[\\/].+?)`?\s*$/)
+      if (standalonePath?.[1]) {
+        references.push(standalonePath[1])
+        return ''
+      }
+      return line
+    })
+    .join('\n')
 
   const files: string[] = []
   const warnings: string[] = []
@@ -590,19 +645,18 @@ function buildUploadItem(upload: UploadResult): WechatMessageItem {
   }
 }
 
-async function uploadWechatMediaFile(params: {
+async function uploadWechatMediaBufferInternal(params: {
   baseUrl: string
   token?: string
   to: string
-  filePath: string
+  fileName: string
+  mimeType?: string
+  buffer: Buffer
 }) {
-  const filePath = await pathIfExisting(params.filePath)
-  if (!filePath) throw new HttpError(404, 'Media file does not exist.')
-
-  const bytes = await fs.readFile(filePath)
+  const bytes = params.buffer
   assertSize(bytes.byteLength, 'Wechat outbound media')
-  const fileName = sanitizeFileName(path.basename(filePath))
-  const mimeType = mimeFromName(fileName)
+  const fileName = sanitizeFileName(params.fileName)
+  const mimeType = params.mimeType?.split(';')[0]?.trim().toLowerCase() || mimeFromName(fileName)
   const aeskeyHex = randomBytes(16).toString('hex')
   const filekey = randomBytes(16).toString('hex')
   const encrypted = encryptAesEcb(bytes, aeskeyHex)
@@ -652,7 +706,35 @@ export async function sendWechatMediaFile(params: {
   filePath: string
   contextToken?: string
 }) {
-  const upload = await uploadWechatMediaFile(params)
+  const filePath = await pathIfExisting(params.filePath)
+  if (!filePath) throw new HttpError(404, 'Media file does not exist.')
+  const upload = await uploadWechatMediaBufferInternal({
+    baseUrl: params.baseUrl,
+    token: params.token,
+    to: params.to,
+    fileName: path.basename(filePath),
+    mimeType: mimeFromName(filePath),
+    buffer: await fs.readFile(filePath),
+  })
+  return sendWechatMessageItem({
+    baseUrl: params.baseUrl,
+    token: params.token,
+    to: params.to,
+    item: buildUploadItem(upload),
+    contextToken: params.contextToken,
+  })
+}
+
+export async function sendWechatMediaBuffer(params: {
+  baseUrl: string
+  token?: string
+  to: string
+  fileName: string
+  mimeType?: string
+  buffer: Buffer
+  contextToken?: string
+}) {
+  const upload = await uploadWechatMediaBufferInternal(params)
   return sendWechatMessageItem({
     baseUrl: params.baseUrl,
     token: params.token,

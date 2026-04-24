@@ -1,4 +1,4 @@
-import {
+﻿import {
   Component,
   memo,
   useCallback,
@@ -10,10 +10,11 @@ import {
   type ReactNode,
 } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { IconPlus, IconSend, IconSparkle, IconStop } from '../components/Icons'
+import { IconClose, IconPlus, IconSend, IconSparkle, IconStop } from '../components/Icons'
 import Markdown from '../components/Markdown'
 import {
   AgentApi,
+  type AgentUploadItem,
   type ChatMessage,
   type StoredChatMessage,
 } from '../api/agent'
@@ -44,68 +45,75 @@ const CHAT_COMMANDS: ChatCommand[] = [
   {
     command: '/new',
     title: '新对话',
-    description: '清空当前聊天上下文和已保存聊天历史',
+    description: '清空当前聊天并开始一个新会话。',
     kind: 'action',
   },
   {
     command: '/compact',
     title: '压缩上下文',
-    description: '调用 AI 压缩当前聊天上下文，并把原始聊天历史备份到 data/chat-history-backups',
+    description: '让 AI 总结当前聊天，原始历史会备份到 data/chat-history-backups。',
     kind: 'action',
   },
   {
     command: '/notes',
-    title: '查看笔记库',
-    description: '列出笔记库概览，可继续搜索或读取笔记',
+    title: '查看笔记',
+    description: '让 Agent 读取并整理当前笔记。',
     kind: 'prompt',
-    prompt: '请读取我的笔记库概览，列出顶层文件夹、笔记数量，并告诉我可以继续怎么查。',
+    prompt: '请读取我的笔记，整理重点内容，并给出可以继续追问的方向。',
   },
   {
     command: '/search-notes',
     title: '搜索笔记',
-    description: '生成一个全库搜索笔记的请求模板',
+    description: '按关键词检索笔记内容。',
     kind: 'prompt',
-    prompt: '请在我的整个笔记库里搜索：',
+    prompt: '请帮我搜索笔记：',
   },
   {
     command: '/repos',
     title: '查看仓库',
-    description: '列出当前可访问的项目仓库和快速链接',
+    description: '读取当前仓库列表并总结项目状态。',
     kind: 'prompt',
-    prompt: '请列出当前工作区里可以访问的项目仓库，并附上仓库快速链接。',
+    prompt: '请查看当前仓库列表，帮我总结每个项目的用途和状态。',
   },
   {
     command: '/calendar',
     title: '查看日程',
-    description: '查询今天和近期日历安排',
+    description: '查看最近日程和待办。',
     kind: 'prompt',
-    prompt: '请查看我今天和近期的日程安排。',
+    prompt: '请帮我查看最近的日程安排。',
   },
   {
     command: '/tools',
-    title: '可用工具',
-    description: '说明当前可用工具，以及哪些操作需要确认',
+    title: '工具清单',
+    description: '说明当前可用工具和使用方式。',
     kind: 'prompt',
-    prompt: '请简要说明你当前可以使用哪些本地工具，以及哪些操作需要我确认。',
+    prompt: '请列出当前你可以使用的工具，并按使用场景分类说明。',
   },
 ]
 
 const EMPTY_CHAT_PROMPTS = [
-  '读取我的笔记库概览，告诉我有哪些内容可以继续整理。',
-  '列出当前工作区里的项目仓库，并给我快速入口。',
-  '查看我今天和近期的日程安排。',
-  '说明你现在能使用哪些工具，以及哪些操作需要我确认。',
+  '帮我整理今天的重点任务',
+  '读取项目并说明当前状态',
+  '总结最近的聊天历史',
+  '创建一个新的日程提醒',
 ]
 
 const CHAT_HISTORY_CACHE_KEY = '1052os.chat-history-cache'
 const EMPTY_HISTORY_RETRY_MS = 240
-const INTERRUPTED_MESSAGE_PLACEHOLDER = '（请求中断，未收到回复）'
-const LEGACY_INTERRUPTED_MESSAGE_PLACEHOLDER = '锛堣姹備腑鏂紝鏈敹鍒板洖澶嶏級'
+const INTERRUPTED_MESSAGE_PLACEHOLDER = '生成已中止。'
+const LEGACY_INTERRUPTED_MESSAGE_PLACEHOLDER = '已中止。'
 
 function normalizeInterruptedMessageContent(content: string) {
   return content.startsWith(LEGACY_INTERRUPTED_MESSAGE_PLACEHOLDER)
     ? INTERRUPTED_MESSAGE_PLACEHOLDER + content.slice(LEGACY_INTERRUPTED_MESSAGE_PLACEHOLDER.length)
     : content
+}
+
+function formatUploadBytes(size: number) {
+  if (!Number.isFinite(size) || size <= 0) return '0 B'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`
+  return `${(size / 1024 / 1024).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`
 }
 
 function buildHistorySyncKey(messages: Pick<Msg, 'id' | 'ts' | 'content' | 'streaming'>[]) {
@@ -321,7 +329,7 @@ class MessageRenderBoundary extends Component<
     if (this.state.failed) {
       return (
         <div className="msg-content msg-error">
-          这条消息渲染失败了，但聊天记录已经保留。刷新后可重试查看。
+          这条消息渲染失败，请刷新或重新生成。
         </div>
       )
     }
@@ -343,9 +351,9 @@ const MessageContent = memo(function MessageContent({
     : message.content
   const compactMeta = [
     message.compactOriginalCount !== undefined
-      ? `原消息数：${message.compactOriginalCount}`
+      ? `原始消息数：${message.compactOriginalCount}`
       : null,
-    message.compactBackupPath ? `备份：${message.compactBackupPath}` : null,
+    message.compactBackupPath ? `备份路径：${message.compactBackupPath}` : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -360,7 +368,7 @@ const MessageContent = memo(function MessageContent({
     >
       {parsed?.hasThought && parsed.thought && (
         <details className="thought">
-          <summary>{parsed.thoughtClosed ? '思考过程' : '思考中'}</summary>
+          <summary>{parsed.thoughtClosed ? '思考过程' : '正在思考'}</summary>
           <div className="thought-content">
             <Markdown text={parsed.thought} onLinkClick={onLinkClick} />
           </div>
@@ -368,7 +376,7 @@ const MessageContent = memo(function MessageContent({
       )}
       {message.compactSummary && (
         <details className="thought">
-          <summary>压缩摘要</summary>
+          <summary>上下文摘要</summary>
           <div className="thought-content">
             <Markdown
               text={
@@ -395,7 +403,7 @@ const TokenUsageLine = memo(function TokenUsageLine({ message }: { message: Msg 
   const { userTokens, inputTokens, outputTokens, totalTokens, estimated } =
     message.usage
   const parts = [
-    userTokens !== undefined ? `用户发送约 ${userTokens} tokens` : null,
+    userTokens !== undefined ? `用户 ${userTokens} tokens` : null,
     inputTokens !== undefined ? `输入 ${inputTokens}` : null,
     outputTokens !== undefined ? `输出 ${outputTokens}` : null,
     totalTokens !== undefined ? `总计 ${totalTokens}` : null,
@@ -405,8 +413,8 @@ const TokenUsageLine = memo(function TokenUsageLine({ message }: { message: Msg 
 
   return (
     <div className="msg-usage">
-      {parts.join(' · ')}
-      {estimated ? ' · 部分为估算' : ''}
+      {parts.join(' / ')}
+      {estimated ? ' / 估算值' : ''}
     </div>
   )
 })
@@ -424,9 +432,14 @@ export default function Chat() {
   const [focusedMessageId, setFocusedMessageId] = useState<number | null>(null)
   const [notificationContext, setNotificationContext] =
     useState<NotificationContext | null>(null)
+  const [upgradeState, setUpgradeState] = useState('')
+  const [pendingUploads, setPendingUploads] = useState<AgentUploadItem[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadState, setUploadState] = useState('')
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesRef = useRef<Msg[]>([])
   const messageRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const nextId = useRef(1)
@@ -510,7 +523,7 @@ export default function Chat() {
       }
       if (message.streaming) {
         // Skip normalization for recently created streaming messages
-        // — they may still be in progress after a navigation change
+        // 鈥?they may still be in progress after a navigation change
         const age = now - message.ts
         if (age < 60_000) continue
         message.streaming = false
@@ -584,6 +597,7 @@ export default function Chat() {
   const stop = () => {
     abortRef.current?.abort()
     abortRef.current = null
+    setUpgradeState('')
     const streaming = messagesRef.current.find((message) => message.streaming)
     if (streaming) {
       patchMsg(
@@ -591,7 +605,7 @@ export default function Chat() {
         {
           streaming: false,
           error: true,
-          content: streaming.content || '（已手动停止）',
+          content: streaming.content || '生成已中止。',
         },
         true,
       )
@@ -603,11 +617,53 @@ export default function Chat() {
     commitMessages([])
     nextId.current = 1
     setInput('')
+    setPendingUploads([])
+    setUploadState('')
     setSelectedCommandIndex(0)
     requestAnimationFrame(autosize)
     try {
       await AgentApi.saveHistory([], 'clear')
     } catch {}
+  }
+
+  const openUploadPicker = () => {
+    if (uploading || loading) return
+    fileInputRef.current?.click()
+  }
+
+  const removePendingUpload = (id: string) => {
+    setPendingUploads((current) => current.filter((item) => item.id !== id))
+  }
+
+  const handleUploadSelection = async (files: FileList | null) => {
+    const selected = files ? [...files].filter((file) => file.size > 0) : []
+    if (selected.length === 0) return
+
+    setUploading(true)
+    setUploadState('正在上传 ' + selected.length + ' 个附件...')
+    try {
+      const result = await AgentApi.uploadFiles(selected)
+      setPendingUploads((current) => {
+        const seen = new Set(current.map((item) => item.url))
+        const next = [...current]
+        for (const item of result.items) {
+          if (seen.has(item.url)) continue
+          seen.add(item.url)
+          next.push(item)
+        }
+        return next
+      })
+      setUploadState('已添加 ' + result.items.length + ' 个附件')
+    } catch (error) {
+      const message =
+        error && typeof error === 'object' && 'message' in error
+          ? String((error as { message?: unknown }).message ?? '')
+          : ''
+      setUploadState(message || '文件上传失败')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   const compactConversation = async () => {
@@ -630,13 +686,12 @@ export default function Chat() {
     const pending = [...messagesRef.current, userMsg, assistantMsg]
     const toCompact = [...messagesRef.current, userMsg]
 
-    const controller = new AbortController()
-    abortRef.current = controller
-
     commitMessages(pending)
     void persistMessages(pending)
     setLoading(true)
     setInput('')
+    setPendingUploads([])
+    setUploadState('')
     setSelectedCommandIndex(0)
     setCommandMenuSuppressed(false)
     requestAnimationFrame(() => {
@@ -644,7 +699,7 @@ export default function Chat() {
       scrollToBottom('smooth')
     })
     try {
-      const result = await AgentApi.compactHistory(toStoredMessages(toCompact), controller.signal)
+      const result = await AgentApi.compactHistory(toStoredMessages(toCompact))
       const restored = result.messages.map((message) => ({ ...message }))
       commitMessages(restored)
       nextId.current =
@@ -654,14 +709,12 @@ export default function Chat() {
         scrollToBottom('auto')
       })
     } catch (e) {
-      if (controller.signal.aborted) return
-      const errNow = Date.now()
-      const current = messagesRef.current
+      const now = Date.now()
       const next = [
-        ...current.filter((message) => message.id !== assistantId),
+        ...pending.filter((message) => message.id !== assistantId),
         {
           ...assistantMsg,
-          ts: errNow,
+          ts: now,
           streaming: false,
           error: true,
           content: '上下文压缩失败：' + ((e as Error).message || '未知错误'),
@@ -670,7 +723,6 @@ export default function Chat() {
       commitMessages(next)
       void persistMessages(next)
     } finally {
-      if (abortRef.current === controller) abortRef.current = null
       setLoading(false)
     }
   }
@@ -890,7 +942,9 @@ export default function Chat() {
 
   const send = async () => {
     const text = input.trim()
-    if (!text || loading || !historyLoaded) return
+    const attachmentsMarkdown = pendingUploads.map((item) => item.markdown).join('\n\n')
+    const outgoingContent = [text, attachmentsMarkdown].filter(Boolean).join('\n\n')
+    if (!outgoingContent || loading || uploading || !historyLoaded) return
 
     if (normalizeCommandInput(text) === '/new') {
       await clearConversation()
@@ -906,7 +960,7 @@ export default function Chat() {
     const userMsg: Msg = {
       id: nextId.current++,
       role: 'user',
-      content: text,
+      content: outgoingContent,
       ts: now,
     }
     const assistantId = nextId.current++
@@ -922,6 +976,9 @@ export default function Chat() {
     commitMessages(next)
     void persistMessages(next)
     setInput('')
+    setPendingUploads([])
+    setUploadState('')
+    setUpgradeState('')
     setLoading(true)
     requestAnimationFrame(() => {
       autosize()
@@ -939,7 +996,15 @@ export default function Chat() {
           {
             onDelta: (chunk) => appendDelta(assistantId, chunk),
             onUsage: (usage) => patchMsg(assistantId, { usage }, true),
-            onDone: () => patchMsg(assistantId, { streaming: false }, true),
+            onUpgradeRequested: (packs, reason) =>
+              setUpgradeState('申请加载工具包: ' + packs.join(', ') + (reason ? ' / ' + reason : '')),
+            onUpgradeApplying: (packs) => setUpgradeState('正在加载工具包: ' + packs.join(', ')),
+            onUpgradeApplied: (packs) => setUpgradeState('已加载工具包: ' + packs.join(', ')),
+            onUpgradeAborted: (stage) => setUpgradeState('工具包加载中止: ' + stage),
+            onDone: () => {
+              setUpgradeState('')
+              patchMsg(assistantId, { streaming: false }, true)
+            },
             onError: (message) =>
               patchMsg(
                 assistantId,
@@ -953,6 +1018,7 @@ export default function Chat() {
           },
           controller.signal,
         )
+        setUpgradeState('')
       } else {
         const { message } = await AgentApi.chat(history)
         patchMsg(
@@ -1087,36 +1153,36 @@ export default function Chat() {
               <div className="context-banner-copy">
                 <strong>
                   {notificationContext.status === 'active'
-                    ? '????????????'
+                    ? '正在查看通知上下文'
                     : notificationContext.status === 'compacted'
-                      ? '??????????????'
-                      : '????????????????'}
+                      ? '通知上下文已压缩'
+                      : '通知上下文不可用'}
                 </strong>
                 <span>
                   {notificationContext.status === 'active'
-                    ? '????????' +
-                      (notificationContext.taskTitle ?? '?????') +
-                      '?????????'
+                    ? '当前聚焦任务：' +
+                      (notificationContext.taskTitle ?? '未命名任务') +
+                      '。你可以直接追问。'
                     : notificationContext.status === 'compacted'
-                      ? '??????????????????????' +
-                        (notificationContext.backupPath ?? '???????')
-                      : '???' +
-                        (notificationContext.taskTitle ?? '?????') +
-                        '?????????????????'}
+                      ? '原始通知历史已压缩，备份路径：' +
+                        (notificationContext.backupPath ?? '暂无备份路径')
+                      : '任务 ' +
+                        (notificationContext.taskTitle ?? '未命名任务') +
+                        ' 的原始消息没有找到。'}
                 </span>
                 {notificationContext.excerpt && <code>{notificationContext.excerpt}</code>}
               </div>
               <button className="chip ghost" type="button" onClick={clearNotificationFocus}>
-                ??
+                关闭
               </button>
             </div>
           )}
           {emptyChat && (
-            <div className="empty-chat" aria-label="开始对话">
+            <div className="empty-chat" aria-label="空聊天">
               <div className="empty-orb" />
               <div className="empty-chat-copy">
-                <span>发送一条消息开始</span>
-                <p>选择一个入口填入输入框，确认后再发送给 Agent。</p>
+                <span>1052 OS</span>
+                <p>选择一个建议，或者直接向 Agent 提问。</p>
               </div>
               <div className="empty-prompts">
                 {EMPTY_CHAT_PROMPTS.map((prompt) => (
@@ -1168,7 +1234,7 @@ export default function Chat() {
                     )}
                     {message.meta?.delivery?.status === 'pending' && (
                       <span className="msg-badge">
-                        {message.meta.delivery.targetChannel === 'feishu' ? '飞书待发送' : '微信待发送'}
+                        {message.meta.delivery.targetChannel === 'feishu' ? '发送到飞书中' : '发送到微信中'}
                       </span>
                     )}
                     {message.meta?.delivery?.status === 'failed' && (
@@ -1212,7 +1278,7 @@ export default function Chat() {
           <div className="command-menu" role="listbox" aria-label="聊天命令">
             <div className="command-menu-head">
               <span>命令</span>
-              <span>↑↓ 选择 · Enter 填入 · 再发送执行 · Esc 关闭</span>
+              <span>上下选择 / Enter 填入 / 再发送执行 / Esc 关闭</span>
             </div>
             {filteredCommands.map((command, index) => (
               <button
@@ -1234,8 +1300,44 @@ export default function Chat() {
             ))}
           </div>
         )}
+        {pendingUploads.length > 0 && (
+          <div className="composer-uploads" aria-label="待发送附件">
+            {pendingUploads.map((item) => (
+              <div className="composer-upload-chip" key={item.id}>
+                <div className="composer-upload-copy">
+                  <strong>{item.originalFileName}</strong>
+                  <span>
+                    {item.kind === 'image' ? '图片' : '文件'} / {formatUploadBytes(item.sizeBytes)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn ghost composer-upload-remove"
+                  onClick={() => removePendingUpload(item.id)}
+                  title="移除附件"
+                >
+                  <IconClose size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          onChange={(event) => void handleUploadSelection(event.target.files)}
+        />
         <div className="composer">
-          <button className="icon-btn ghost" title="附加" type="button">
+          <button
+            className="icon-btn ghost"
+            type="button"
+            onClick={openUploadPicker}
+            disabled={!historyLoaded || loading || uploading}
+            title="添加附件"
+          >
             <IconPlus size={16} />
           </button>
           <textarea
@@ -1249,21 +1351,21 @@ export default function Chat() {
             onKeyDown={handleComposerKeyDown}
             placeholder={
               historyLoaded
-                ? '给 Agent 发消息...  (Enter 发送 / Shift+Enter 换行)'
-                : '正在加载聊天记录...'
+                ? '和 Agent 对话，Enter 发送 / Shift+Enter 换行'
+                : '正在加载历史...'
             }
             rows={1}
             disabled={!historyLoaded}
           />
           {loading ? (
-            <button className="icon-btn danger" onClick={stop} title="停止" type="button">
+            <button className="icon-btn danger" onClick={stop} title="停止生成" type="button">
               <IconStop size={16} />
             </button>
           ) : (
             <button
               className="icon-btn primary"
               onClick={send}
-              disabled={!historyLoaded || !input.trim()}
+              disabled={!historyLoaded || uploading || (!input.trim() && pendingUploads.length === 0)}
               title="发送"
               type="button"
             >
@@ -1271,10 +1373,12 @@ export default function Chat() {
             </button>
           )}
         </div>
+        {upgradeState ? <div className="composer-hint">{upgradeState}</div> : null}
+        {!upgradeState && uploadState ? <div className="composer-hint">{uploadState}</div> : null}
         <div className="composer-hint">
           {historyLoaded
-            ? `${useStream ? '流式输出已启用' : '非流式模式'} · 聊天记录自动保存 · 在“设置”修改`
-            : '正在加载聊天记录...'}
+            ? (useStream ? '流式响应' : '普通响应') + ' / Enter 发送 / Shift+Enter 换行'
+            : '正在加载历史...'}
         </div>
       </div>
     </div>

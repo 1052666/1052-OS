@@ -81,6 +81,25 @@ export function getAgentToolDefinitions(): LLMToolDefinition[] {
   return AGENT_TOOLS.map((tool) => buildToolDefinition(tool))
 }
 
+export function hasAgentTool(name: string) {
+  return TOOL_MAP.has(name)
+}
+
+export function getAgentToolDefinitionsForNames(names: readonly string[]): LLMToolDefinition[] {
+  const seen = new Set<string>()
+  const tools: LLMToolDefinition[] = []
+
+  for (const name of names) {
+    if (seen.has(name)) continue
+    const tool = TOOL_MAP.get(name)
+    if (!tool) continue
+    seen.add(name)
+    tools.push(buildToolDefinition(tool))
+  }
+
+  return tools
+}
+
 export async function executeToolCalls(
   toolCalls: LLMToolCall[],
   runtimeContext?: AgentToolRuntimeContext,

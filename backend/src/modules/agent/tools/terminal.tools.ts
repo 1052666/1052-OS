@@ -51,6 +51,49 @@ export const terminalTools: AgentTool[] = [
     },
   },
   {
+    name: 'terminal_run_readonly',
+    description:
+      'Run a read-only local terminal command on Windows using PowerShell or CMD. Commands that may modify files, processes, git state, dependencies, or system state are rejected.',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: {
+          type: 'string',
+          description: 'Read-only terminal command to execute.',
+        },
+        shell: {
+          type: 'string',
+          enum: ['powershell', 'cmd'],
+          description: 'Shell to use. Default powershell.',
+        },
+        cwd: {
+          type: 'string',
+          description: 'Optional working directory. Defaults to the shell session cwd.',
+        },
+        timeoutMs: {
+          type: 'number',
+          description: 'Optional timeout in milliseconds. Default 120000, max 1800000.',
+        },
+      },
+      required: ['command'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return terminalRun({
+        command: String(input.command ?? ''),
+        shell: input.shell === 'cmd' ? 'cmd' : 'powershell',
+        cwd: typeof input.cwd === 'string' ? input.cwd : undefined,
+        timeoutMs:
+          typeof input.timeoutMs === 'number'
+            ? Math.min(Math.max(input.timeoutMs, 1000), 1800000)
+            : undefined,
+        confirmed: input.confirmed === true ? true : undefined,
+        readonly: true,
+      })
+    },
+  },
+  {
     name: 'terminal_status',
     description: 'Get terminal session status, current cwd, running command, and last exit code. Read-only.',
     parameters: {
