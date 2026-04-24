@@ -9,6 +9,29 @@ import {
   messagesToRecentPlainText,
   saveCheckpoint,
 } from './agent.checkpoint.service.js'
+import type { AgentCheckpoint } from './agent.runtime.types.js'
+
+export const MAX_CHECKPOINT_SEED_ATTEMPTS = 3
+
+function normalizeSeedAttempts(value: number | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0
+  return Math.max(0, Math.floor(value))
+}
+
+export function getSeedAttemptsForInput(checkpoint: AgentCheckpoint, fingerprint: string) {
+  if (checkpoint.seedInputFingerprint !== fingerprint) return 0
+  return normalizeSeedAttempts(checkpoint.seedAttempts)
+}
+
+export function isCheckpointSeedRetryExhausted(
+  checkpoint: AgentCheckpoint,
+  fingerprint: string,
+) {
+  return (
+    checkpoint.seedStatus === 'failed' &&
+    getSeedAttemptsForInput(checkpoint, fingerprint) >= MAX_CHECKPOINT_SEED_ATTEMPTS
+  )
+}
 
 function compactSummaryFromStoredMessages(messages: StoredChatMessage[]) {
   const compact = [...messages]
@@ -92,10 +115,15 @@ export async function ensureCheckpointSeedForSession(
     : recentPlainText
 
   const fingerprint = fingerprintSeedInput([compactSummary, recentPlainText])
+  if (isCheckpointSeedRetryExhausted(existing, fingerprint)) {
+    return existing
+  }
+
+  const previousSeedAttempts = getSeedAttemptsForInput(existing, fingerprint)
   const next = emptyCheckpoint(sessionId)
   next.seedStatus = 'pending'
   next.seedInputFingerprint = fingerprint
-  next.seedAttempts = (existing.seedAttempts ?? 0) + 1
+  next.seedAttempts = previousSeedAttempts + 1
   await saveCheckpoint(next)
 
   try {
