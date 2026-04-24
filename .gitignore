@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.vite/
+.cache/
+
+data/
+*.log
+*.out.log
+*.err.log
+
+.env
+.env.*
+!.env.example
+
+backend/data/
+frontend/dist/

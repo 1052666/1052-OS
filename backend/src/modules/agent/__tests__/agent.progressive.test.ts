@@ -56,6 +56,24 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('uapis_call')
   })
 
+  it('mounts memory write tools through memory-pack and advertises the route in P0', async () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['memory-pack']))
+    expect(toolNames).toContain('memory_create')
+    expect(toolNames).toContain('memory_suggest')
+    expect(toolNames).toContain('memory_secure_write')
+
+    const built = await buildP0Messages({
+      history: [],
+      checkpoint: emptyCheckpoint('web-default'),
+      userPrompt: '',
+      mountedPacks: [],
+    })
+    const system = built.messages[0]?.content ?? ''
+    expect(system).toContain('memory-pack')
+    expect(system).toContain('memory_create')
+    expect(system).toContain('memory_suggest')
+  })
+
   it('enforces per-upgrade pack count and per-message upgrade count', () => {
     expect(() =>
       validateContextUpgradeRequest(

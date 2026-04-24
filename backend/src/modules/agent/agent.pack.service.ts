@@ -30,6 +30,18 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'memory_read',
     'memory_summary',
     'memory_runtime_preview',
+    'memory_create',
+    'memory_update',
+    'memory_delete',
+    'memory_suggestions_list',
+    'memory_suggest',
+    'memory_confirm_suggestion',
+    'memory_reject_suggestion',
+    'memory_secure_list',
+    'memory_secure_read',
+    'memory_secure_write',
+    'memory_secure_update',
+    'memory_secure_delete',
   ],
   'skill-pack': [
     'skills_list',
@@ -105,7 +117,7 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'search-pack':
       return '联网搜索、网页阅读、UAPIs 工具箱。使用 UAPIs 时必须按 uapis_list_apis -> uapis_read_api -> uapis_call 三步走。'
     case 'memory-pack':
-      return '长期记忆、敏感记忆目录预览与记忆读取。'
+      return '长期记忆和敏感长期记忆的读取、建议、写入、更新与删除。普通写入需用户明确要求记住或确认；敏感信息用 secure memory。'
     case 'skill-pack':
       return 'Skill 查询、读取和 Marketplace 检索。'
     case 'plan-pack':
