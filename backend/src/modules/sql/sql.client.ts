@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import mysql from 'mysql2/promise'
+import BetterSqlite3 from 'better-sqlite3'
 import type { DatabaseType, QueryResult } from './sql.types.js'
 
 export type DbConfig = {
@@ -46,6 +48,139 @@ function classifyDbError(dbErr: string): string {
     return '数据库认证失败，请检查用户名和密码'
   }
   return dbErr
+}
+
+function classifyNodeDbError(err: unknown, dbType: DatabaseType): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (dbType === 'mysql') {
+    if (msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') ||
+        msg.includes('ENOTFOUND') || msg.includes('PROTOCOL_CONNECTION_LOST')) {
+      return '数据库连接失败，请检查网络和数据库配置。\n' + msg
+    }
+    if (msg.includes('ACCESS_DENIED') || msg.includes('ER_ACCESS_DENIED_ERROR')) {
+      return '数据库认证失败，请检查用户名和密码'
+    }
+  }
+  if (dbType === 'sqlite') {
+    if (msg.includes('SQLITE_CANTOPEN') || msg.includes('Unable to open')) {
+      return 'SQLite 文件无法打开: ' + msg
+    }
+    if (msg.includes('SQLITE_NOTADB') || msg.includes('file is not a database')) {
+      return 'SQLite 文件格式不正确或已加密'
+    }
+  }
+  return msg
+}
+
+// ─── Node.js Native Connectors (MySQL & SQLite) ────────────────
+
+async function testNodeConnection(config: DbConfig): Promise<void> {
+  if (config.type === 'mysql') {
+    const conn = await mysql.createConnection({
+      host: config.host || '127.0.0.1',
+      port: config.port || 3306,
+      user: config.user,
+      password: config.password,
+      database: config.database,
+      connectTimeout: 10_000,
+    })
+    try {
+      await conn.execute('SELECT 1')
+    } finally {
+      await conn.end()
+    }
+  } else if (config.type === 'sqlite') {
+    if (!config.filePath) throw new Error('SQLite filePath is required')
+    const db = new BetterSqlite3(config.filePath, { readonly: true })
+    try {
+      db.prepare('SELECT 1').get()
+    } finally {
+      db.close()
+    }
+  }
+}
+
+async function executeNodeQuery(
+  config: DbConfig,
+  sql: string,
+  limit: number,
+): Promise<QueryResult> {
+  if (config.type === 'mysql') {
+    return executeMySqlQuery(config, sql, limit)
+  }
+  if (config.type === 'sqlite') {
+    return executeSqliteQuery(config, sql, limit)
+  }
+  throw new Error(`Unsupported Node.js db type: ${config.type}`)
+}
+
+async function executeMySqlQuery(
+  config: DbConfig,
+  sql: string,
+  limit: number,
+): Promise<QueryResult> {
+  const conn = await mysql.createConnection({
+    host: config.host || '127.0.0.1',
+    port: config.port || 3306,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    connectTimeout: 10_000,
+  })
+  try {
+    const [result] = await conn.execute(sql)
+    // DML statements return ResultSetHeader
+    if (result && typeof result === 'object' && 'affectedRows' in result) {
+      const header = result as mysql.ResultSetHeader
+      return {
+        columns: ['affectedRows'],
+        rows: [{ affectedRows: header.affectedRows }],
+        rowCount: 1,
+        truncated: false,
+      }
+    }
+    const rows = result as Record<string, unknown>[]
+    const columns = rows.length > 0 ? Object.keys(rows[0]) : []
+    const truncated = rows.length > limit
+    const trimmedRows = truncated ? rows.slice(0, limit) : rows
+    return {
+      columns,
+      rows: trimmedRows,
+      rowCount: trimmedRows.length,
+      truncated,
+    }
+  } finally {
+    await conn.end()
+  }
+}
+
+function executeSqliteQuery(
+  config: DbConfig,
+  sql: string,
+  limit: number,
+): QueryResult {
+  if (!config.filePath) throw new Error('SQLite filePath is required')
+  const db = new BetterSqlite3(config.filePath, { readonly: true })
+  try {
+    const stmt = db.prepare(sql)
+    if (stmt.reader) {
+      const allRows = stmt.all() as Record<string, unknown>[]
+      const columns = allRows.length > 0 ? Object.keys(allRows[0]) : []
+      const truncated = allRows.length > limit
+      const rows = truncated ? allRows.slice(0, limit) : allRows
+      return { columns, rows, rowCount: rows.length, truncated }
+    } else {
+      const info = stmt.run()
+      return {
+        columns: ['affectedRows'],
+        rows: [{ affectedRows: info.changes }],
+        rowCount: 1,
+        truncated: false,
+      }
+    }
+  } finally {
+    db.close()
+  }
 }
 
 function callPython(input: PythonInput): Promise<PythonTestOk | PythonQueryOk> {
@@ -110,6 +245,15 @@ function callPython(input: PythonInput): Promise<PythonTestOk | PythonQueryOk> {
 }
 
 export async function testConnection(config: DbConfig): Promise<void> {
+  if (config.type === 'mysql' || config.type === 'sqlite') {
+    try {
+      await testNodeConnection(config)
+    } catch (err) {
+      throw new Error(classifyNodeDbError(err, config.type))
+    }
+    return
+  }
+  // Oracle and Hive: use Python bridge
   await callPython({
     action: 'test',
     config: {
@@ -129,6 +273,14 @@ export async function executeDbQuery(
   sql: string,
   limit: number,
 ): Promise<QueryResult> {
+  if (config.type === 'mysql' || config.type === 'sqlite') {
+    try {
+      return await executeNodeQuery(config, sql, limit)
+    } catch (err) {
+      throw new Error(classifyNodeDbError(err, config.type))
+    }
+  }
+  // Oracle and Hive: use Python bridge
   const result = await callPython({
     action: 'query',
     config: {
