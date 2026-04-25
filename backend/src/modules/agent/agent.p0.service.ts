@@ -100,6 +100,7 @@ function getRoutingPrompt() {
     '- terminal_run_readonly is only for allow-listed read-only inspection. Use terminal_run for scripts, file writes, builds, tests, and other commands that can modify local state when permission allows.',
     '- If you need web search, page reading, or UAPIs lookup/call, request search-pack.',
     '- If you need to read, create, update, delete, suggest, confirm, or reject long-term memories or output profiles, request memory-pack.',
+    '- If the user explicitly asks to switch LLM profiles or configure task-level model routing, request settings-pack and wait for confirmation before changing settings unless full-access is enabled.',
     '- If you need to read or maintain Wiki, ingest raw files, search structured knowledge pages, write synthesis, or lint Wiki health, request data-pack.',
     '- Wiki is not long-term memory: Wiki stores knowledge assets and source-backed synthesis; memory-pack stores durable user preferences, constraints, identity, and habits.',
     '- Output profiles are not raw knowledge storage: they are composition recipes that combine approved cognitive models, preferred writing style, and material scopes for a response.',

@@ -1,5 +1,12 @@
-import { getSettings, resolveLlmConfigForTask } from '../../settings/settings.service.js'
+import { HttpError } from '../../../http-error.js'
+import {
+  activateLlmProfile,
+  getSettings,
+  resolveLlmConfigForTask,
+  updateLlmTaskRoutes,
+} from '../../settings/settings.service.js'
 import { discoverLocalModels } from '../../settings/local-llm-discovery.service.js'
+import type { LLMTaskKind } from '../../settings/settings.types.js'
 import {
   shouldUseProviderCaching,
   supportsPromptCacheKey,
@@ -13,6 +20,22 @@ function providerHost(baseUrl: string) {
   } catch {
     return ''
   }
+}
+
+const LLM_TASKS: LLMTaskKind[] = [
+  'agent-chat',
+  'pdf-to-markdown',
+  'coding',
+  'summarization',
+  'vision',
+]
+
+function assertConfirmed(value: unknown, message: string) {
+  if (value !== true) throw new HttpError(400, message)
+}
+
+function readString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 export const agentRuntimeTools: AgentTool[] = [
@@ -78,6 +101,83 @@ export const agentRuntimeTools: AgentTool[] = [
     },
     async execute() {
       return discoverLocalModels()
+    },
+  },
+  {
+    name: 'agent_llm_activate_profile',
+    description:
+      'Switch the active LLM profile. Before calling, tell the user which profile will become active and wait for explicit confirmation unless full-access mode is enabled.',
+    parameters: {
+      type: 'object',
+      properties: {
+        profileId: { type: 'string', description: 'LLM profile id from agent_runtime_status.' },
+        confirmed: {
+          type: 'boolean',
+          description: 'Must be true only after explicit user confirmation.',
+        },
+      },
+      required: ['profileId', 'confirmed'],
+      additionalProperties: false,
+    },
+    async execute(args) {
+      const input = (args ?? {}) as Record<string, unknown>
+      assertConfirmed(
+        input.confirmed,
+        '切换 LLM Profile 前，必须先告知用户目标 Profile 和影响，并等待用户明确确认。',
+      )
+      const profileId = readString(input.profileId)
+      if (!profileId) throw new HttpError(400, 'profileId 必填')
+      return activateLlmProfile(profileId)
+    },
+  },
+  {
+    name: 'agent_llm_set_task_route',
+    description:
+      'Set or clear a task-level LLM route. Before calling, tell the user which task will use which profile and wait for explicit confirmation unless full-access mode is enabled.',
+    parameters: {
+      type: 'object',
+      properties: {
+        task: {
+          type: 'string',
+          enum: LLM_TASKS,
+          description: 'Task route to update.',
+        },
+        profileId: {
+          type: 'string',
+          description: 'Profile id from agent_runtime_status. Leave empty only when clear is true.',
+        },
+        clear: {
+          type: 'boolean',
+          description: 'Clear this task route so it follows the active profile.',
+        },
+        confirmed: {
+          type: 'boolean',
+          description: 'Must be true only after explicit user confirmation.',
+        },
+      },
+      required: ['task', 'confirmed'],
+      additionalProperties: false,
+    },
+    async execute(args) {
+      const input = (args ?? {}) as Record<string, unknown>
+      assertConfirmed(
+        input.confirmed,
+        '修改任务级模型路由前，必须先告知用户目标任务、目标 Profile 和影响，并等待用户明确确认。',
+      )
+      const task = readString(input.task) as LLMTaskKind
+      if (!LLM_TASKS.includes(task)) throw new HttpError(400, '无效的 LLM task')
+
+      const settings = await getSettings()
+      const currentRoutes = settings.llm.taskRoutes.filter((route) => route.task !== task)
+      if (input.clear === true) return updateLlmTaskRoutes(currentRoutes)
+
+      const profileId = readString(input.profileId)
+      if (!profileId) throw new HttpError(400, 'profileId 必填')
+      if (!settings.llm.profiles.some((profile) => profile.id === profileId)) {
+        throw new HttpError(404, '未找到 LLM profile')
+      }
+
+      return updateLlmTaskRoutes([...currentRoutes, { task, profileId }])
     },
   },
 ]

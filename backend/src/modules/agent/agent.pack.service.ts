@@ -63,6 +63,10 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'skills_marketplace_search',
     'skills_marketplace_inspect',
   ],
+  'settings-pack': [
+    'agent_llm_activate_profile',
+    'agent_llm_set_task_route',
+  ],
   'plan-pack': [
     'calendar_list_events',
     'schedule_list_tasks',
@@ -152,6 +156,8 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
       return '长期记忆、敏感长期记忆和输出配方的读取、建议、写入、更新与删除。普通写入需用户明确要求记住或确认；敏感信息用 secure memory；输出配方用于组合认知模型、写作风格和素材范围。'
     case 'skill-pack':
       return 'Skill 查询、读取和 Marketplace 检索。'
+    case 'settings-pack':
+      return 'Agent 运行设置维护。用于在用户明确确认后切换 LLM Profile 或设置任务级模型路由；读取状态和本地模型扫描已在 base-read-pack 中可用。'
     case 'plan-pack':
       return '日程、定时任务、计划类工具。'
     case 'data-pack':

@@ -7,6 +7,7 @@ export type AgentPackName =
   | 'search-pack'
   | 'memory-pack'
   | 'skill-pack'
+  | 'settings-pack'
   | 'plan-pack'
   | 'data-pack'
   | 'channel-pack'

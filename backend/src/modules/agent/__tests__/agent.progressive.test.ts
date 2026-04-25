@@ -130,6 +130,15 @@ describe('agent progressive disclosure helpers', () => {
     expect(describePackForRouting('channel-pack')).toContain('Intel Brief')
   })
 
+  it('mounts confirmed LLM settings tools through settings-pack', () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['settings-pack']))
+    expect(toolNames).toContain('agent_llm_activate_profile')
+    expect(toolNames).toContain('agent_llm_set_task_route')
+    expect(hasAgentTool('agent_llm_activate_profile')).toBe(true)
+    expect(hasAgentTool('agent_llm_set_task_route')).toBe(true)
+    expect(describePackForRouting('settings-pack')).toContain('LLM Profile')
+  })
+
   it('enforces per-upgrade pack count and per-message upgrade count', () => {
     expect(() =>
       validateContextUpgradeRequest(
