@@ -53,6 +53,8 @@ const LOG_TAIL_LIMIT = 12000
 type StoredUpdateState = {
   installedCommit?: string
   installedAt?: string
+  baselineCommit?: string
+  baselineAt?: string
   latest?: UpdateCommitInfo
   lastCheckedAt?: string
   mode?: UpdateInstallMode
@@ -74,8 +76,11 @@ export async function getUpdateStatus(refreshRemote = true): Promise<UpdateStatu
   const state = await readStoredState()
   const local = await getLocalSourceState(workspaceRoot, state)
   const latest = refreshRemote ? await fetchLatestCommit() : state.latest ?? null
-  const currentCommit = local.commit
+  let currentCommit = local.commit
+  let currentSource = local.source
   const warnings: string[] = []
+  let archiveBaselineCommit = state.baselineCommit
+  let archiveBaselineAt = state.baselineAt
 
   if (local.mode === 'git' && local.branch !== REPO_BRANCH) {
     warnings.push(`当前 Git 分支是 ${local.branch || '未知'}，自动更新仅支持 ${REPO_BRANCH}。`)
@@ -83,8 +88,16 @@ export async function getUpdateStatus(refreshRemote = true): Promise<UpdateStatu
   if (local.mode === 'git' && local.dirty) {
     warnings.push('当前 Git 工作区有未提交改动，自动更新前需要先处理这些改动。')
   }
-  if (local.mode === 'archive' && !currentCommit) {
-    warnings.push('当前运行目录不是 Git 仓库，首次会用源码包更新，更新后才会记录本地版本。')
+  if (local.mode === 'archive' && !currentCommit && latest) {
+    currentCommit = latest.commit
+    currentSource = 'state'
+    archiveBaselineCommit = latest.commit
+    archiveBaselineAt = state.baselineAt ?? new Date().toISOString()
+    warnings.push('当前运行目录不是 Git 仓库，已将本次检查到的远端版本记录为本机版本基线；如果本地代码不是最新版，可以重新安装最新版。')
+  } else if (local.mode === 'archive' && !currentCommit) {
+    warnings.push('当前运行目录不是 Git 仓库，尚未建立本机版本基线；检查更新后会持久化当前版本显示。')
+  } else if (local.mode === 'archive') {
+    warnings.push('当前运行目录不是 Git 仓库，当前版本来自本地持久化基线；手动改文件不会自动改变该版本。')
   }
 
   const canInstall =
@@ -98,7 +111,7 @@ export async function getUpdateStatus(refreshRemote = true): Promise<UpdateStatu
       commit: currentCommit,
       shortCommit: currentCommit ? currentCommit.slice(0, 7) : '',
       branch: local.branch,
-      source: local.source,
+      source: currentSource,
     },
     latest,
     updateAvailable,
@@ -114,6 +127,8 @@ export async function getUpdateStatus(refreshRemote = true): Promise<UpdateStatu
     latest: latest ?? state.latest,
     lastCheckedAt: status.lastCheckedAt,
     mode: local.mode,
+    baselineCommit: archiveBaselineCommit,
+    baselineAt: archiveBaselineAt,
   })
   return status
 }
@@ -504,9 +519,9 @@ async function getLocalSourceState(
 
   return {
     mode: 'archive',
-    commit: state.installedCommit ?? '',
+    commit: state.installedCommit ?? state.baselineCommit ?? '',
     branch: '',
-    source: state.installedCommit ? 'state' : 'unknown',
+    source: state.installedCommit || state.baselineCommit ? 'state' : 'unknown',
     dirty: false,
     dirtyFiles: [],
   }
