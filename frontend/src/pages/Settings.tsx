@@ -24,48 +24,28 @@ function formatUpdateTime(value: string | null | undefined): string {
   }).format(date)
 }
 
-const LLM_ENDPOINT_PRESETS = [
-  {
-    name: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
-    modelId: 'gpt-4.1-mini',
-  },
-  {
-    name: 'MiniMax Global',
-    baseUrl: 'https://api.minimax.io/v1',
-    modelId: 'MiniMax-M2.7',
-  },
-  {
-    name: 'MiniMax 中国区',
-    baseUrl: 'https://api.minimaxi.com/v1',
-    modelId: 'MiniMax-M2.7',
-  },
-  {
-    name: 'Gemini OpenAI',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    modelId: 'gemini-2.5-flash',
-  },
-  {
-    name: 'DeepSeek',
-    baseUrl: 'https://api.deepseek.com/v1',
-    modelId: 'deepseek-chat',
-  },
-  {
-    name: 'Moonshot',
-    baseUrl: 'https://api.moonshot.cn/v1',
-    modelId: 'kimi-k2-0711-preview',
-  },
-  {
-    name: 'OpenRouter',
-    baseUrl: 'https://openrouter.ai/api/v1',
-    modelId: 'openai/gpt-4.1-mini',
-  },
-  {
-    name: 'SiliconFlow',
-    baseUrl: 'https://api.siliconflow.cn/v1',
-    modelId: 'Qwen/Qwen3-32B',
-  },
-] as const
+type LlmPreset = { name: string; baseUrl: string; modelId: string }
+type LlmPresetGroup = { name: string; children: LlmPreset[] }
+
+const ZHIPU_PRESETS: LlmPresetGroup = {
+  name: '智谱',
+  children: [
+    { name: '智谱 API', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', modelId: 'glm-5.1' },
+    { name: '智谱 Coding API', baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4', modelId: 'glm-5.1' },
+    { name: '智谱 Coding Claude API', baseUrl: 'https://open.bigmodel.cn/api/anthropic', modelId: 'glm-5.1' },
+  ],
+}
+
+const LLM_ENDPOINT_PRESETS: readonly LlmPreset[] = [
+  { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', modelId: 'gpt-4.1-mini' },
+  { name: 'MiniMax Global', baseUrl: 'https://api.minimax.io/v1', modelId: 'MiniMax-M2.7' },
+  { name: 'MiniMax 中国区', baseUrl: 'https://api.minimaxi.com/v1', modelId: 'MiniMax-M2.7' },
+  { name: 'Gemini OpenAI', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', modelId: 'gemini-2.5-flash' },
+  { name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', modelId: 'deepseek-chat' },
+  { name: 'Moonshot', baseUrl: 'https://api.moonshot.cn/v1', modelId: 'kimi-k2-0711-preview' },
+  { name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', modelId: 'openai/gpt-4.1-mini' },
+  { name: 'SiliconFlow', baseUrl: 'https://api.siliconflow.cn/v1', modelId: 'Qwen/Qwen3-32B' },
+]
 
 const IMAGE_ENDPOINT_PRESETS = [
   {
@@ -96,6 +76,7 @@ type LlmProviderKey =
   | 'moonshot'
   | 'openrouter'
   | 'siliconflow'
+  | 'zhipu'
 
 const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }> = {
   openai: { name: 'OpenAI', url: 'https://platform.openai.com/api-keys' },
@@ -105,11 +86,13 @@ const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }>
   moonshot: { name: 'Moonshot', url: 'https://platform.moonshot.cn/' },
   openrouter: { name: 'OpenRouter', url: 'https://openrouter.ai/' },
   siliconflow: { name: 'SiliconFlow', url: 'https://cloud.siliconflow.cn/i/QOxdzxkd' },
+  zhipu: { name: '智谱', url: 'https://open.bigmodel.cn/' },
 }
 
 function detectLlmProvider(baseUrl: string, modelId: string): LlmProviderKey {
   const value = `${baseUrl} ${modelId}`.toLowerCase()
   if (value.includes('openrouter')) return 'openrouter'
+  if (value.includes('bigmodel.cn')) return 'zhipu'
   if (value.includes('minimax') || value.includes('minimaxi')) return 'minimax'
   if (value.includes('googleapis.com') || value.includes('gemini')) return 'gemini'
   if (value.includes('deepseek')) return 'deepseek'
@@ -179,6 +162,7 @@ export default function Settings() {
   const [providerCachingEnabled, setProviderCachingEnabled] = useState(true)
   const [checkpointEnabled, setCheckpointEnabled] = useState(true)
   const [seedOnResumeEnabled, setSeedOnResumeEnabled] = useState(true)
+  const [zhipuExpanded, setZhipuExpanded] = useState(false)
   const [upgradeDebugEventsEnabled, setUpgradeDebugEventsEnabled] = useState(true)
   const [state, setState] = useState<SaveState>('idle')
   const [error, setError] = useState('')
@@ -453,6 +437,36 @@ export default function Settings() {
                       <small>{preset.modelId}</small>
                     </button>
                   ))}
+                  <div className="settings-preset-group">
+                    <button
+                      className={`settings-preset-card${zhipuExpanded ? ' expanded' : ''}`}
+                      type="button"
+                      onClick={() => setZhipuExpanded((v) => !v)}
+                    >
+                      <strong>{ZHIPU_PRESETS.name}</strong>
+                      <span>{ZHIPU_PRESETS.children.length} 个端点</span>
+                      <small>{zhipuExpanded ? '点击收起' : '点击展开'}</small>
+                    </button>
+                    {zhipuExpanded && (
+                      <div className="settings-preset-subgrid">
+                        {ZHIPU_PRESETS.children.map((child) => (
+                          <button
+                            key={child.name}
+                            className="settings-preset-card settings-preset-sub"
+                            type="button"
+                            onClick={() => {
+                              applyLlmPreset(child)
+                              setZhipuExpanded(false)
+                            }}
+                          >
+                            <strong>{child.name}</strong>
+                            <span>{child.baseUrl}</span>
+                            <small>{child.modelId}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

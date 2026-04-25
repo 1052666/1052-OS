@@ -3829,6 +3829,24 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   white-space: nowrap;
 }
 
+.settings-preset-group {
+  display: contents;
+}
+
+.settings-preset-subgrid {
+  display: contents;
+}
+
+.settings-preset-card.expanded {
+  border-color: var(--accent-ring);
+  background-color: var(--surface-3);
+}
+
+.settings-preset-card.settings-preset-sub {
+  padding-left: 20px;
+  border-left: 3px solid var(--accent-ring);
+}
+
 .settings-input {
   background: var(--surface-2);
   border: 1px solid var(--hairline-2);
