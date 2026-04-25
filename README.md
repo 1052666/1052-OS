@@ -11,11 +11,11 @@
 </p>
 
 <p align="center">
-  <strong>一个本地优先、工具驱动、可接入社交通道的 AI Agent 工作台。</strong>
+  <strong>本地优先、工具驱动、可接入社交通道的个人 AI Agent 工作台。</strong>
 </p>
 
 <p align="center">
-  由一名 17 岁学生开发者持续设计、开发与迭代。
+  由一名学生开发者持续设计、开发与迭代。
 </p>
 
 <p align="center">
@@ -43,10 +43,10 @@
       <img src="./assets/readme/wechat-group-qr.jpg" alt="1052 OS 微信群二维码" width="260" />
     </td>
     <td valign="top">
-      <h3>第一时间交流、反馈和参与测试</h3>
+      <h3>交流、反馈、测试和共建</h3>
       <p><strong>Telegram 群组：</strong><a href="https://t.me/OS1052">https://t.me/OS1052</a></p>
       <p><strong>微信群：</strong>扫描左侧二维码加入 <code>1052内测测测群</code></p>
-      <p>欢迎提交 Bug、体验反馈、功能建议、PR 和新的 Skill / 工具方案。</p>
+      <p>欢迎提交 Bug、体验反馈、功能建议、PR、Skill、工具方案和真实使用案例。</p>
       <p><strong>GitHub 仓库：</strong><a href="https://github.com/1052666/1052-OS">https://github.com/1052666/1052-OS</a></p>
     </td>
   </tr>
@@ -56,15 +56,16 @@
 
 ## 项目状态
 
-1052 OS 当前已经不是单纯的聊天页面。它把 AI 对话、模型接入、本地文件、仓库阅读、笔记、资源库、长期记忆、联网搜索、UAPIs 工具箱、Skill 中心、定时任务、通知中心、微信、飞书、企业微信、图像生成、SQL 工作台和可视化编排放进同一个桌面式工作台里。
+1052 OS 已经从聊天页面演进成一个桌面式 AI Agent 工作台。它把模型接入、聊天流、本地文件、仓库阅读、笔记、资源库、长期记忆、输出配方、Wiki 知识层、联网搜索、UAPIs 工具箱、Skill 中心、终端、SQL、日程、定时任务、通知中心、微信、飞书和企业微信放在同一个本地优先的系统里。
 
-它的设计目标很明确：
+项目当前的核心方向是：
 
-- 让 Agent 能接触真实工作区，而不是只在聊天框里空谈。
-- 让用户自己掌握权限，默认保守，需要时可开启完全权限。
-- 让所有重要数据优先留在本地 `data/` 目录。
-- 让模型、搜索源、工具、Skill、社交通道都可以被用户看见、配置和控制。
-- 让微信、飞书等外部消息也能回到同一个聊天上下文里，避免多平台割裂。
+- 让 Agent 能接触真实工作区，而不是只在聊天框里回答。
+- 通过渐进披露工具包控制上下文和工具暴露，避免一次性塞入过多能力。
+- 用权限模式区分只读检查、写入操作、终端执行和外部投递。
+- 把长期偏好、敏感信息、输出风格、知识素材和 Wiki 沉淀拆成不同层次管理。
+- 让网页聊天、定时任务、微信、飞书等入口共享同一套 Agent 能力。
+- 让运行时数据默认留在本地 `data/`，用户可以看见并控制关键配置。
 
 ---
 
@@ -77,14 +78,14 @@
       <br />
       <strong>Chat Workspace</strong>
       <br />
-      流式输出、思考折叠、Markdown、Mermaid、数学公式、上下文压缩、Token 统计和统一聊天历史。
+      流式输出、思考折叠、Markdown、Mermaid、数学公式、上下文压缩、Token 统计、失败上下文过滤和统一聊天历史。
     </td>
     <td width="50%" valign="top">
       <img src="./assets/readme/preview-files.svg" alt="Files and resources preview" />
       <br />
       <strong>Files, Notes, Resources</strong>
       <br />
-      本地文件增删查改、按行修改、仓库 README 阅读、笔记目录管理、资源卡片拆分存储和 Agent 工作区。
+      本地文件增删查改、按行修改、仓库阅读、笔记目录管理、资源卡片、Agent 工作区和可上传素材。
     </td>
   </tr>
   <tr>
@@ -93,14 +94,14 @@
       <br />
       <strong>Search, Skills, Toolbox</strong>
       <br />
-      聚合搜索、网页阅读、搜索源状态面板、Skill 市场、UAPIs 92 个接口工具箱和启用/禁用管控。
+      聚合搜索、网页阅读、搜索源面板、Skill 市场、UAPIs 工具箱和按需启用的能力包。
     </td>
     <td width="50%" valign="top">
       <img src="./assets/readme/preview-schedule.svg" alt="Schedules and channels preview" />
       <br />
       <strong>Schedules + Social Channels</strong>
       <br />
-      日程、一次性/循环/长期定时任务、Agent 回调、通知中心、微信、飞书、企业微信和外部推送。
+      日程、一次性/循环/长期定时任务、Agent 回调、终端任务、通知中心、微信、飞书和企业微信投递。
     </td>
   </tr>
 </table>
@@ -111,22 +112,26 @@
 
 | 模块 | 能力 |
 | --- | --- |
-| Chat | OpenAI 兼容模型接入、SSE 流式输出、思考过程折叠、Markdown 渲染、上下文压缩、Token 统计、聊天历史防误清空 |
-| 模型端点 | 内置常见 LLM 端点预设：OpenAI、MiniMax Global、MiniMax 中国区、Gemini OpenAI、DeepSeek、Moonshot、OpenRouter、SiliconFlow |
-| 图像生成 | 支持 OpenAI 兼容 `/images/generations`，也支持 Gemini 原生 `generateContent` 图片格式，生成结果自动落盘并在聊天中展示 |
+| Chat | OpenAI 兼容模型接入、SSE 流式输出、思考过程折叠、Markdown 渲染、上下文压缩、Token 统计、聊天历史保护、失败上下文过滤 |
+| 渐进披露 Agent | P0 路由、能力包挂载、运行状态日志、checkpoint、预算报告、按需加载 `repo-pack` / `search-pack` / `memory-pack` / `data-pack` 等 |
+| 模型端点 | 常见 LLM 端点预设、Base URL 归一化、供应商差异兼容、流式与非流式调用 |
+| 图像生成 | OpenAI compatible `/images/generations`、Gemini native `generateContent`、Gemini OpenAI compatible 图片接口、图片落盘和聊天展示 |
 | 本地文件 | 读取、搜索、新建、替换、按行插入、按行替换、复制、移动、删除，适合 Agent 精准维护本地项目和文档 |
-| 仓库 | 自动识别本地项目仓库，读取 README、浏览目录、预览代码和图片，并支持聊天内快速跳转到仓库页 |
-| 笔记 | 使用用户指定本地目录，或自动创建 `data/notes/`；支持真实文件树、Markdown 编辑、预览、搜索、拖拽和右键菜单 |
-| 资源库 | 每条资源单独文件存储，支持标题、正文、备注、多标签、状态、网址资源/长文资源/清单资源差异化展示 |
-| 长期记忆 | 普通长期记忆、敏感长期记忆、记忆建议、摘要折叠、运行时注入和用户确认机制 |
-| 搜索 | 聚合搜索、网页正文阅读、搜索源可视化面板、启用/禁用管理；推荐优先使用 UAPIs 搜索类接口交叉验证 |
-| 工具箱 | 内置 UAPIs API 索引，可按卡片启用/禁用，Agent 按索引读取接口说明并调用 |
+| 仓库 | 自动识别本地项目仓库，读取 README、浏览目录、预览代码和图片、仓库 zip 导出、聊天内快速跳转 |
+| 终端 | 只读终端白名单、授权执行型终端、跨平台 shell、cwd 切换、运行状态和中断能力 |
+| 笔记 | 用户指定目录或 `data/notes/`，支持真实文件树、Markdown 编辑、预览、搜索、拖拽和右键菜单 |
+| 资源库 | 每条资源独立存储，支持标题、正文、备注、多标签、状态、网址资源、长文资源和清单资源 |
+| 长期记忆 | 普通长期记忆、敏感长期记忆、记忆建议、Agent 主动建议、摘要折叠、运行时注入和用户确认机制 |
+| 输出配方 | 将核心认知模型、写作风格和素材范围组合成可复用输出方案，可引用 memory、Wiki、raw、resource、note、tag 或自由文本 |
+| Wiki 知识层 | raw 素材、结构化 Wiki 页面、WikiLink、摄取预览、写入、综合分析、lint、索引重建和操作日志 |
+| 搜索 | 聚合搜索、网页正文阅读、搜索源可视化面板、启用/禁用管理、UAPIs 搜索类接口交叉验证 |
+| 工具箱 | UAPIs API 索引、接口详情读取、结构化调用、按卡片启用/禁用 |
 | Skill 中心 | 展示已安装 Skill、市场搜索、安装、删除、预览 `SKILL.md`，支持包含脚本和多文件的技能包 |
-| 日程与任务 | 普通日程、一次性定时任务、多次任务、长期循环任务、Agent 回调、任务结果写回聊天流或通知中心 |
-| 社交通道 | 微信、飞书、企业微信二级页面；支持消息回显、自动回复、媒体收发、任务触发推送和飞书卡片交互 |
-| 飞书 | 支持官方长连接订阅、One-Shot 原生扫码接入、互动卡片、媒体文件发送/接收和卡片按钮回调 |
-| 微信 | 支持扫码登录、自动重连、文本/媒体消息处理、LLM 调用失败回显和定时任务推送 |
-| 编排 | 可视化节点编排、Shell 节点、SQL 节点和任务流程基础能力 |
+| 日程与任务 | 普通日程、一次性任务、多次任务、长期循环任务、Agent 回调、终端任务、结果写回聊天流或通知中心 |
+| 社交通道 | 微信、飞书、企业微信二级页面；支持消息回显、自动回复、媒体收发、任务触发推送和卡片交互 |
+| 飞书 | 长连接订阅、One-Shot 原生扫码、互动卡片、媒体文件发送/接收、卡片按钮回调 |
+| 微信 | 扫码登录、自动重连、文本/媒体消息处理、LLM 调用失败回显和定时任务推送 |
+| SQL 与编排 | SQL 数据源、SQL 文件、可视化节点编排、Shell 节点、SQL 节点和任务流程基础能力 |
 | 运行日志 | 生产环境前后端日志落盘到 `data/logs/`，便于定位真实用户环境中的问题 |
 
 ---
@@ -140,20 +145,20 @@ flowchart LR
   Backend --> Agent[Agent Runtime]
   Agent --> LLM[LLM Providers]
   Agent --> Image[Image Providers]
-  Agent --> Tools[Tool Layer]
+  Agent --> Packs[Capability Packs]
 
-  Tools --> Files[Filesystem]
-  Tools --> Notes[Notes]
-  Tools --> Resources[Resources]
-  Tools --> Repos[Repositories]
-  Tools --> Search[Search + UAPIs]
-  Tools --> Skills[Skills]
-  Tools --> Schedules[Calendar + Scheduled Tasks]
-  Tools --> Memory[Long-term Memory]
-  Tools --> Channels[WeChat / Feishu / WeCom]
-  Tools --> Terminal[Terminal]
+  Packs --> Repo[Repo + Files + Terminal]
+  Packs --> Search[Search + UAPIs]
+  Packs --> Memory[Memory + Output Profiles]
+  Packs --> Data[Wiki + Raw + Notes + Resources + SQL]
+  Packs --> Plan[Calendar + Scheduled Tasks]
+  Packs --> Skills[Skills]
+  Packs --> Channels[WeChat / Feishu / WeCom]
 
-  Backend --> Data[(data/)]
+  Backend --> Store[(local data/)]
+  Store --> Workspace[agent-workspace]
+  Store --> Wiki[wiki/raw + wiki/pages]
+  Store --> Logs[logs]
 ```
 
 ### 前端
@@ -177,6 +182,7 @@ flowchart LR
 - Gemini native image generation
 - JSON-based local storage
 - Feishu / WeChat / WeCom channel services
+- Cross-platform terminal runtime
 
 ---
 
@@ -236,14 +242,16 @@ cd 1052-OS
 
 ```bash
 cd backend
-npm install
+npm ci
 ```
+
+如果你没有 lockfile 或需要本地重新解析依赖，可以改用 `npm install`。
 
 ### 4. 安装前端依赖
 
 ```bash
 cd ../frontend
-npm install
+npm ci
 ```
 
 ### 5. 启动后端
@@ -289,29 +297,29 @@ http://localhost:10052
 - API Key
 - 是否开启流式输出
 - 聊天上下文携带条数
+- 渐进披露、checkpoint、完全权限等 Agent 运行选项
 
 常见 LLM Base URL：
 
 | 服务商 | Base URL | Model ID 示例 |
 | --- | --- | --- |
-| OpenAI | `https://api.openai.com/v1` | `gpt-4.1-mini` |
-| MiniMax Global | `https://api.minimax.io/v1` | `MiniMax-M2.7` |
-| MiniMax 中国区 | `https://api.minimaxi.com/v1` | `MiniMax-M2.7` |
-| Gemini OpenAI | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash` |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
-| Moonshot | `https://api.moonshot.cn/v1` | `kimi-k2-0711-preview` |
-| OpenRouter | `https://openrouter.ai/api/v1` | `openai/gpt-4.1-mini` |
-| SiliconFlow | `https://api.siliconflow.cn/v1` | `Qwen/Qwen3-32B` |
+| OpenAI | `https://api.openai.com/v1` | 以 OpenAI 平台当前模型为准 |
+| MiniMax Global | `https://api.minimax.io/v1` | `MiniMax-M2` 系列 |
+| MiniMax 中国区 | `https://api.minimaxi.com/v1` | `MiniMax-M2` 系列 |
+| Gemini OpenAI | `https://generativelanguage.googleapis.com/v1beta/openai` | Gemini OpenAI 兼容模型 |
+| DeepSeek | `https://api.deepseek.com/v1` | DeepSeek Chat 系列 |
+| Moonshot | `https://api.moonshot.cn/v1` | Kimi / Moonshot 模型 |
+| OpenRouter | `https://openrouter.ai/api/v1` | OpenRouter 路由模型 |
+| SiliconFlow | `https://api.siliconflow.cn/v1` | 硅基流动支持的模型 |
 
-设置页在 LLM 的 API Key 一栏中会自动根据当前 Base URL / Model ID 判断供应商；当未配置 API Key 时，会显示“点击获取”并跳转到对应平台。
-MiniMax 端点会做兼容处理：如果填了 `https://api.minimax.io` / `https://api.minimaxi.com`（未带 `/v1`）或文档域名 `platform.minimax.io` / `platform.minimaxi.com`，后端会自动归一化到可调用的 OpenAI 兼容地址。
+设置页会根据当前 Base URL / Model ID 判断供应商，并在未配置 API Key 时显示对应平台的获取入口。MiniMax 端点会做兼容处理：如果填了未带 `/v1` 的 API 域名或文档域名，后端会自动归一化到可调用的 OpenAI 兼容地址。
 
 API Key 获取地址汇总：
 
 | 服务商 | 获取地址 | 说明 |
 | --- | --- | --- |
 | OpenAI | `https://platform.openai.com/api-keys` | 登录 OpenAI 平台后创建和管理 API Key。 |
-| MiniMax Global / 中国区 | `https://platform.minimaxi.com/` | Global 和中国区使用同一平台，仅 Base URL 不同。 |
+| MiniMax Global / 中国区 | `https://platform.minimaxi.com/` | Global 和中国区仅 Base URL 不同。 |
 | Gemini（OpenAI 兼容） | `https://aistudio.google.com/app/apikey` | 在 Google AI Studio 中创建 API Key。 |
 | DeepSeek | `https://platform.deepseek.com/` | 在控制台的 API Keys 页面创建密钥。 |
 | Moonshot（Kimi） | `https://platform.moonshot.cn/` | 在 API Key 管理页面创建密钥。 |
@@ -320,13 +328,13 @@ API Key 获取地址汇总：
 
 ### 8. 配置图像生成
 
-设置页中的图像生成支持两类格式：
+设置页中的图像生成支持三类路径：
 
 | API 格式 | Base URL 示例 | Model ID 示例 | 说明 |
 | --- | --- | --- | --- |
-| OpenAI compatible | `https://api.openai.com/v1` | `gpt-image-1` | 后端拼接 `/images/generations` |
-| Gemini native | `https://generativelanguage.googleapis.com/v1beta` | `gemini-2.5-flash-image` | 后端拼接 `/models/{model}:generateContent` 并解析 `inlineData` |
-| Gemini OpenAI compatible | `https://generativelanguage.googleapis.com/v1beta/openai` | `imagen-4.0-generate-001` | 使用 Gemini 的 OpenAI 兼容图像接口 |
+| OpenAI compatible | `https://api.openai.com/v1` | 兼容 `/images/generations` 的图像模型 | 后端拼接 `/images/generations` |
+| Gemini native | `https://generativelanguage.googleapis.com/v1beta` | 支持图片输出的 Gemini 模型 | 后端拼接 `/models/{model}:generateContent` 并解析 `inlineData` |
+| Gemini OpenAI compatible | `https://generativelanguage.googleapis.com/v1beta/openai` | Gemini OpenAI 兼容图像模型 | 使用 Gemini 的 OpenAI 兼容图像接口 |
 
 生成后的图片会保存到：
 
@@ -354,6 +362,9 @@ data/
 |-- notes/
 |-- resources/
 |-- skills/
+|-- wiki/
+|   |-- raw/
+|   `-- wiki/
 |-- chat-history.json
 `-- settings.json
 ```
@@ -366,6 +377,7 @@ data/
 - `.env`
 - 本地日志文件
 - 临时导出文件
+- 模型配置、聊天历史、渠道登录态和密钥
 
 如果你要发布一个干净仓库，只需要保留源码、静态资源、文档、依赖清单和许可证即可。
 
@@ -373,23 +385,25 @@ data/
 
 ## Agent 的实际工作方式
 
-1052 OS 的 Agent 不只是把用户消息发给模型。它会在后端根据配置和权限注入系统上下文，并给模型提供一组可调用工具：
+1052 OS 的 Agent 不只是把用户消息发给模型。后端会根据运行模式、权限、上下文预算和用户任务动态构造模型上下文：
 
-1. 用户在聊天、微信、飞书或任务回调中提出需求。
-2. 后端构造上下文，包括系统提示词、用户偏好、长期记忆、运行时状态、权限状态和最近聊天历史。
-3. 模型决定是否调用工具。
-4. 后端执行工具并把结果返回给模型。
-5. 模型生成最终回答。
-6. 结果写回聊天流、通知中心或外部通道。
+1. 用户在网页聊天、微信、飞书或定时任务中提出需求。
+2. 后端注入系统提示词、运行时状态、权限模式、长期记忆、输出配方、checkpoint 和最近聊天历史。
+3. 渐进披露模式下，模型先在 P0 判断是否需要能力包。
+4. 模型按需申请 `repo-pack`、`search-pack`、`memory-pack`、`skill-pack`、`plan-pack`、`data-pack` 或 `channel-pack`。
+5. 后端挂载对应工具，执行工具调用，并把结果返回给模型。
+6. 模型生成最终回答，结果写回聊天流、通知中心或外部通道。
 
 这套流程让 Agent 可以处理更接近真实工作的任务，例如：
 
 - “帮我读一下这个仓库 README，总结启动方式。”
 - “把这批链接整理成资源，并给每条资源加标签。”
+- “把这本书的 raw 素材摄取到 Wiki，不要只归纳几个词条。”
 - “明天早上 8 点提醒我看日报，并推送到微信。”
 - “搜索今天的 AI 新闻，交叉验证后写成摘要。”
 - “在 Agent 工作区生成一份项目报告。”
 - “帮我把这个文件第 120 行附近的配置改掉。”
+- “按我认可的认知模型、写作风格和素材库组合输出一篇文章。”
 
 ---
 
@@ -397,11 +411,13 @@ data/
 
 1052 OS 默认采用保守权限：
 
-- 读取、查询、预览、搜索可以直接执行。
-- 写入、删除、覆盖、移动、安装、卸载、执行终端命令、发送外部消息等操作，在没有完全权限时需要先告知用户。
+- 读取、查询、预览、搜索、状态检查通常可以直接执行。
+- 写入、删除、覆盖、移动、安装、卸载、执行终端命令、发送外部消息等操作，在没有完全权限时需要先告知用户并等待确认。
 - 用户可以在设置中开启“完全权限”。开启后，Agent 会被明确告知用户已授权最高权限，可以连续调用工具完成任务，不必每一步重复确认。
+- `terminal_run_readonly` 只允许白名单只读命令；创建文件、运行脚本、构建、测试和其他可能修改本地状态的命令必须走执行型终端能力。
+- 敏感长期记忆与普通长期记忆分开管理，API Key、令牌、密码等不应进入普通记忆或公开回答。
 
-这让系统既可以适合谨慎用户，也可以适合希望 Agent 自动完成长任务的用户。
+这让系统既适合谨慎用户，也适合希望 Agent 自动完成长任务的用户。
 
 ---
 
@@ -460,6 +476,12 @@ Skill 可以理解为 Agent 的能力包。它可能包含：
 
 工具箱把 UAPIs 的 API 做成可视化卡片，每个 API 都可以单独启用或禁用。Agent 不会把所有 API 说明一次性塞进上下文，而是先看到轻量索引，需要具体接口时再读取详情。
 
+推荐调用顺序：
+
+1. `uapis_list_apis`
+2. `uapis_read_api`
+3. `uapis_call`
+
 这能避免上下文爆炸，也方便用户精细化控制能力范围。
 
 ---
@@ -475,7 +497,8 @@ Skill 可以理解为 Agent 的能力包。它可能包含：
 
 推荐策略：
 
-- 需要稳定、结构化、可交叉验证的资料时，优先使用 UAPIs 搜索类接口。
+- 事实会变化的内容必须联网核实，例如新闻、价格、政策、产品规格、API 文档、人物职务、市场数据和平台规则。
+- 需要稳定、结构化、可交叉验证的资料时，优先考虑 UAPIs 搜索类接口。
 - 需要广覆盖时使用聚合搜索。
 - 找到可疑或重要信息后，再读取网页正文。
 - 搜索源可以在面板中启用或禁用。
@@ -489,6 +512,7 @@ Skill 可以理解为 Agent 的能力包。它可能包含：
 ```bash
 cd backend
 npm run build
+npm test
 npm run dev
 ```
 
@@ -552,31 +576,13 @@ data/
   </a>
 </p>
 
-根据当前 Git 历史，主要贡献者包括：
-
-| Contributor | Contributions |
-| --- | ---: |
-| 1052 | 65 |
-| yangyq | 38 |
-| vicki | 24 |
-| Jarvis | 2 |
-| Kira-Pgr | 2 |
-| yangyeqin / Neikumata | 2 |
-
-如果你的贡献没有正确显示在 GitHub Contributors 中，通常是因为提交使用的邮箱没有绑定到 GitHub 账号。
+贡献者列表和提交数量会随 GitHub 自动更新，请以 GitHub Contributors 页面为准。如果你的贡献没有正确显示，通常是因为提交使用的邮箱没有绑定到 GitHub 账号。
 
 ---
 
 ## Stars 与增长
 
-当前 GitHub API 快照显示：
-
-| Metric | Count |
-| --- | ---: |
-| Stars | 53 |
-| Forks | 17 |
-
-动态徽章会自动跟随 GitHub 更新；下面的图表用于观察 Stars 增长趋势。
+仓库顶部的 Stars / Forks 徽章会自动跟随 GitHub 更新。下面的图表用于观察 Stars 增长趋势。
 
 <p align="center">
   <a href="https://star-history.com/#1052666/1052-OS&Date">
@@ -590,7 +596,7 @@ data/
 
 ### data 目录需要提交吗？
 
-不需要。`data/` 是运行时目录，包含聊天历史、设置、日志、生成图片、笔记配置、资源、Skill、渠道状态等本地数据。它会在运行时自动创建。
+不需要。`data/` 是运行时目录，包含聊天历史、设置、日志、生成图片、笔记配置、资源、Skill、Wiki、渠道状态等本地数据。它会在运行时自动创建。
 
 ### 没有 API Key 能用吗？
 
@@ -602,7 +608,7 @@ data/
 
 - Global：`https://api.minimax.io/v1`
 - 中国区：`https://api.minimaxi.com/v1`
-- Model ID 示例：`MiniMax-M2`
+- Model ID：以 MiniMax 平台当前模型为准
 
 后端会自动识别 MiniMax 兼容模式，避免给它传入不兼容的工具选择参数，并保持推理内容输出更稳定。
 
@@ -627,15 +633,17 @@ data/
 
 ### 可以用在 Linux 或 macOS 吗？
 
-可以。项目已经避免把终端能力写死为 Windows/CMD。具体命令仍取决于当前运行系统、Shell 和用户权限。
+可以。项目避免把终端能力写死为 Windows/CMD。具体命令仍取决于当前运行系统、Shell 和用户权限。
 
 ---
 
 ### Cross-platform terminal behavior
 
-Backend terminal tools now pick a platform default shell: PowerShell on Windows, zsh on macOS, and bash on Linux. Users can also select `pwsh`, `cmd`, `bash`, `zsh`, or `sh` where the runtime supports them.
+Backend terminal tools choose a platform default shell: PowerShell on Windows, zsh on macOS, and bash on Linux. Users can also select `pwsh`, `cmd`, `bash`, `zsh`, or `sh` where the runtime supports them.
 
-Scheduled terminal tasks use the same shell list, and repository zip export is generated inside Node.js instead of depending on `powershell.exe`, so Linux and macOS do not need Windows PowerShell for repository downloads.
+Scheduled terminal tasks use the same shell list. Repository zip export is generated inside Node.js instead of depending on `powershell.exe`, so Linux and macOS do not need Windows PowerShell for repository downloads.
+
+`terminal_run_readonly` is intentionally strict and only accepts allow-listed read commands. Use the execution terminal tool for scripts, builds, tests, file writes, or any command that can change local state, subject to the current permission mode.
 
 ---
 
