@@ -1,13 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { HttpError } from '../../http-error.js'
 import { readJson, writeJson } from '../../storage.js'
-import { terminalRun, type TerminalShell } from '../terminal/terminal.service.js'
+import {
+  getDefaultTerminalShell,
+  normalizeTerminalShell,
+  terminalRun,
+} from '../terminal/terminal.service.js'
 import { appendChatMessage, updateChatMessage } from '../agent/agent.history.service.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import {
   resolveWechatDeliveryTarget,
   sendWechatDirectMessage,
 } from '../channels/wechat/wechat.service.js'
+import type { ChatMessage } from '../agent/agent.types.js'
 import type {
   ScheduledTaskFeishuDeliveryMode,
   ScheduledTask,
@@ -69,10 +74,6 @@ function normalizeRepeatUnit(
 ): ScheduledTaskRepeatUnit | '' {
   if (value === 'day' || value === 'week' || value === 'month') return value
   return fallback
-}
-
-function normalizeShell(value: unknown, fallback: TerminalShell): TerminalShell {
-  return value === 'cmd' ? 'cmd' : fallback
 }
 
 function normalizeWechatDeliveryMode(
@@ -715,7 +716,7 @@ function normalizeTask(
   const endDate = toCleanString(input.endDate ?? current?.endDate, 10)
   const prompt = toCleanString(input.prompt ?? current?.prompt, 4000)
   const command = toCleanString(input.command ?? current?.command, 4000)
-  const shell = normalizeShell(input.shell, current?.shell ?? 'powershell')
+  const shell = normalizeTerminalShell(input.shell, current?.shell ?? getDefaultTerminalShell())
   const delivery = normalizeDelivery(
     input.delivery,
     current?.delivery ?? defaultDelivery(),
@@ -919,14 +920,35 @@ async function updateTaskAfterRun(
   await saveTasks(tasks)
 }
 
+export function buildScheduledAgentMessages(task: ScheduledTask): ChatMessage[] {
+  const systemInstruction =
+    'This is a scheduled background task in 1052 OS. Execute the request directly and report only the actual outcome. Do not ask the user follow-up questions. Concise means no filler, not low coverage: preserve the user requested granularity, examples, and quality bar.'
+  const userPrompt = [
+    `定时任务：${task.title}`,
+    '',
+    '任务正文：',
+    task.prompt,
+    '',
+    task.notes.trim()
+      ? ['任务备注 / 用户样例 / 长期要求：', task.notes.trim()].join('\n')
+      : '任务备注 / 用户样例 / 长期要求：无',
+    '',
+    '执行要求：',
+    '- 必须遵守任务备注、用户样例和长期要求，不得只归纳几个词条了事。',
+    '- 如果处理书籍、长文档、raw 文件或 Wiki 摄取任务，先保证覆盖面，再控制废话。',
+    '- 输出应明确列出已覆盖范围、未覆盖范围、关键产物和下一步。',
+    '- 如果上下文、权限或时间不足以完整处理，直接说明缺口，不要假装已经全部完成。',
+  ].join('\n')
+
+  return [
+    { role: 'system', content: systemInstruction },
+    { role: 'user', content: userPrompt },
+  ]
+}
+
 async function executeAgentTask(task: ScheduledTask) {
   const { sendMessage } = await import('../agent/agent.service.js')
-  const systemInstruction =
-    'This is a scheduled background task in 1052 OS. Execute the request directly, keep the result concise, and report only the actual outcome. Do not ask the user follow-up questions.'
-  const reply = await sendMessage([
-    { role: 'system', content: systemInstruction },
-    { role: 'user', content: task.prompt },
-  ])
+  const reply = await sendMessage(buildScheduledAgentMessages(task))
   return {
     summary: normalizeTaskSummary(reply.content),
   }

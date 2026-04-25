@@ -1,3 +1,5 @@
+import type { TerminalShell } from '../terminal/terminal.service.js'
+
 export type CalendarEvent = {
   id: string
   title: string
@@ -72,7 +74,7 @@ export type ScheduledTask = {
   endDate: string
   prompt: string
   command: string
-  shell: 'powershell' | 'cmd'
+  shell: TerminalShell
   delivery: ScheduledTaskDelivery
   enabled: boolean
   createdAt: number

@@ -21,6 +21,14 @@ async function bootstrap() {
     if (bundledSkills.installed.length > 0) {
       console.log(`[agent-backend] bundled skills installed: ${bundledSkills.installed.join(', ')}`)
     }
+    if (bundledSkills.updated.length > 0) {
+      console.log(`[agent-backend] bundled skills updated: ${bundledSkills.updated.join(', ')}`)
+    }
+    if (bundledSkills.updatesAvailable.length > 0) {
+      console.log(
+        `[agent-backend] bundled skill updates available: ${bundledSkills.updatesAvailable.join(', ')}`,
+      )
+    }
     startScheduledTaskRunner()
     void startAllEnabledWechatAccounts()
     void startAllEnabledFeishuChannels()

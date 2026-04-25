@@ -804,7 +804,7 @@ export default function Repository() {
             <input
               value={rootPath}
               onChange={(e) => setRootPath(e.target.value)}
-              placeholder="C:\Users\用户名\Desktop\projects"
+              placeholder="/Users/you/projects or C:\\Users\\you\\Desktop\\projects"
               autoFocus={!configured}
             />
           </label>
@@ -835,7 +835,7 @@ export default function Repository() {
             <input
               value={repoPath}
               onChange={(e) => setRepoPath(e.target.value)}
-              placeholder="C:\Users\用户名\Desktop\project-a"
+              placeholder="/Users/you/projects/project-a or C:\\Users\\you\\Desktop\\project-a"
               autoFocus
             />
           </label>

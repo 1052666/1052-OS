@@ -45,6 +45,13 @@ import {
   validateContextUpgradeRequest,
   REQUEST_CONTEXT_UPGRADE_TOOL,
 } from './agent.upgrade.service.js'
+import { appendAgentRuntimeLog } from './agent.runtime-log.service.js'
+import {
+  formatSafeCallerSystemInstructions,
+  sanitizeCheckpointTextForModel,
+  toModelChatMessages,
+} from './agent.context-sanitizer.service.js'
+import { maybeCreateInferredMemorySuggestion } from './agent.memory-autosuggest.service.js'
 
 const MAX_TOOL_ROUNDS = 450
 const PROGRESSIVE_HISTORY_LIMIT = 6
@@ -208,13 +215,7 @@ function appendGeneratedImageMarkdown(content: string, messages: LLMConversation
 }
 
 function normalizeHistoryForProgressive(history: ChatMessage[], limit: number): LLMConversationMessage[] {
-  return history
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .slice(-limit)
-    .map((message) => ({
-      role: message.role,
-      content: message.content,
-    }))
+  return toModelChatMessages(history, limit) as LLMConversationMessage[]
 }
 
 async function composeLegacyMessages(
@@ -225,6 +226,11 @@ async function composeLegacyMessages(
 ): Promise<LLMConversationMessage[]> {
   const limitedHistory = history.slice(-Math.max(1, contextMessageLimit))
   const latestUserContent = latestUserMessage(limitedHistory)?.content ?? ''
+  const callerSystemInstructions = formatSafeCallerSystemInstructions(history)
+  const modelHistory = toModelChatMessages(
+    limitedHistory,
+    Math.max(1, contextMessageLimit),
+  ) as LLMConversationMessage[]
   const [systemPrompt, skillsContext, uapisContext, memoryContext, outputProfileContext] = await Promise.all([
     getAgentSystemPrompt(),
     formatSkillsRuntimeContext(),
@@ -241,6 +247,7 @@ async function composeLegacyMessages(
         formatRuntimeContext(new Date()),
         formatSystemEnvironmentContext(),
         formatPermissionBlock(fullAccess),
+        callerSystemInstructions,
         formatAgentWorkspaceContext(),
         memoryContext,
         outputProfileContext,
@@ -259,12 +266,7 @@ async function composeLegacyMessages(
     })
   }
 
-  messages.push(
-    ...limitedHistory.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-  )
+  messages.push(...modelHistory)
   return messages
 }
 
@@ -282,7 +284,7 @@ function extractToolFailure(toolMessages: LLMConversationMessage[]) {
     if (message.role !== 'tool') continue
     const parsed = parseToolResult(message.content)
     if (parsed?.ok === false && parsed.error) {
-      return `${message.name}: ${truncateText(parsed.error, 160)}`
+      return sanitizeCheckpointTextForModel(`${message.name}: ${truncateText(parsed.error, 240)}`)
     }
   }
   return ''
@@ -322,6 +324,7 @@ async function buildProgressiveMessages(input: {
   userPrompt: string
   checkpointSessionId: string
   latestUserContent: string
+  callerSystemInstructions: string
   contextMessageLimit: number
   fullAccess: boolean
 }) {
@@ -334,6 +337,9 @@ async function buildProgressiveMessages(input: {
     input.latestUserContent,
     input.fullAccess,
   )
+  if (input.callerSystemInstructions) {
+    extraSections.push(input.callerSystemInstructions)
+  }
 
   const built = await buildP0Messages({
     history: progressiveHistory,
@@ -383,6 +389,7 @@ async function* runLegacyStream(
   options: AgentRunOptions,
 ): AsyncGenerator<AgentStreamEvent, void, void> {
   const settings = await getSettings()
+  const latestUserContent = latestUserMessage(history)?.content ?? ''
   const messages = await composeLegacyMessages(
     history,
     settings.agent.userPrompt,
@@ -391,6 +398,7 @@ async function* runLegacyStream(
   )
   const tools = getAgentToolDefinitions()
   let usage: TokenUsage = {}
+  const usedToolNames = new Set<string>()
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const stream = chatCompletionStream(settings.llm, messages, tools, {
@@ -413,10 +421,15 @@ async function* runLegacyStream(
       if (nextContent !== response.content) {
         yield { type: 'delta', content: nextContent.slice(response.content.length) }
       }
+      await maybeCreateInferredMemorySuggestion({
+        latestUserContent,
+        usedToolNames,
+      }).catch(() => null)
       yield { type: 'usage', usage: withUserTokens(usage, history) }
       return
     }
 
+    response.toolCalls.forEach((toolCall) => usedToolNames.add(toolCall.function.name))
     const toolMessages = await executeToolCalls(response.toolCalls, options.runtimeContext)
     messages.push(...toolMessages)
   }
@@ -433,6 +446,8 @@ async function* runProgressiveStream(
   const storedMessages: StoredChatMessage[] | undefined =
     options.runtimeContext?.source ? undefined : (await getChatHistory()).messages
   const latestUserContent = latestUserMessage(history)?.content ?? ''
+  const callerSystemInstructions = formatSafeCallerSystemInstructions(history)
+  const usedToolNames = new Set<string>()
   let checkpoint = await ensureCheckpointSeedForSession(sessionId, history, storedMessages)
   let conversation = normalizeHistoryForProgressive(
     history,
@@ -449,6 +464,17 @@ async function* runProgressiveStream(
   let usage: TokenUsage = {}
   let upgradeCount = 0
 
+  appendAgentRuntimeLog({
+    stage: 'progressive-start',
+    mode: 'progressive',
+    sessionId,
+    mountedPacks,
+    upgradeCount,
+    checkpoint,
+    checkpointEnabled: settings.agent.checkpointEnabled,
+    providerCachingEnabled: settings.agent.providerCachingEnabled,
+  })
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const built = await buildProgressiveMessages({
       history: conversation,
@@ -456,6 +482,7 @@ async function* runProgressiveStream(
       userPrompt: settings.agent.userPrompt,
       checkpointSessionId: sessionId,
       latestUserContent,
+      callerSystemInstructions,
       contextMessageLimit: settings.agent.contextMessageLimit,
       fullAccess: settings.agent.fullAccess === true,
     })
@@ -467,6 +494,19 @@ async function* runProgressiveStream(
     } else {
       checkpoint = built.checkpoint
     }
+
+    appendAgentRuntimeLog({
+      stage: 'p0-budget',
+      mode: 'progressive',
+      sessionId,
+      round,
+      mountedPacks,
+      upgradeCount,
+      checkpoint,
+      checkpointEnabled: settings.agent.checkpointEnabled,
+      providerCachingEnabled: settings.agent.providerCachingEnabled,
+      budgetReport: built.budgetReport,
+    })
 
     const mountedToolDefinitions = getAgentToolDefinitionsForNames(
       getToolNamesForMountedPacks(mountedPacks),
@@ -506,7 +546,24 @@ async function* runProgressiveStream(
       if (nextContent !== response.content) {
         yield { type: 'delta', content: nextContent.slice(response.content.length) }
       }
-      yield { type: 'usage', usage: withUserTokens(usage, history) }
+      const finalUsage = withUserTokens(usage, history)
+      appendAgentRuntimeLog({
+        stage: 'progressive-complete',
+        mode: 'progressive',
+        sessionId,
+        round,
+        mountedPacks,
+        upgradeCount,
+        checkpoint,
+        checkpointEnabled: settings.agent.checkpointEnabled,
+        providerCachingEnabled: settings.agent.providerCachingEnabled,
+        usage: finalUsage,
+      })
+      await maybeCreateInferredMemorySuggestion({
+        latestUserContent,
+        usedToolNames,
+      }).catch(() => null)
+      yield { type: 'usage', usage: finalUsage }
       return
     }
 
@@ -519,6 +576,19 @@ async function* runProgressiveStream(
 
     if (upgradeToolCalls.length > 0 && businessToolCalls.length > 0) {
       conversation.push(toAssistantHistoryMessage(response))
+      appendAgentRuntimeLog({
+        stage: 'context-upgrade-aborted',
+        mode: 'progressive',
+        sessionId,
+        round,
+        mountedPacks,
+        upgradeCount,
+        checkpoint,
+        checkpointEnabled: settings.agent.checkpointEnabled,
+        providerCachingEnabled: settings.agent.providerCachingEnabled,
+        toolNames: response.toolCalls.map((toolCall) => toolCall.function.name),
+        error: 'request_context_upgrade cannot be mixed with business tool calls',
+      })
       if (settings.agent.upgradeDebugEventsEnabled) {
         yield { type: 'context-upgrade-aborted', stage: 'mixed-tool-calls' }
       }
@@ -548,6 +618,20 @@ async function* runProgressiveStream(
           error instanceof HttpError ? error.message : 'Failed to validate context upgrade request'
         conversation.push(toAssistantHistoryMessage(response))
         conversation.push(createToolErrorMessage(toolCall.id, message))
+        appendAgentRuntimeLog({
+          stage: 'context-upgrade-aborted',
+          mode: 'progressive',
+          sessionId,
+          round,
+          mountedPacks,
+          upgradeCount,
+          checkpoint,
+          checkpointEnabled: settings.agent.checkpointEnabled,
+          providerCachingEnabled: settings.agent.providerCachingEnabled,
+          requestedPacks: upgradeRequest.packs,
+          reason: upgradeRequest.reason,
+          error: message,
+        })
         if (settings.agent.upgradeDebugEventsEnabled) {
           yield { type: 'context-upgrade-aborted', stage: 'validation' }
         }
@@ -559,6 +643,20 @@ async function* runProgressiveStream(
         }
         continue
       }
+
+      appendAgentRuntimeLog({
+        stage: 'context-upgrade-requested',
+        mode: 'progressive',
+        sessionId,
+        round,
+        mountedPacks,
+        upgradeCount,
+        checkpoint,
+        checkpointEnabled: settings.agent.checkpointEnabled,
+        providerCachingEnabled: settings.agent.providerCachingEnabled,
+        requestedPacks: upgradeRequest.packs,
+        reason: upgradeRequest.reason,
+      })
 
       if (settings.agent.upgradeDebugEventsEnabled) {
         yield {
@@ -581,6 +679,20 @@ async function* runProgressiveStream(
         })
       }
 
+      appendAgentRuntimeLog({
+        stage: 'context-upgrade-applied',
+        mode: 'progressive',
+        sessionId,
+        round,
+        mountedPacks,
+        upgradeCount,
+        checkpoint,
+        checkpointEnabled: settings.agent.checkpointEnabled,
+        providerCachingEnabled: settings.agent.providerCachingEnabled,
+        requestedPacks: upgradeRequest.packs,
+        reason: upgradeRequest.reason,
+      })
+
       if (settings.agent.upgradeDebugEventsEnabled) {
         yield { type: 'context-upgrade-applied', packs: upgradeRequest.packs }
       }
@@ -588,10 +700,24 @@ async function* runProgressiveStream(
     }
 
     conversation.push(toAssistantHistoryMessage(response))
+    response.toolCalls.forEach((toolCall) => usedToolNames.add(toolCall.function.name))
     const toolMessages = await executeToolCalls(response.toolCalls, options.runtimeContext)
     conversation.push(...toolMessages)
 
     const toolFailure = extractToolFailure(toolMessages)
+    appendAgentRuntimeLog({
+      stage: 'business-tools',
+      mode: 'progressive',
+      sessionId,
+      round,
+      mountedPacks,
+      upgradeCount,
+      checkpoint,
+      checkpointEnabled: settings.agent.checkpointEnabled,
+      providerCachingEnabled: settings.agent.providerCachingEnabled,
+      toolNames: response.toolCalls.map((tool) => tool.function.name),
+      toolFailure: toolFailure || undefined,
+    })
     if (settings.agent.checkpointEnabled) {
       await appendCheckpointEntry(sessionId, {
         fact: toolFailure ? undefined : `Used tools: ${response.toolCalls.map((tool) => tool.function.name).join(', ')}`,
@@ -602,6 +728,17 @@ async function* runProgressiveStream(
 
   }
 
+  appendAgentRuntimeLog({
+    stage: 'progressive-round-limit',
+    mode: 'progressive',
+    sessionId,
+    mountedPacks,
+    upgradeCount,
+    checkpoint,
+    checkpointEnabled: settings.agent.checkpointEnabled,
+    providerCachingEnabled: settings.agent.providerCachingEnabled,
+    error: 'Agent tool round limit exceeded',
+  })
   throw httpError(500, 'Agent 工具调用轮次过多，请重试或调整问题描述。')
 }
 

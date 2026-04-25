@@ -10,6 +10,7 @@ import { calendarTools } from './tools/calendar.tools.js'
 import { filesystemTools } from './tools/filesystem.tools.js'
 import { feishuTools } from './tools/feishu.tools.js'
 import { imageTools } from './tools/image.tools.js'
+import { intelTools } from './tools/intel.tools.js'
 import { memoryTools } from './tools/memory.tools.js'
 import { notesTools } from './tools/notes.tools.js'
 import { orchestrationTools } from './tools/orchestration.tools.js'
@@ -41,6 +42,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...uapisTools,
   ...filesystemTools,
   ...feishuTools,
+  ...intelTools,
   ...sqlTools,
   ...orchestrationTools,
   ...terminalTools,

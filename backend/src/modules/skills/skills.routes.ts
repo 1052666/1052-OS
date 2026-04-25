@@ -1,10 +1,12 @@
 import { Router } from 'express'
 import {
+  applyBundledSkillUpdate,
   createSkill,
   deleteSkill,
   installSkillFromMarketplace,
   installSkillFromUrl,
   inspectSkillMarketplaceInstall,
+  listBundledSkillUpdates,
   listSkills,
   previewSkillMarketplaceFile,
   readSkill,
@@ -32,6 +34,22 @@ skillsRouter.post('/', async (req, res, next) => {
 skillsRouter.post('/install', async (req, res, next) => {
   try {
     res.status(201).json(await installSkillFromUrl(req.body ?? {}))
+  } catch (e) {
+    next(e)
+  }
+})
+
+skillsRouter.get('/bundled/updates', async (_req, res, next) => {
+  try {
+    res.json(await listBundledSkillUpdates())
+  } catch (e) {
+    next(e)
+  }
+})
+
+skillsRouter.post('/bundled/:id/apply', async (req, res, next) => {
+  try {
+    res.json(await applyBundledSkillUpdate(req.params.id, req.body ?? {}))
   } catch (e) {
     next(e)
   }

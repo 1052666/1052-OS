@@ -656,7 +656,7 @@ export default function Notes() {
               <input
                 value={rootPath}
                 onChange={(e) => setRootPath(e.target.value)}
-                placeholder="C:\\Users\\用户名\\Documents\\Notes"
+                placeholder="/Users/you/Documents/Notes or C:\\Users\\you\\Documents\\Notes"
                 autoFocus={!configured}
               />
               <small>

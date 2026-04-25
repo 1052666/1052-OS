@@ -11,6 +11,7 @@ import {
   type ScheduledTaskRun,
   type ScheduledTaskTarget,
   type ScheduledTaskWechatDeliveryMode,
+  type TerminalShell,
 } from '../api/calendar'
 import {
   SocialChannelsApi,
@@ -37,6 +38,23 @@ const REPEAT_WEEKDAYS = [
   { label: '五', value: 5 },
   { label: '六', value: 6 },
 ]
+
+const TERMINAL_SHELL_OPTIONS: Array<{ label: string; value: TerminalShell }> = [
+  { label: 'PowerShell', value: 'powershell' },
+  { label: 'PowerShell Core', value: 'pwsh' },
+  { label: 'CMD', value: 'cmd' },
+  { label: 'Bash', value: 'bash' },
+  { label: 'Zsh', value: 'zsh' },
+  { label: 'sh', value: 'sh' },
+]
+
+const getBrowserDefaultShell = (): TerminalShell => {
+  const platform = navigator.platform.toLowerCase()
+  const userAgent = navigator.userAgent.toLowerCase()
+  if (platform.includes('mac') || userAgent.includes('mac os')) return 'zsh'
+  if (platform.includes('linux') || userAgent.includes('linux')) return 'bash'
+  return 'powershell'
+}
 
 type CalendarCell = {
   d: number
@@ -67,7 +85,7 @@ type TaskForm = {
   endDate: string
   prompt: string
   command: string
-  shell: 'powershell' | 'cmd'
+  shell: TerminalShell
   deliveryMode: ScheduledTaskWechatDeliveryMode
   deliveryAccountId: string
   deliveryPeerId: string
@@ -204,7 +222,7 @@ const emptyTaskForm = (date: string): TaskForm => ({
   endDate: '',
   prompt: '',
   command: '',
-  shell: 'powershell',
+  shell: getBrowserDefaultShell(),
   deliveryMode: 'auto',
   deliveryAccountId: '',
   deliveryPeerId: '',
@@ -1202,12 +1220,15 @@ export default function Calendar() {
                         onChange={(event) =>
                           setTaskForm((current) => ({
                             ...current,
-                            shell: event.target.value as 'powershell' | 'cmd',
+                            shell: event.target.value as TerminalShell,
                           }))
                         }
                       >
-                        <option value="powershell">PowerShell</option>
-                        <option value="cmd">CMD</option>
+                        {TERMINAL_SHELL_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="calendar-field">
@@ -1218,7 +1239,7 @@ export default function Calendar() {
                         onChange={(event) =>
                           setTaskForm((current) => ({ ...current, command: event.target.value }))
                         }
-                        placeholder="例如：Get-ChildItem C:\\Users\\lixia\\Desktop"
+                        placeholder="e.g. ls ~/Desktop or Get-ChildItem C:\\Users\\you\\Desktop"
                       />
                     </label>
                   </>

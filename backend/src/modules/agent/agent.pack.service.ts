@@ -17,6 +17,11 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'terminal_status',
     'terminal_set_cwd',
     'terminal_run_readonly',
+    'terminal_run',
+    'terminal_interrupt',
+  ],
+  'image-pack': [
+    'image_generate',
   ],
   'search-pack': [
     'websearch_list_engines',
@@ -86,6 +91,7 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'wiki_log_append',
   ],
   'channel-pack': [
+    'intel_brief_format',
     'feishu_list_calendars',
     'feishu_list_calendar_events',
     'feishu_list_tasks',
@@ -136,7 +142,9 @@ export function getToolNamesForMountedPacks(packs: readonly AgentPackName[]): st
 export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-pack'>) {
   switch (pack) {
     case 'repo-pack':
-      return '本地仓库、项目文件读取、只读终端检查。适合读代码、看目录、查 git diff/log/status。'
+      return '本地仓库、项目文件读取、终端检查和本地执行。适合读代码、看目录、查 git diff/log/status，也适合在权限允许时创建/修改文件、运行脚本、执行构建或测试。'
+    case 'image-pack':
+      return '内置图像生成能力。用户要求生成、绘制、设计、渲染图片/插画/海报/Logo/封面/壁纸/头像/视觉稿时优先申请本包并调用 image_generate；不要为了找图像生成 API、模型、在线工具、素材图或提示词示例而先走搜索。'
     case 'search-pack':
       return '联网搜索、网页阅读、UAPIs 工具箱。使用 UAPIs 时必须按 uapis_list_apis -> uapis_read_api -> uapis_call 三步走。'
     case 'memory-pack':
@@ -148,6 +156,6 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'data-pack':
       return '笔记、资源列表、SQL 数据源、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。Wiki 写入、索引、日志和 lint 修复默认需要用户确认。'
     case 'channel-pack':
-      return '微信、飞书等外部通道能力和飞书工作区工具。'
+      return '微信、飞书等外部通道能力、Intel Brief 通道格式渲染和飞书工作区工具。'
   }
 }

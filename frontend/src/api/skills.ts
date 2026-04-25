@@ -77,11 +77,38 @@ export type SkillMarketplacePreview = {
   availableFiles: string[]
 }
 
+export type BundledSkillUpdateStatus = {
+  id: string
+  name: string
+  description: string
+  installed: boolean
+  enabled?: boolean
+  path?: string
+  updatedAt?: number
+  sourceHash: string
+  installedSourceHash?: string
+  localHash?: string
+  updateAvailable: boolean
+  localModified: boolean
+  lastInstalledAt?: number
+  lastUpdatedAt?: number
+}
+
+export type BundledSkillApplyResult = BundledSkillUpdateStatus & {
+  applied: true
+  backupPath?: string
+}
+
 export const SkillsApi = {
   list: () => api.get<SkillItem[]>('/skills'),
   read: (id: string) => api.get<SkillDetail>('/skills/' + encodeURIComponent(id)),
   create: (payload: SkillPayload) => api.post<SkillDetail>('/skills', payload),
   install: (url: string, id?: string) => api.post<SkillDetail>('/skills/install', { url, id }),
+  listBundledUpdates: () => api.get<BundledSkillUpdateStatus[]>('/skills/bundled/updates'),
+  applyBundledUpdate: (id: string) =>
+    api.post<BundledSkillApplyResult>('/skills/bundled/' + encodeURIComponent(id) + '/apply', {
+      confirmed: true,
+    }),
   searchMarketplace: (query: string, limit = 20) =>
     api.get<SkillMarketplaceSearchResult>(
       '/skills/marketplace/search?q=' + encodeURIComponent(query) + '&limit=' + limit,
