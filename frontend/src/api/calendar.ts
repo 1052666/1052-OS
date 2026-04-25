@@ -24,6 +24,7 @@ export type CalendarEventInput = {
 export type ScheduledTaskTarget = 'agent' | 'terminal'
 export type ScheduledTaskMode = 'once' | 'recurring' | 'ongoing'
 export type ScheduledTaskRepeatUnit = 'day' | 'week' | 'month'
+export type TerminalShell = 'powershell' | 'pwsh' | 'cmd' | 'bash' | 'zsh' | 'sh'
 export type ScheduledTaskWechatDeliveryMode = 'auto' | 'fixed' | 'off'
 export type ScheduledTaskFeishuDeliveryMode = 'auto' | 'fixed' | 'off'
 export type ScheduledTaskFeishuReceiveIdType =
@@ -61,7 +62,7 @@ export type ScheduledTask = {
   endDate: string
   prompt: string
   command: string
-  shell: 'powershell' | 'cmd'
+  shell: TerminalShell
   delivery?: ScheduledTaskDelivery
   enabled: boolean
   createdAt: number
@@ -85,7 +86,7 @@ export type ScheduledTaskInput = {
   endDate?: string
   prompt?: string
   command?: string
-  shell?: 'powershell' | 'cmd'
+  shell?: TerminalShell
   delivery?: ScheduledTaskDelivery
   enabled?: boolean
 }

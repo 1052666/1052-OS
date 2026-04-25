@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { HttpError } from '../../http-error.js'
 import { readJson, writeJson } from '../../storage.js'
-import { terminalRun, type TerminalShell } from '../terminal/terminal.service.js'
+import {
+  getDefaultTerminalShell,
+  normalizeTerminalShell,
+  terminalRun,
+} from '../terminal/terminal.service.js'
 import { appendChatMessage, updateChatMessage } from '../agent/agent.history.service.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import {
@@ -69,10 +73,6 @@ function normalizeRepeatUnit(
 ): ScheduledTaskRepeatUnit | '' {
   if (value === 'day' || value === 'week' || value === 'month') return value
   return fallback
-}
-
-function normalizeShell(value: unknown, fallback: TerminalShell): TerminalShell {
-  return value === 'cmd' ? 'cmd' : fallback
 }
 
 function normalizeWechatDeliveryMode(
@@ -715,7 +715,7 @@ function normalizeTask(
   const endDate = toCleanString(input.endDate ?? current?.endDate, 10)
   const prompt = toCleanString(input.prompt ?? current?.prompt, 4000)
   const command = toCleanString(input.command ?? current?.command, 4000)
-  const shell = normalizeShell(input.shell, current?.shell ?? 'powershell')
+  const shell = normalizeTerminalShell(input.shell, current?.shell ?? getDefaultTerminalShell())
   const delivery = normalizeDelivery(
     input.delivery,
     current?.delivery ?? defaultDelivery(),

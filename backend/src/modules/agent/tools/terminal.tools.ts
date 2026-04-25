@@ -1,5 +1,7 @@
 import type { AgentTool } from '../agent.tool.types.js'
 import {
+  TERMINAL_SHELLS,
+  isTerminalShell,
   terminalInterrupt,
   terminalRun,
   terminalSetCwd,
@@ -10,7 +12,7 @@ export const terminalTools: AgentTool[] = [
   {
     name: 'terminal_run',
     description:
-      'Run a local terminal command on Windows using PowerShell or CMD. Safe read-only commands may run directly. Commands that can modify files, processes, environment, git state, or system state require explicit user confirmation unless full-access mode is enabled in settings.',
+      'Run a local terminal command using the current platform shell. Windows supports PowerShell/CMD; Linux and macOS support bash/zsh/sh, with pwsh available when installed. Safe read-only commands may run directly. Commands that can modify files, processes, environment, git state, or system state require explicit user confirmation unless full-access mode is enabled in settings.',
     parameters: {
       type: 'object',
       properties: {
@@ -20,8 +22,8 @@ export const terminalTools: AgentTool[] = [
         },
         shell: {
           type: 'string',
-          enum: ['powershell', 'cmd'],
-          description: 'Shell to use. Default powershell.',
+          enum: [...TERMINAL_SHELLS],
+          description: 'Shell to use. Defaults to powershell on Windows, zsh on macOS, and bash on Linux.',
         },
         cwd: {
           type: 'string',
@@ -43,7 +45,7 @@ export const terminalTools: AgentTool[] = [
       const input = (args ?? {}) as Record<string, unknown>
       return terminalRun({
         command: String(input.command ?? ''),
-        shell: input.shell === 'cmd' ? 'cmd' : 'powershell',
+        shell: isTerminalShell(input.shell) ? input.shell : undefined,
         cwd: typeof input.cwd === 'string' ? input.cwd : undefined,
         timeoutMs: typeof input.timeoutMs === 'number' ? Math.min(Math.max(input.timeoutMs, 1000), 1800000) : undefined,
         confirmed: input.confirmed === true ? true : undefined,
@@ -53,7 +55,7 @@ export const terminalTools: AgentTool[] = [
   {
     name: 'terminal_run_readonly',
     description:
-      'Run a strictly allow-listed read-only terminal command on Windows using PowerShell or CMD. Allowed commands: ls, dir, cat, type, rg, git status, git diff, git log, git show.',
+      'Run a strictly allow-listed read-only terminal command using the current platform shell. Allowed commands include ls/dir, cat/type, rg/Select-String, Test-Path, and git status/diff/log/show.',
     parameters: {
       type: 'object',
       properties: {
@@ -63,8 +65,8 @@ export const terminalTools: AgentTool[] = [
         },
         shell: {
           type: 'string',
-          enum: ['powershell', 'cmd'],
-          description: 'Shell to use. Default powershell.',
+          enum: [...TERMINAL_SHELLS],
+          description: 'Shell to use. Defaults to powershell on Windows, zsh on macOS, and bash on Linux.',
         },
         cwd: {
           type: 'string',
@@ -82,7 +84,7 @@ export const terminalTools: AgentTool[] = [
       const input = (args ?? {}) as Record<string, unknown>
       return terminalRun({
         command: String(input.command ?? ''),
-        shell: input.shell === 'cmd' ? 'cmd' : 'powershell',
+        shell: isTerminalShell(input.shell) ? input.shell : undefined,
         cwd: typeof input.cwd === 'string' ? input.cwd : undefined,
         timeoutMs:
           typeof input.timeoutMs === 'number'
@@ -101,8 +103,8 @@ export const terminalTools: AgentTool[] = [
       properties: {
         shell: {
           type: 'string',
-          enum: ['powershell', 'cmd'],
-          description: 'Optional shell. Omit to get both sessions.',
+          enum: [...TERMINAL_SHELLS],
+          description: 'Optional shell. Omit to get sessions for shells supported on the current platform.',
         },
       },
       additionalProperties: false,
@@ -120,8 +122,8 @@ export const terminalTools: AgentTool[] = [
       properties: {
         shell: {
           type: 'string',
-          enum: ['powershell', 'cmd'],
-          description: 'Shell session to interrupt. Default powershell.',
+          enum: [...TERMINAL_SHELLS],
+          description: 'Shell session to interrupt. Defaults to the current platform shell.',
         },
       },
       additionalProperties: false,
@@ -143,8 +145,8 @@ export const terminalTools: AgentTool[] = [
         },
         shell: {
           type: 'string',
-          enum: ['powershell', 'cmd'],
-          description: 'Shell session. Default powershell.',
+          enum: [...TERMINAL_SHELLS],
+          description: 'Shell session. Defaults to the current platform shell.',
         },
       },
       required: ['path'],
