@@ -190,13 +190,32 @@ describe('agent progressive disclosure helpers', () => {
     expect(describePackForRouting('channel-pack')).toContain('Intel Brief')
   })
 
-  it('mounts confirmed LLM settings tools through settings-pack', () => {
+  it('advertises Intel Center as the preferred news and brief route in P0', async () => {
+    expect(describePackForRouting('skill-pack')).toContain('intel-center')
+
+    const built = await buildP0Messages({
+      history: [],
+      checkpoint: emptyCheckpoint('web-default'),
+      userPrompt: '',
+      mountedPacks: [],
+    })
+    const system = built.messages[0]?.content ?? ''
+    expect(system).toContain('intel-center')
+    expect(system).toContain('skill-pack')
+    expect(system).toContain('intel_brief_format')
+    expect(system).toContain('does not collect intelligence')
+  })
+
+  it('mounts confirmed Agent settings tools through settings-pack', () => {
     const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['settings-pack']))
+    expect(toolNames).toContain('agent_morning_brief_update')
     expect(toolNames).toContain('agent_llm_activate_profile')
     expect(toolNames).toContain('agent_llm_set_task_route')
+    expect(hasAgentTool('agent_morning_brief_update')).toBe(true)
     expect(hasAgentTool('agent_llm_activate_profile')).toBe(true)
     expect(hasAgentTool('agent_llm_set_task_route')).toBe(true)
     expect(describePackForRouting('settings-pack')).toContain('LLM Profile')
+    expect(describePackForRouting('settings-pack')).toContain('早报')
   })
 
   it('enforces per-upgrade pack count and per-message upgrade count', () => {

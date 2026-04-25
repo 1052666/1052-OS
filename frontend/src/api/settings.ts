@@ -35,6 +35,10 @@ export type PublicSettings = {
     checkpointEnabled: boolean
     seedOnResumeEnabled: boolean
     upgradeDebugEventsEnabled: boolean
+    morningBrief: {
+      enabled: boolean
+      time: string
+    }
   }
   uapis: {
     hasApiKey: boolean

@@ -76,6 +76,12 @@ export type AgentSettings = {
   checkpointEnabled: boolean
   seedOnResumeEnabled: boolean
   upgradeDebugEventsEnabled: boolean
+  morningBrief: MorningBriefSettings
+}
+
+export type MorningBriefSettings = {
+  enabled: boolean
+  time: string
 }
 
 export type UapisSettings = {
@@ -132,6 +138,8 @@ export type SettingsPatch = {
   llm?: Partial<LLMSettings>
   imageGeneration?: Partial<ImageGenerationSettings>
   appearance?: Partial<AppearanceSettings>
-  agent?: Partial<AgentSettings>
+  agent?: Partial<Omit<AgentSettings, 'morningBrief'>> & {
+    morningBrief?: Partial<MorningBriefSettings>
+  }
   uapis?: Partial<UapisSettings>
 }

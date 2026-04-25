@@ -234,6 +234,8 @@ export default function Settings() {
   const [providerCachingEnabled, setProviderCachingEnabled] = useState(true)
   const [checkpointEnabled, setCheckpointEnabled] = useState(true)
   const [seedOnResumeEnabled, setSeedOnResumeEnabled] = useState(true)
+  const [morningBriefEnabled, setMorningBriefEnabled] = useState(false)
+  const [morningBriefTime, setMorningBriefTime] = useState('09:30')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
   const toggleGroup = (name: string) => {
@@ -291,6 +293,8 @@ export default function Settings() {
         setCheckpointEnabled(settings.agent.checkpointEnabled)
         setSeedOnResumeEnabled(settings.agent.seedOnResumeEnabled)
         setUpgradeDebugEventsEnabled(settings.agent.upgradeDebugEventsEnabled)
+        setMorningBriefEnabled(settings.agent.morningBrief.enabled)
+        setMorningBriefTime(settings.agent.morningBrief.time)
         setTheme(settings.appearance.theme)
         setUiLanguage(settings.appearance.language)
       })
@@ -452,6 +456,10 @@ export default function Settings() {
         checkpointEnabled,
         seedOnResumeEnabled,
         upgradeDebugEventsEnabled,
+        morningBrief: {
+          enabled: morningBriefEnabled,
+          time: morningBriefTime,
+        },
       },
     }
 
@@ -1192,6 +1200,35 @@ export default function Settings() {
                 >
                   <span className="switch-thumb" />
                 </button>
+              </div>
+
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-head">
+                  <div className="settings-row-label">
+                    <div className="settings-row-title">早报推送</div>
+                    <div className="settings-row-desc">
+                      开启后创建或更新系统托管的每日 Intel Center 早报任务，默认只回写应用内聊天和通知。
+                    </div>
+                  </div>
+                  <button
+                    className={'switch' + (morningBriefEnabled ? ' on' : '')}
+                    type="button"
+                    onClick={() => setMorningBriefEnabled((current) => !current)}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+                {morningBriefEnabled ? (
+                  <label className="settings-time-control">
+                    <span>推送时间</span>
+                    <input
+                      className="settings-input"
+                      type="time"
+                      value={morningBriefTime}
+                      onChange={(event) => setMorningBriefTime(event.target.value)}
+                    />
+                  </label>
+                ) : null}
               </div>
 
               <div className="settings-row">

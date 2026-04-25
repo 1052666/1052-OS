@@ -65,6 +65,35 @@ async function seedProfiles(settingsService: typeof import('../../settings/setti
 }
 
 describe('agent llm settings tools', () => {
+  it('updates morning brief preferences with confirmation and exposes them in runtime status', async () => {
+    const { settingsService, toolModule } = await loadRuntimeToolModules()
+    const updateMorningBrief = toolByName(toolModule.agentRuntimeTools, 'agent_morning_brief_update')
+    const status = toolByName(toolModule.agentRuntimeTools, 'agent_runtime_status')
+
+    await expect(updateMorningBrief.execute({ enabled: true, time: '08:10' })).rejects.toThrow(
+      'Morning brief settings require explicit confirmation',
+    )
+    await expect(
+      updateMorningBrief.execute({ enabled: true, time: '25:00', confirmed: true }),
+    ).rejects.toThrow('HH:MM')
+
+    await updateMorningBrief.execute({ enabled: true, time: '08:10', confirmed: true })
+    expect((await settingsService.getSettings()).agent.morningBrief).toEqual({
+      enabled: true,
+      time: '08:10',
+    })
+    await updateMorningBrief.execute({ enabled: false, confirmed: true })
+    expect((await settingsService.getSettings()).agent.morningBrief).toEqual({
+      enabled: false,
+      time: '08:10',
+    })
+
+    const runtime = (await status.execute({})) as {
+      agent?: { morningBrief?: { enabled: boolean; time: string } }
+    }
+    expect(runtime.agent?.morningBrief).toEqual({ enabled: false, time: '08:10' })
+  })
+
   it('requires explicit confirmation before changing llm settings', async () => {
     const { settingsService, toolModule } = await loadRuntimeToolModules()
     await seedProfiles(settingsService)

@@ -1,7 +1,11 @@
 import os from 'node:os'
 import path from 'node:path'
 import { httpError, HttpError } from '../../http-error.js'
-import { getSettings, resolveLlmConfigForTask } from '../settings/settings.service.js'
+import {
+  formatMorningBriefRuntimeContext,
+  getSettings,
+  resolveLlmConfigForTask,
+} from '../settings/settings.service.js'
 import { getChatHistory } from './agent.history.service.js'
 import { formatMemoryRuntimeContext } from '../memory/memory.service.js'
 import { formatOutputProfileRuntimeContext } from '../output-profiles/output-profile.service.js'
@@ -223,6 +227,7 @@ async function composeLegacyMessages(
   userPrompt: string,
   fullAccess: boolean,
   contextMessageLimit: number,
+  morningBriefContext: string,
 ): Promise<LLMConversationMessage[]> {
   const limitedHistory = history.slice(-Math.max(1, contextMessageLimit))
   const latestUserContent = latestUserMessage(limitedHistory)?.content ?? ''
@@ -247,6 +252,7 @@ async function composeLegacyMessages(
         formatRuntimeContext(new Date()),
         formatSystemEnvironmentContext(),
         formatPermissionBlock(fullAccess),
+        morningBriefContext,
         callerSystemInstructions,
         formatAgentWorkspaceContext(),
         memoryContext,
@@ -298,8 +304,13 @@ async function maybeBuildExtraSections(
   mountedPacks: readonly AgentPackName[],
   latestUserContent: string,
   fullAccess: boolean,
+  morningBriefContext: string,
 ) {
-  const sections = [formatRuntimeContext(new Date()), formatPermissionBlock(fullAccess)]
+  const sections = [
+    formatRuntimeContext(new Date()),
+    formatPermissionBlock(fullAccess),
+    morningBriefContext,
+  ]
 
   if (mountedPacks.includes('repo-pack') || mountedPacks.includes('base-read-pack')) {
     sections.push(`Workspace root: ${workspaceRoot()}`)
@@ -327,6 +338,7 @@ async function buildProgressiveMessages(input: {
   callerSystemInstructions: string
   contextMessageLimit: number
   fullAccess: boolean
+  morningBriefContext: string
 }) {
   const checkpoint = await getCheckpoint(input.checkpointSessionId)
   const progressiveHistory = input.history.slice(
@@ -336,6 +348,7 @@ async function buildProgressiveMessages(input: {
     input.mountedPacks,
     input.latestUserContent,
     input.fullAccess,
+    input.morningBriefContext,
   )
   if (input.callerSystemInstructions) {
     extraSections.push(input.callerSystemInstructions)
@@ -396,6 +409,7 @@ async function* runLegacyStream(
     settings.agent.userPrompt,
     settings.agent.fullAccess === true,
     settings.agent.contextMessageLimit,
+    formatMorningBriefRuntimeContext(settings.agent),
   )
   const tools = getAgentToolDefinitions()
   let usage: TokenUsage = {}
@@ -487,6 +501,7 @@ async function* runProgressiveStream(
       callerSystemInstructions,
       contextMessageLimit: settings.agent.contextMessageLimit,
       fullAccess: settings.agent.fullAccess === true,
+      morningBriefContext: formatMorningBriefRuntimeContext(settings.agent),
     })
 
     if (settings.agent.checkpointEnabled) {
