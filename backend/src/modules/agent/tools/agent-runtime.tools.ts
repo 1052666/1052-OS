@@ -173,9 +173,11 @@ export const agentRuntimeTools: AgentTool[] = [
 
       const profileId = readString(input.profileId)
       if (!profileId) throw new HttpError(400, 'profileId 必填')
-      if (!settings.llm.profiles.some((profile) => profile.id === profileId)) {
+      const profile = settings.llm.profiles.find((item) => item.id === profileId)
+      if (!profile) {
         throw new HttpError(404, '未找到 LLM profile')
       }
+      if (!profile.enabled) throw new HttpError(400, 'LLM profile 已停用，不能用于任务路由')
 
       return updateLlmTaskRoutes([...currentRoutes, { task, profileId }])
     },

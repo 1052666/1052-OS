@@ -152,7 +152,9 @@ function normalizeLlmProfile(input: unknown, fallbackIndex = 0): LLMProfile | nu
 
 function normalizeLlmTaskRoutes(input: unknown, profiles: readonly LLMProfile[]): LLMTaskRoute[] {
   if (!Array.isArray(input)) return []
-  const profileIds = new Set(profiles.map((profile) => profile.id))
+  const profileIds = new Set(
+    profiles.filter((profile) => profile.enabled).map((profile) => profile.id),
+  )
   const routes: LLMTaskRoute[] = []
   const seen = new Set<LLMTaskKind>()
 
@@ -635,9 +637,12 @@ export async function upsertLlmProfile(
 
 export async function activateLlmProfile(profileId: string): Promise<PublicSettings> {
   const current = await getSettings()
-  if (!current.llm.profiles.some((profile) => profile.id === profileId)) {
+  const profile = current.llm.profiles.find((item) => item.id === profileId)
+  if (!profile) {
     throw httpError(404, '未找到 LLM profile')
   }
+  if (!profile.enabled) throw httpError(400, 'LLM profile 已停用，不能激活')
+
   const next = {
     ...current,
     llm: normalizeLlmSettings({
