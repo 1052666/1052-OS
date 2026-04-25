@@ -3,7 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { HttpError } from '../../http-error.js'
 
-export type TerminalShell = 'powershell' | 'cmd'
+export const TERMINAL_SHELLS = ['powershell', 'pwsh', 'cmd', 'bash', 'zsh', 'sh'] as const
+export type TerminalShell = (typeof TERMINAL_SHELLS)[number]
 
 export type TerminalRunInput = {
   command: string
@@ -62,6 +63,8 @@ const MAX_CAPTURE_CHARS = 30_000
 
 const sessions = new Map<TerminalShell, SessionState>()
 
+const POSIX_TERMINAL_SHELLS: TerminalShell[] = ['bash', 'zsh', 'sh']
+
 const SAFE_COMMAND_PATTERNS: RegExp[] = [
   /^(dir|ls)(\s|$)/i,
   /^(pwd|cd)(\s*$)/i,
@@ -80,6 +83,7 @@ const READONLY_DENY_PATTERNS: RegExp[] = [
   /\b(Remove-Item|rm|del|erase|rmdir|rd)\b/i,
   /\b(Set-Content|Add-Content|Out-File|New-Item|Copy-Item|Move-Item|Rename-Item)\b/i,
   /\b(Stop-Process|Start-Process|taskkill|sc|net\s+stop|net\s+start)\b/i,
+  /\b(chmod|chown|touch|mkdir|mkfifo|ln|cp|mv|kill|pkill|killall|sudo|su|systemctl|service|launchctl|open|xdg-open)\b/i,
   /\b(git\s+(add|commit|checkout|switch|reset|clean|merge|rebase|pull|push|tag|stash))(\s|$)/i,
   /\b(npm|pnpm|yarn)\s+(install|add|remove|uninstall|publish|run)\b/i,
   /\b(pip|uv)\s+(install|uninstall|sync)\b/i,
@@ -104,7 +108,41 @@ function workspaceRoot() {
 }
 
 function normalizeShell(value: unknown): TerminalShell {
-  return value === 'cmd' ? 'cmd' : 'powershell'
+  return normalizeTerminalShell(value)
+}
+
+export function isTerminalShell(value: unknown): value is TerminalShell {
+  return typeof value === 'string' && TERMINAL_SHELLS.includes(value as TerminalShell)
+}
+
+export function getDefaultTerminalShell(): TerminalShell {
+  if (process.platform === 'win32') return 'powershell'
+  const envShell = path.basename(process.env.SHELL ?? '').toLowerCase()
+  if (POSIX_TERMINAL_SHELLS.includes(envShell as TerminalShell)) {
+    return envShell as TerminalShell
+  }
+  return process.platform === 'darwin' ? 'zsh' : 'bash'
+}
+
+export function getSupportedTerminalShells(): TerminalShell[] {
+  if (process.platform === 'win32') return ['powershell', 'pwsh', 'cmd', 'bash', 'sh']
+  if (process.platform === 'darwin') return ['zsh', 'bash', 'sh', 'pwsh', 'powershell']
+  return ['bash', 'sh', 'zsh', 'pwsh', 'powershell']
+}
+
+export function normalizeTerminalShell(
+  value: unknown,
+  fallback: TerminalShell = getDefaultTerminalShell(),
+): TerminalShell {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!normalized) return fallback
+  if (!isTerminalShell(normalized)) {
+    throw new HttpError(400, `Unsupported terminal shell: ${normalized}`)
+  }
+  if (normalized === 'cmd' && process.platform !== 'win32') {
+    throw new HttpError(400, 'CMD shell is only available on Windows')
+  }
+  return normalized
 }
 
 function normalizeCommand(value: unknown) {
@@ -197,6 +235,13 @@ function buildSpawnArgs(shell: TerminalShell, command: string) {
     }
   }
 
+  if (shell === 'bash' || shell === 'zsh' || shell === 'sh') {
+    return {
+      file: shell,
+      args: ['-lc', command],
+    }
+  }
+
   const wrapped = [
     '$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
     '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)',
@@ -205,7 +250,7 @@ function buildSpawnArgs(shell: TerminalShell, command: string) {
   ].join('; ')
 
   return {
-    file: 'powershell.exe',
+    file: shell === 'powershell' && process.platform === 'win32' ? 'powershell.exe' : 'pwsh',
     args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', wrapped],
   }
 }
@@ -225,8 +270,12 @@ async function killProcessTree(pid: number) {
   }
 
   try {
-    process.kill(pid, 'SIGTERM')
-  } catch {}
+    process.kill(-pid, 'SIGTERM')
+  } catch {
+    try {
+      process.kill(pid, 'SIGTERM')
+    } catch {}
+  }
 }
 
 export async function terminalRun(input: TerminalRunInput): Promise<TerminalRunResult> {
@@ -252,6 +301,7 @@ export async function terminalRun(input: TerminalRunInput): Promise<TerminalRunR
   const { file, args } = buildSpawnArgs(shell, command)
   const child = spawn(file, args, {
     cwd,
+    detached: process.platform !== 'win32',
     windowsHide: true,
     env: {
       ...process.env,
@@ -292,12 +342,20 @@ export async function terminalRun(input: TerminalRunInput): Promise<TerminalRunR
     if (child.pid) await killProcessTree(child.pid)
   }, timeoutMs)
 
-  const exitCode = await new Promise<number | null>((resolve, reject) => {
-    child.once('error', (error) => reject(error))
-    child.once('exit', (code) => resolve(code))
-  }).finally(() => {
+  let exitCode: number | null
+  try {
+    exitCode = await new Promise<number | null>((resolve, reject) => {
+      child.once('error', (error) => reject(error))
+      child.once('exit', (code) => resolve(code))
+    })
+  } catch (error) {
+    session.running = null
+    session.lastExitCode = -1
+    const message = error instanceof Error ? error.message : String(error)
+    throw new HttpError(500, `Failed to start terminal shell ${shell}: ${message}`)
+  } finally {
     clearTimeout(timeout)
-  })
+  }
 
   interrupted = interrupted || Boolean(session.running?.interrupted)
   session.running = null
@@ -351,8 +409,9 @@ export async function terminalInterrupt(shellInput?: unknown) {
 }
 
 export function terminalStatus(shellInput?: unknown): TerminalStatus | TerminalStatus[] {
-  if (shellInput === 'powershell' || shellInput === 'cmd') {
-    const session = getSession(shellInput)
+  if (typeof shellInput === 'string' && shellInput.trim()) {
+    const shell = normalizeShell(shellInput)
+    const session = getSession(shell)
     return {
       shell: session.shell,
       cwd: session.cwd,
@@ -364,7 +423,7 @@ export function terminalStatus(shellInput?: unknown): TerminalStatus | TerminalS
     }
   }
 
-  return (['powershell', 'cmd'] as const).map((shell) => {
+  return getSupportedTerminalShells().map((shell) => {
     const session = getSession(shell)
     return {
       shell: session.shell,

@@ -18,7 +18,11 @@ import {
 import { buildP0Messages } from '../agent.p0.service.js'
 import { hasAgentTool } from '../agent.tool.service.js'
 import { terminalTools } from '../tools/terminal.tools.js'
-import { isReadonlyTerminalCommandAllowed } from '../../terminal/terminal.service.js'
+import {
+  getDefaultTerminalShell,
+  getSupportedTerminalShells,
+  isReadonlyTerminalCommandAllowed,
+} from '../../terminal/terminal.service.js'
 
 describe('agent progressive disclosure helpers', () => {
   it('normalizes requested packs and deduplicates invalid values', () => {
@@ -195,5 +199,17 @@ describe('agent progressive disclosure helpers', () => {
         confirmed: true,
       }),
     ).rejects.toThrow('Read-only terminal tool only allows explicit read commands')
+  }, 15_000)
+
+  it('advertises cross-platform terminal shells', () => {
+    const runTool = terminalTools.find((item) => item.name === 'terminal_run')
+    const parameters = runTool?.parameters as
+      | { properties?: { shell?: { enum?: string[] } } }
+      | undefined
+    const shellSchema = parameters?.properties?.shell
+    expect(shellSchema?.enum).toEqual(
+      expect.arrayContaining(['powershell', 'pwsh', 'cmd', 'bash', 'zsh', 'sh']),
+    )
+    expect(getSupportedTerminalShells()).toContain(getDefaultTerminalShell())
   })
 })

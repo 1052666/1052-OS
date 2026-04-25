@@ -4,6 +4,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { deflateRawSync } from 'node:zlib'
 import { HttpError } from '../../http-error.js'
 import { readJson, writeJson } from '../../storage.js'
 import type {
@@ -33,6 +34,7 @@ const MAX_FILE_CHARS = 160_000
 const MAX_TREE_DEPTH = 4
 const MAX_TREE_ENTRIES = 500
 const MAX_CHILDREN_PER_DIR = 120
+const ZIP_UTF8_FLAG = 0x0800
 
 const SKIP_DIRS = new Set([
   '.git',
@@ -761,6 +763,139 @@ export async function getRepositoryFileResource(
   }
 }
 
+type ZipSourceEntry = {
+  archivePath: string
+  absolutePath: string
+  isDirectory: boolean
+  mtime: Date
+}
+
+const CRC32_TABLE = new Uint32Array(256)
+for (let index = 0; index < CRC32_TABLE.length; index += 1) {
+  let value = index
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1
+  }
+  CRC32_TABLE[index] = value >>> 0
+}
+
+function crc32(data: Buffer) {
+  let crc = 0xffffffff
+  for (const byte of data) {
+    crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8)
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function dosDateTime(dateInput: Date) {
+  const date = dateInput.getFullYear() < 1980 ? new Date('1980-01-01T00:00:00Z') : dateInput
+  const dosTime =
+    (date.getHours() << 11) |
+    (date.getMinutes() << 5) |
+    Math.floor(date.getSeconds() / 2)
+  const dosDate =
+    ((date.getFullYear() - 1980) << 9) |
+    ((date.getMonth() + 1) << 5) |
+    date.getDate()
+  return { dosDate, dosTime }
+}
+
+function normalizeArchivePath(relativePath: string, isDirectory: boolean) {
+  const normalized = relativePath.split(path.sep).join('/').replace(/^\/+/, '')
+  return isDirectory && normalized && !normalized.endsWith('/') ? `${normalized}/` : normalized
+}
+
+async function collectZipEntries(root: string, relativeDir = ''): Promise<ZipSourceEntry[]> {
+  const absoluteDir = path.join(root, relativeDir)
+  const dirents = await fs.readdir(absoluteDir, { withFileTypes: true })
+  const entries: ZipSourceEntry[] = []
+
+  for (const dirent of dirents) {
+    if (SKIP_DIRS.has(dirent.name)) continue
+    const childRelative = path.join(relativeDir, dirent.name)
+    const absolutePath = path.join(root, childRelative)
+    const stat = await fs.stat(absolutePath).catch(() => null)
+    if (!stat) continue
+
+    if (dirent.isDirectory()) {
+      entries.push({
+        archivePath: normalizeArchivePath(childRelative, true),
+        absolutePath,
+        isDirectory: true,
+        mtime: stat.mtime,
+      })
+      entries.push(...(await collectZipEntries(root, childRelative)))
+    } else if (dirent.isFile()) {
+      entries.push({
+        archivePath: normalizeArchivePath(childRelative, false),
+        absolutePath,
+        isDirectory: false,
+        mtime: stat.mtime,
+      })
+    }
+  }
+
+  return entries
+}
+
+async function writeZipArchive(root: string, filePath: string) {
+  const entries = await collectZipEntries(root)
+  const localParts: Buffer[] = []
+  const centralParts: Buffer[] = []
+  let offset = 0
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.archivePath, 'utf-8')
+    const content = entry.isDirectory ? Buffer.alloc(0) : await fs.readFile(entry.absolutePath)
+    const compressed = entry.isDirectory ? content : deflateRawSync(content)
+    const method = entry.isDirectory ? 0 : 8
+    const crc = entry.isDirectory ? 0 : crc32(content)
+    const { dosDate, dosTime } = dosDateTime(entry.mtime)
+
+    const localHeader = Buffer.alloc(30)
+    localHeader.writeUInt32LE(0x04034b50, 0)
+    localHeader.writeUInt16LE(20, 4)
+    localHeader.writeUInt16LE(ZIP_UTF8_FLAG, 6)
+    localHeader.writeUInt16LE(method, 8)
+    localHeader.writeUInt16LE(dosTime, 10)
+    localHeader.writeUInt16LE(dosDate, 12)
+    localHeader.writeUInt32LE(crc, 14)
+    localHeader.writeUInt32LE(compressed.length, 18)
+    localHeader.writeUInt32LE(content.length, 22)
+    localHeader.writeUInt16LE(name.length, 26)
+
+    localParts.push(localHeader, name, compressed)
+
+    const centralHeader = Buffer.alloc(46)
+    centralHeader.writeUInt32LE(0x02014b50, 0)
+    centralHeader.writeUInt16LE(20, 4)
+    centralHeader.writeUInt16LE(20, 6)
+    centralHeader.writeUInt16LE(ZIP_UTF8_FLAG, 8)
+    centralHeader.writeUInt16LE(method, 10)
+    centralHeader.writeUInt16LE(dosTime, 12)
+    centralHeader.writeUInt16LE(dosDate, 14)
+    centralHeader.writeUInt32LE(crc, 16)
+    centralHeader.writeUInt32LE(compressed.length, 20)
+    centralHeader.writeUInt32LE(content.length, 24)
+    centralHeader.writeUInt16LE(name.length, 28)
+    centralHeader.writeUInt32LE(entry.isDirectory ? 0x10 : 0, 38)
+    centralHeader.writeUInt32LE(offset, 42)
+    centralParts.push(centralHeader, name)
+
+    offset += localHeader.length + name.length + compressed.length
+  }
+
+  const centralDirectory = Buffer.concat(centralParts)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(entries.length, 8)
+  end.writeUInt16LE(entries.length, 10)
+  end.writeUInt32LE(centralDirectory.length, 12)
+  end.writeUInt32LE(offset, 16)
+
+  await fs.writeFile(filePath, Buffer.concat([...localParts, centralDirectory, end]))
+}
+
 export async function createRepositoryArchive(id: string): Promise<RepositoryArchive> {
   const repository = await getRepositoryById(id)
   const decodedPath = decodeRepositoryId(id)
@@ -773,25 +908,7 @@ export async function createRepositoryArchive(id: string): Promise<RepositoryArc
   const safeName = repository.name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'repository'
   const fileName = `${safeName}.zip`
   const filePath = path.join(archiveDir, `${safeName}-${randomUUID()}.zip`)
-  const sourcePattern = path.join(repository.path, '*')
-
-  await execFile(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-Command',
-      '& { param($source, $dest) Compress-Archive -Path $source -DestinationPath $dest -Force }',
-      sourcePattern,
-      filePath,
-    ],
-    {
-      timeout: 120_000,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024,
-    },
-  )
+  await writeZipArchive(repository.path, filePath)
 
   return { filePath, fileName }
 }

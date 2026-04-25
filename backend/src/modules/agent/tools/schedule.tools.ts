@@ -8,6 +8,7 @@ import {
   triggerScheduledTaskNow,
   updateScheduledTask,
 } from '../../calendar/calendar.schedule.service.js'
+import { TERMINAL_SHELLS } from '../../terminal/terminal.service.js'
 import type { AgentTool } from '../agent.tool.types.js'
 
 function assertConfirmed(value: unknown) {
@@ -172,7 +173,7 @@ export const scheduleTools: AgentTool[] = [
         endDate: { type: 'string', description: 'Optional YYYY-MM-DD for recurring tasks.' },
         prompt: { type: 'string', description: 'Required when target is agent.' },
         command: { type: 'string', description: 'Required when target is terminal.' },
-        shell: { type: 'string', enum: ['powershell', 'cmd'] },
+        shell: { type: 'string', enum: [...TERMINAL_SHELLS] },
         delivery: {
           type: 'object',
           description:
@@ -234,7 +235,7 @@ export const scheduleTools: AgentTool[] = [
         endDate: { type: 'string' },
         prompt: { type: 'string' },
         command: { type: 'string' },
-        shell: { type: 'string', enum: ['powershell', 'cmd'] },
+        shell: { type: 'string', enum: [...TERMINAL_SHELLS] },
         delivery: {
           type: 'object',
           description:

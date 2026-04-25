@@ -631,6 +631,14 @@ data/
 
 ---
 
+### Cross-platform terminal behavior
+
+Backend terminal tools now pick a platform default shell: PowerShell on Windows, zsh on macOS, and bash on Linux. Users can also select `pwsh`, `cmd`, `bash`, `zsh`, or `sh` where the runtime supports them.
+
+Scheduled terminal tasks use the same shell list, and repository zip export is generated inside Node.js instead of depending on `powershell.exe`, so Linux and macOS do not need Windows PowerShell for repository downloads.
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](./LICENSE).
