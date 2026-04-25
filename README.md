@@ -1,4 +1,4 @@
-<p align="center">
+<p对齐="center">
   <a href="https://github.com/1052666/1052-OS">
     <img src="./assets/readme/hero.svg" alt="1052 OS" />
   </a>
@@ -7,11 +7,11 @@
 <h1 align="center">1052 OS</h1>
 
 <p align="center">
-  中文 | <a href="./README.en.md">English</a>
+ahref="./README.en.md">英语</
 </p>
 
 <p align="center">
-  <strong>本地优先、工具驱动、可接入社交通道的个人 AI Agent 工作台。</strong>
+  <strong>本地优先、工具驱动、可接入社交通道的个人AI代理工作台。</strong>
 </p>
 
 <p align="center">
@@ -19,10 +19,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/1052666/1052-OS/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/1052666/1052-OS?style=for-the-badge&logo=github" /></a>
-  <a href="https://github.com/1052666/1052-OS/network/members"><img alt="GitHub forks" src="https://img.shields.io/github/forks/1052666/1052-OS?style=for-the-badge&logo=github" /></a>
-  <a href="https://github.com/1052666/1052-OS/graphs/contributors"><img alt="Contributors" src="https://img.shields.io/github/contributors/1052666/1052-OS?style=for-the-badge" /></a>
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/1052666/1052-OS?style=for-the-badge" /></a>
+  imgalt"GitHub stars"src"https://img.shields.io/github/stars/1052666/1052-OS?style=for-the-badge&logo=github"/></
+  imgalt"GitHub forks"src"https://img.shields.io/github/forks/1052666/1052-OS?style=for-the-badge&logo=github"/></
+  <ahref="https://github.com/1052666/1052-OS/graphs/contributors"><imgalt="贡献者" src="https://img.shields.io/github/contributors/1052666/1052-OS?style=for-the-badge" /></a>
+  <ahref="./LICENSE"><imgalt="许可证" src="https://img.shields.io/github/license/1052666/1052-OS?style=for-the-badge" /></a>
 </p>
 
 <p align="center">
@@ -46,7 +46,7 @@
       <h3>交流、反馈、测试和共建</h3>
       <p><strong>Telegram 群组：</strong><a href="https://t.me/OS1052">https://t.me/OS1052</a></p>
       <p><strong>微信群：</strong>扫描左侧二维码加入 <code>1052内测测测群</code></p>
-      <p>欢迎提交 Bug、体验反馈、功能建议、PR、Skill、工具方案和真实使用案例。</p>
+      <p>欢迎提交Bug、体验反馈、功能建议、PR、技能、工具方案和真实使用案例。</p>
       <p><strong>GitHub 仓库：</strong><a href="https://github.com/1052666/1052-OS">https://github.com/1052666/1052-OS</a></p>
     </td>
   </tr>
@@ -56,7 +56,7 @@
 
 ## 项目状态
 
-1052 OS 已经从聊天页面演进成一个桌面式 AI Agent 工作台。它把模型接入、聊天流、本地文件、仓库阅读、笔记、资源库、长期记忆、输出配方、Wiki 知识层、联网搜索、UAPIs 工具箱、Skill 中心、终端、SQL、日程、定时任务、通知中心、微信、飞书和企业微信放在同一个本地优先的系统里。
+1052 OS 已经从聊天页面演进成一个桌面式 AI 代理工作台。它把模型接入、聊天流、本地文件、仓库阅读、笔记、资源库、长期记忆、输出配方、Wiki 知识层、联网搜索、UAPIs 工具箱、技能中心、终端、SQL、日程、定时任务、通知中心、微信、飞书和企业微信放在同一个本地优先的系统里。
 
 项目当前的核心方向是：
 
@@ -177,10 +177,10 @@ flowchart LR
 - Node.js
 - Express
 - TypeScript
-- Server-Sent Events
-- OpenAI compatible Chat Completions
-- Gemini native image generation
-- JSON-based local storage
+-服务器发送事件
+-与OpenAI兼容的聊天补全
+-Gemini原生图像生成
+-基于JSON的本地存储
 - Feishu / WeChat / WeCom channel services
 - Cross-platform terminal runtime
 
@@ -234,7 +234,7 @@ uv sync
 ### 2. 克隆仓库
 
 ```bash
-git clone https://github.com/1052666/1052-OS.git
+git 克隆 https://github.com/1052666/1052-OS.git
 cd 1052-OS
 ```
 
@@ -242,7 +242,7 @@ cd 1052-OS
 
 ```bash
 cd backend
-npm ci
+npm 安装
 ```
 
 如果你没有 lockfile 或需要本地重新解析依赖，可以改用 `npm install`。
@@ -251,7 +251,7 @@ npm ci
 
 ```bash
 cd ../frontend
-npm ci
+npm 安装
 ```
 
 ### 5. 启动后端
