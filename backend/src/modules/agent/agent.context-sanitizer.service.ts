@@ -3,13 +3,23 @@ import { redactSensitiveText } from './agent.redaction.service.js'
 
 const REQUEST_FAILURE_PATTERNS = [
   /^请求失败[:：]/i,
+  /^Request failed[:：]/i,
   /^生成已中止[。.]?$/i,
   /^已中止[。.]?$/i,
   /LLM\s*流式响应解析失败/i,
   /无法连接\s*LLM/i,
   /Read-only terminal tool only allows/i,
   /Terminal command requires explicit user confirmation/i,
-  /HTTP\s+\d{3}/i,
+]
+
+const CHECKPOINT_FAILURE_PATTERNS = [
+  /(?:^|[\s。；;])请求失败[:：]?/i,
+  /(?:^|[\s。；;])Request failed[:：]?/i,
+  /LLM\s*流式响应解析失败/i,
+  /无法连接\s*LLM/i,
+  /(?:工具|请求|调用|连接|生成|响应|解析).{0,24}(?:失败|错误|异常|超时|中止)/i,
+  /(?:request|tool|call|connection|generation|response|stream).{0,32}(?:failed|error|timeout|timed out|aborted)/i,
+  /(?:failed|error|timeout|timed out|aborted).{0,32}(?:request|tool|call|connection|generation|response|stream)/i,
 ]
 
 const INTERNAL_DIAGNOSTIC_LINE_PATTERNS = [
@@ -39,6 +49,10 @@ export function isRequestFailureContent(content: string) {
   const normalized = stripThinkBlocks(content)
   if (!normalized) return false
   return REQUEST_FAILURE_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+function hasCheckpointFailureSignal(content: string) {
+  return CHECKPOINT_FAILURE_PATTERNS.some((pattern) => pattern.test(content))
 }
 
 function stripInternalDiagnostics(content: string) {
@@ -129,7 +143,7 @@ export function sanitizeCheckpointTextForModel(value: string) {
     return '之前的终端命令缺少执行确认；如用户已授权或完全权限已开启，应使用 confirmed 执行。'
   }
 
-  if (/请求失败|Request failed|LLM|HTTP\s+\d{3}|流式响应解析失败/i.test(normalized)) {
+  if (hasCheckpointFailureSignal(normalized)) {
     return '之前有一次请求或工具调用失败；用户要求重试时应调整参数、换工具或继续排查，不要把失败当作拒绝理由。'
   }
 
