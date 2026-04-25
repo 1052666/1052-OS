@@ -1,20 +1,48 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { SkillsApi, type SkillDetail } from '../api/skills'
 import { UapisApi, type UapisApiItem, type UapisCatalog } from '../api/uapis'
-import { IconChevron, IconRefresh, IconSearch, IconSparkle } from '../components/Icons'
+import Markdown from '../components/Markdown'
+import {
+  IconChevron,
+  IconRefresh,
+  IconSearch,
+  IconSearchGrid,
+  IconSkills,
+  IconSparkle,
+} from '../components/Icons'
 
 const methodClass = (method: string) => method.toLowerCase()
+const INTEL_SKILL_ID = 'intel-center'
+
+const intelSectors = [
+  { label: 'Politics', text: '地缘政治、制裁、战争、外交和政策冲击。' },
+  { label: 'Finance', text: '市场、利率、通胀、加密资产和跨市场风险信号。' },
+  { label: 'Tech', text: 'AI、芯片、网络安全、能源技术和科技监管。' },
+]
+
+const intelSources = [
+  'Google News RSS',
+  'Yahoo Finance',
+  'RSS feeds',
+  'Hacker News',
+  'Search engines',
+  'A/H market optional',
+]
 
 export default function Toolbox() {
   const navigate = useNavigate()
   const { provider } = useParams()
   const [catalog, setCatalog] = useState<UapisCatalog | null>(null)
+  const [intelSkill, setIntelSkill] = useState<SkillDetail | null>(null)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [query, setQuery] = useState('')
   const [selectedApi, setSelectedApi] = useState<UapisApiItem | null>(null)
   const [loading, setLoading] = useState(true)
+  const [intelLoading, setIntelLoading] = useState(true)
   const [savingId, setSavingId] = useState('')
   const [error, setError] = useState('')
+  const [intelError, setIntelError] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -35,8 +63,25 @@ export default function Toolbox() {
   }
 
   useEffect(() => {
-    void load()
-  }, [])
+    if (provider === 'uapis') void load()
+  }, [provider])
+
+  const loadIntelSkill = async () => {
+    setIntelLoading(true)
+    setIntelError('')
+    try {
+      setIntelSkill(await SkillsApi.read(INTEL_SKILL_ID))
+    } catch (error) {
+      const err = error as { message?: string }
+      setIntelError(err.message ?? 'Intel Center 加载失败。')
+    } finally {
+      setIntelLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (provider === 'intel') void loadIntelSkill()
+  }, [provider])
 
   const categoryStats = useMemo(() => {
     if (!catalog) return []
@@ -114,6 +159,129 @@ export default function Toolbox() {
     }
   }
 
+  if (provider === 'intel') {
+    return (
+      <div className="page toolbox-page">
+        <header className="page-header toolbox-page-header">
+          <div>
+            <h1>Intel Center</h1>
+            <div className="muted">三部门情报采集、市场异常检测和跨部门传导链分析。</div>
+          </div>
+          <div className="toolbar">
+            <button className="chip" onClick={() => void loadIntelSkill()} disabled={intelLoading} type="button">
+              <IconRefresh size={14} />
+              {intelLoading ? '刷新中...' : '刷新'}
+            </button>
+            <button className="chip ghost" onClick={() => navigate('/skills')} type="button">
+              <IconSkills size={14} />
+              Skill 中心
+            </button>
+          </div>
+        </header>
+
+        {intelError && <div className="banner error">{intelError}</div>}
+
+        {intelLoading && !intelSkill ? (
+          <div className="uapis-list-empty">
+            <strong>正在读取 Intel Center</strong>
+            <p>启动后内置 Skill 会自动安装到本地 Skill 目录。</p>
+          </div>
+        ) : intelSkill ? (
+          <>
+            <section className="toolbox-provider-panel intel-provider-panel">
+              <div className="toolbox-provider-copy">
+                <span>{intelSkill.enabled ? 'Enabled Skill' : 'Disabled Skill'}</span>
+                <strong>{intelSkill.name}</strong>
+                <p>{intelSkill.description}</p>
+              </div>
+              <div className="toolbox-quota-cards">
+                <div>
+                  <span>部门</span>
+                  <strong>3</strong>
+                </div>
+                <div>
+                  <span>来源</span>
+                  <strong>{intelSources.length}</strong>
+                </div>
+                <div>
+                  <span>脚本</span>
+                  <strong>{intelSkill.scripts.length}</strong>
+                </div>
+              </div>
+              <div className="toolbox-links">
+                <button className="chip" type="button" onClick={() => navigate('/skills')}>
+                  查看 Skill
+                </button>
+                <code>python3 scripts/intel.py 2&gt;&amp;1</code>
+              </div>
+            </section>
+
+            <section className="intel-workbench">
+              <div className="intel-sector-grid">
+                {intelSectors.map((sector) => (
+                  <article className="intel-sector-card" key={sector.label}>
+                    <div className="toolbox-home-icon">
+                      <IconSearchGrid size={22} />
+                    </div>
+                    <div>
+                      <span>{sector.label}</span>
+                      <p>{sector.text}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="intel-detail-grid">
+                <section className="intel-panel">
+                  <div className="toolbox-panel-title">
+                    <span>采集来源</span>
+                    <strong>{intelSources.length}</strong>
+                  </div>
+                  <div className="intel-source-list">
+                    {intelSources.map((source) => (
+                      <span key={source}>{source}</span>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="intel-panel">
+                  <div className="toolbox-panel-title">
+                    <span>运行资产</span>
+                    <strong>{intelSkill.enabled ? '可用' : '停用'}</strong>
+                  </div>
+                  <div className="intel-asset-list">
+                    <div>
+                      <span>Skill ID</span>
+                      <code>{intelSkill.id}</code>
+                    </div>
+                    <div>
+                      <span>本地路径</span>
+                      <code>{intelSkill.path}</code>
+                    </div>
+                    <div>
+                      <span>更新时间</span>
+                      <code>{new Date(intelSkill.updatedAt).toLocaleString('zh-CN', { hour12: false })}</code>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <section className="intel-panel">
+                <div className="toolbox-panel-title">
+                  <span>Skill 说明</span>
+                  <strong>SKILL.md</strong>
+                </div>
+                <div className="skill-markdown intel-skill-markdown">
+                  <Markdown text={intelSkill.body} />
+                </div>
+              </section>
+            </section>
+          </>
+        ) : null}
+      </div>
+    )
+  }
+
   if (provider !== 'uapis') {
     return (
       <div className="page toolbox-page">
@@ -135,6 +303,21 @@ export default function Toolbox() {
               <p>
                 将 UAPIs.cn 文档中的接口做成内置能力，支持前端启停、设置页可选 API Key，以及 Agent
                 索引式调用。
+              </p>
+            </div>
+            <IconChevron size={18} />
+          </button>
+
+          <button className="toolbox-home-card" type="button" onClick={() => navigate('/toolbox/intel')}>
+            <div className="toolbox-home-icon">
+              <IconSearchGrid size={24} />
+            </div>
+            <div>
+              <span>Built-in Skill</span>
+              <strong>Intel Center</strong>
+              <p>
+                把内置情报采集 Skill 放进工具箱：按 Politics / Finance / Tech
+                三部门收集信号，并用于跨部门传导链分析。
               </p>
             </div>
             <IconChevron size={18} />

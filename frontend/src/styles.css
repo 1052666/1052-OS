@@ -7625,6 +7625,129 @@ button.social-platform-card:hover {
   margin: 6px 0 0;
 }
 
+.intel-provider-panel {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.64fr);
+}
+
+.intel-provider-panel .toolbox-links {
+  align-items: center;
+}
+
+.intel-provider-panel .toolbox-links code {
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.intel-workbench {
+  display: grid;
+  gap: 16px;
+}
+
+.intel-sector-grid,
+.intel-detail-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.intel-sector-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.intel-detail-grid {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+
+.intel-sector-card,
+.intel-panel {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  box-shadow: 0 16px 42px -38px color-mix(in srgb, var(--accent) 70%, black);
+}
+
+.intel-sector-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-height: 136px;
+  padding: 16px;
+}
+
+.intel-sector-card span {
+  color: var(--fg);
+  font-weight: 750;
+}
+
+.intel-sector-card p {
+  margin: 5px 0 0;
+  color: var(--fg-3);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.intel-panel {
+  padding: 16px;
+}
+
+.intel-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.intel-source-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-2) 86%, transparent);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+
+.intel-asset-list {
+  display: grid;
+  gap: 10px;
+}
+
+.intel-asset-list > div {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+}
+
+.intel-asset-list span {
+  color: var(--fg-4);
+  font-size: 12px;
+}
+
+.intel-asset-list code {
+  min-width: 0;
+  color: var(--fg-2);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.intel-skill-markdown {
+  max-height: 640px;
+  overflow: auto;
+}
+
 @media (max-width: 1180px) {
   .toolbox-workbench {
     grid-template-columns: 1fr;
@@ -7653,6 +7776,9 @@ button.social-platform-card:hover {
   }
 
   .toolbox-provider-panel,
+  .intel-provider-panel,
+  .intel-sector-grid,
+  .intel-detail-grid,
   .uapis-layout {
     grid-template-columns: 1fr;
   }
@@ -7679,6 +7805,10 @@ button.social-platform-card:hover {
 
   .uapis-row-actions {
     justify-content: space-between;
+  }
+
+  .intel-asset-list > div {
+    grid-template-columns: 1fr;
   }
 }
 
