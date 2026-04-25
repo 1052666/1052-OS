@@ -31,6 +31,11 @@ const REF_TYPES: OutputProfileRefType[] = [
   'freeform',
 ]
 const PRIORITIES: OutputProfilePriority[] = ['high', 'normal', 'low']
+const PRIORITY_ORDER: Record<OutputProfilePriority, number> = {
+  high: 0,
+  normal: 1,
+  low: 2,
+}
 
 function profileRoot() {
   return path.join(config.dataDir, OUTPUT_PROFILE_DIR)
@@ -251,7 +256,7 @@ function matchesQuery(profile: OutputProfile, query: string) {
 
 function profileSort(a: OutputProfile, b: OutputProfile) {
   if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
-  if (a.priority !== b.priority) return a.priority === 'high' ? -1 : b.priority === 'high' ? 1 : 0
+  if (a.priority !== b.priority) return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
   return b.updatedAt - a.updatedAt
 }
 

@@ -17,6 +17,7 @@ import {
 } from '../agent.checkpoint.service.js'
 import { buildP0Messages } from '../agent.p0.service.js'
 import { terminalTools } from '../tools/terminal.tools.js'
+import { isReadonlyTerminalCommandAllowed } from '../../terminal/terminal.service.js'
 
 describe('agent progressive disclosure helpers', () => {
   it('normalizes requested packs and deduplicates invalid values', () => {
@@ -138,20 +139,27 @@ describe('agent progressive disclosure helpers', () => {
     expect(normalizeSessionId('wechat:acc/peer?x')).toBe('wechat-acc-peer-x')
   })
 
-  it('allows full-access injected confirmation on read-only terminal commands', async () => {
+  it('allows full-access injected confirmation on allow-listed read-only terminal commands', async () => {
     const tool = terminalTools.find((item) => item.name === 'terminal_run_readonly')
     expect(tool).toBeTruthy()
 
     const result = await tool?.execute({
-      command: '[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("ok"))',
+      command: 'ls',
       confirmed: true,
     })
 
     expect(result).toMatchObject({
       exitCode: 0,
-      risk: 'confirm',
-      stdout: 'b2s=',
+      risk: 'safe',
     })
+  })
+
+  it('keeps read-only terminal commands on the allow list', async () => {
+    expect(isReadonlyTerminalCommandAllowed('rg output-profile backend/src')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git diff -- backend/src/modules/terminal/terminal.service.ts')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git restore backend/src/modules/terminal/terminal.service.ts')).toBe(false)
+    expect(isReadonlyTerminalCommandAllowed('[IO.File]::WriteAllText("x.txt","no")')).toBe(false)
+    expect(isReadonlyTerminalCommandAllowed('python -c "open(\'x.txt\',\'w\').write(\'no\')"')).toBe(false)
   })
 
   it('keeps read-only terminal commands from modifying local state', async () => {
@@ -163,6 +171,6 @@ describe('agent progressive disclosure helpers', () => {
         command: 'Set-Content -Path should-not-exist.txt -Value no',
         confirmed: true,
       }),
-    ).rejects.toThrow('Read-only terminal tool rejected')
+    ).rejects.toThrow('Read-only terminal tool only allows explicit read commands')
   })
 })

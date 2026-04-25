@@ -63,4 +63,27 @@ describe('output profile service', () => {
 
     expect(await service.formatOutputProfileRuntimeContext('任意请求')).toBe('')
   })
+
+  it('sorts all priority levels before updated time', async () => {
+    const service = await import('../output-profile.service.js')
+
+    await service.createOutputProfile({
+      title: 'normal profile',
+      priority: 'normal',
+      instructions: 'normal instructions',
+    })
+    await service.createOutputProfile({
+      title: 'low profile',
+      priority: 'low',
+      instructions: 'low instructions',
+    })
+    await service.createOutputProfile({
+      title: 'high profile',
+      priority: 'high',
+      instructions: 'high instructions',
+    })
+
+    const titles = (await service.listOutputProfiles()).map((profile) => profile.title)
+    expect(titles).toEqual(['high profile', 'normal profile', 'low profile'])
+  })
 })

@@ -87,6 +87,17 @@ const READONLY_DENY_PATTERNS: RegExp[] = [
   /(^|[^<])>>?([^=]|$)/,
 ]
 
+const READONLY_SHELL_META_PATTERN = /[;&|<>`$()[\]{}\r\n]/
+
+const READONLY_ALLOWED_COMMAND_PATTERNS: RegExp[] = [
+  /^(dir|ls)(\s+[^;&|<>`\r\n]*)?$/i,
+  /^(pwd|cd|Get-Location)(\s*)?$/i,
+  /^(cat|type|more|Get-Content)(\s+[^;&|<>`\r\n]+)?$/i,
+  /^(rg|rg\.exe|Select-String)(\s+[^;&|<>`\r\n]+)?$/i,
+  /^(Test-Path)(\s+[^;&|<>`\r\n]+)?$/i,
+  /^git\s+(status|diff|log|show)(\s+[^;&|<>`\r\n]*)?$/i,
+]
+
 function workspaceRoot() {
   const cwd = process.cwd()
   return path.basename(cwd).toLowerCase() === 'backend' ? path.dirname(cwd) : cwd
@@ -162,9 +173,20 @@ function assertConfirmedForRisk(risk: TerminalRiskLevel, confirmed: unknown, com
   )
 }
 
+export function isReadonlyTerminalCommandAllowed(command: string) {
+  const normalized = command.trim()
+  if (!normalized) return false
+  if (READONLY_SHELL_META_PATTERN.test(normalized)) return false
+  if (READONLY_DENY_PATTERNS.some((pattern) => pattern.test(normalized))) return false
+  return READONLY_ALLOWED_COMMAND_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
 function assertReadonlyCommand(command: string) {
-  if (!READONLY_DENY_PATTERNS.some((pattern) => pattern.test(command))) return
-  throw new HttpError(400, `Read-only terminal tool rejected a command that may modify state: ${command}`)
+  if (isReadonlyTerminalCommandAllowed(command)) return
+  throw new HttpError(
+    400,
+    `Read-only terminal tool only allows explicit read commands: ${command}`,
+  )
 }
 
 function buildSpawnArgs(shell: TerminalShell, command: string) {
