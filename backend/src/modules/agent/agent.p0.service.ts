@@ -10,11 +10,19 @@ import { summarizeCheckpointForInjection } from './agent.checkpoint.service.js'
 import { formatUapisDirectorySummary } from '../uapis/uapis.service.js'
 import type { AgentCheckpoint, AgentPackName } from './agent.runtime.types.js'
 import type { LLMConversationMessage, LLMToolDefinition } from './llm.client.js'
+import {
+  CONTEXT_UPGRADE_TOOL_SCHEMA_TOKEN_BUDGET,
+  P0_TOTAL_TOKEN_BUDGET,
+  P0_UAPIS_DIRECTORY_TOKEN_BUDGET,
+  buildTokenBudgetReport,
+  textBudgetComponent,
+  toolSchemaBudgetComponent,
+} from './agent.budget.service.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT_DIR = path.resolve(__dirname, '..', '..', '..', '..')
 
-let cachedCoreRules: string | null = null
+let cachedCoreRuleFiles: { core: string; local: string } | null = null
 let cachedProjectProfile: string | null = null
 
 async function readOptionalFile(target: string) {
@@ -25,14 +33,14 @@ async function readOptionalFile(target: string) {
   }
 }
 
-async function getCoreRules() {
-  if (cachedCoreRules !== null) return cachedCoreRules
+async function getCoreRuleFiles() {
+  if (cachedCoreRuleFiles !== null) return cachedCoreRuleFiles
   const [core, local] = await Promise.all([
     readOptionalFile(path.join(ROOT_DIR, '1052.md')),
     readOptionalFile(path.join(ROOT_DIR, '1052.local.md')),
   ])
-  cachedCoreRules = [core, local].filter(Boolean).join('\n\n').trim()
-  return cachedCoreRules
+  cachedCoreRuleFiles = { core, local }
+  return cachedCoreRuleFiles
 }
 
 async function getProjectProfileSummary() {
@@ -128,12 +136,17 @@ export async function buildP0Messages(input: {
   mountedPacks?: readonly AgentPackName[]
   extraSections?: string[]
 }) {
-  const [coreRules, projectProfile, uapisSummary] = await Promise.all([
-    getCoreRules(),
+  const [coreRuleFiles, projectProfile, uapisSummary] = await Promise.all([
+    getCoreRuleFiles(),
     getProjectProfileSummary(),
     getP0UapisSummary(),
   ])
   const checkpointSummary = summarizeCheckpointForInjection(input.checkpoint)
+  const coreRules = [coreRuleFiles.core, coreRuleFiles.local].filter(Boolean).join('\n\n').trim()
+  const mountedPacks = renderMountedPacks(input.mountedPacks ?? [])
+  const extraSections = input.extraSections ?? []
+  const routingPrompt = getRoutingPrompt()
+  const contextUpgradeTool = getContextUpgradeToolDefinition()
   const messages: LLMConversationMessage[] = [
     {
       role: 'system',
@@ -141,10 +154,10 @@ export async function buildP0Messages(input: {
         coreRules,
         projectProfile,
         checkpointSummary.text,
-        renderMountedPacks(input.mountedPacks ?? []),
+        mountedPacks,
         uapisSummary,
-        ...(input.extraSections ?? []),
-        getRoutingPrompt(),
+        ...extraSections,
+        routingPrompt,
       ]
         .filter(Boolean)
         .join('\n\n'),
@@ -159,5 +172,74 @@ export async function buildP0Messages(input: {
   }
 
   messages.push(...input.history)
-  return { messages, injectedCheckpointTokens: checkpointSummary.injectedTokens }
+
+  const budgetReport = buildTokenBudgetReport({
+    key: 'p0',
+    label: 'P0 static prompt budget',
+    limitTokens: P0_TOTAL_TOKEN_BUDGET,
+    components: [
+      textBudgetComponent({
+        key: 'core-rules',
+        label: '1052.md core rules',
+        text: coreRuleFiles.core,
+        limitTokens: 800,
+      }),
+      textBudgetComponent({
+        key: 'local-rules',
+        label: '1052.local.md local rules',
+        text: coreRuleFiles.local,
+        limitTokens: 200,
+      }),
+      textBudgetComponent({
+        key: 'project-profile',
+        label: 'Project profile summary',
+        text: projectProfile,
+        limitTokens: 500,
+      }),
+      textBudgetComponent({
+        key: 'checkpoint',
+        label: 'Checkpoint injection summary',
+        text: checkpointSummary.text,
+        limitTokens: 800,
+      }),
+      textBudgetComponent({
+        key: 'mounted-packs',
+        label: 'Mounted packs summary',
+        text: mountedPacks,
+      }),
+      textBudgetComponent({
+        key: 'user-prompt',
+        label: 'User preference prompt',
+        text: input.userPrompt,
+        limitTokens: 200,
+      }),
+      textBudgetComponent({
+        key: 'uapis-directory',
+        label: 'UAPIs P0 directory',
+        text: uapisSummary,
+        limitTokens: P0_UAPIS_DIRECTORY_TOKEN_BUDGET,
+      }),
+      ...extraSections.map((section, index) =>
+        textBudgetComponent({
+          key: `extra-section-${index + 1}`,
+          label: `Extra runtime section ${index + 1}`,
+          text: section,
+        }),
+      ),
+      textBudgetComponent({
+        key: 'routing-prompt',
+        label: 'Capability routing prompt',
+        text: routingPrompt,
+        limitTokens: 400,
+      }),
+      toolSchemaBudgetComponent({
+        key: 'context-upgrade-tool',
+        label: 'request_context_upgrade schema',
+        toolDefinitions: [contextUpgradeTool],
+        limitTokens: CONTEXT_UPGRADE_TOOL_SCHEMA_TOKEN_BUDGET,
+      }),
+    ],
+  })
+
+  return { messages, injectedCheckpointTokens: checkpointSummary.injectedTokens, budgetReport }
 }

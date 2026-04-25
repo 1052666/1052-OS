@@ -55,6 +55,13 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('uapis_list_apis')
     expect(system).toContain('uapis_read_api')
     expect(system).toContain('uapis_call')
+    expect(built.budgetReport).toMatchObject({
+      key: 'p0',
+      limitTokens: 3000,
+    })
+    expect(built.budgetReport.components.map((component) => component.key)).toContain(
+      'context-upgrade-tool',
+    )
   })
 
   it('mounts memory write tools through memory-pack and advertises the route in P0', async () => {
