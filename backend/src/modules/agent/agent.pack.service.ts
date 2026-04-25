@@ -74,6 +74,34 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'resources_read',
     'sql_datasource_list',
     'sql_file_list',
+    'sql_datasource_create',
+    'sql_datasource_update',
+    'sql_datasource_delete',
+    'sql_datasource_test',
+    'sql_file_create',
+    'sql_file_update',
+    'sql_file_delete',
+    'sql_query',
+    'sql_variable_list',
+    'sql_variable_create',
+    'sql_variable_update',
+    'sql_variable_delete',
+    'sql_server_list',
+    'sql_server_create',
+    'sql_server_update',
+    'sql_server_delete',
+    'sql_server_test',
+    'sql_shell_file_list',
+    'sql_shell_file_create',
+    'sql_shell_file_update',
+    'sql_shell_file_delete',
+    'sql_shell_file_execute',
+    'orchestration_list',
+    'orchestration_create',
+    'orchestration_update',
+    'orchestration_delete',
+    'orchestration_execute',
+    'orchestration_logs',
     'wiki_summary',
     'wiki_raw_list',
     'wiki_raw_read',
@@ -154,7 +182,7 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'plan-pack':
       return '日程、定时任务、计划类工具。'
     case 'data-pack':
-      return '笔记、资源列表、SQL 数据源、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。Wiki 写入、索引、日志和 lint 修复默认需要用户确认。'
+      return '笔记、资源列表、SQL 数据源管理（MySQL/Oracle/SQLite/Hive）、SQL 文件管理、SQL 查询执行、SQL 变量管理、SSH 服务器管理、Shell 脚本管理及执行、SQL 编排（DAG 工作流）、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。SQL 写入、服务器操作、Shell 执行和 Wiki 写入默认需要用户确认。'
     case 'channel-pack':
       return '微信、飞书等外部通道能力、Intel Brief 通道格式渲染和飞书工作区工具。'
   }

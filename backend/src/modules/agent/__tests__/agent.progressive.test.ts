@@ -122,6 +122,66 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('综合分析')
   })
 
+  it('mounts full SQL workbench tools through data-pack', () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['data-pack']))
+
+    // SQL data source tools
+    expect(toolNames).toContain('sql_datasource_list')
+    expect(toolNames).toContain('sql_datasource_create')
+    expect(toolNames).toContain('sql_datasource_update')
+    expect(toolNames).toContain('sql_datasource_delete')
+    expect(toolNames).toContain('sql_datasource_test')
+    expect(hasAgentTool('sql_datasource_create')).toBe(true)
+    expect(hasAgentTool('sql_datasource_test')).toBe(true)
+
+    // SQL file tools
+    expect(toolNames).toContain('sql_file_list')
+    expect(toolNames).toContain('sql_file_create')
+    expect(toolNames).toContain('sql_file_update')
+    expect(toolNames).toContain('sql_file_delete')
+
+    // SQL query
+    expect(toolNames).toContain('sql_query')
+    expect(hasAgentTool('sql_query')).toBe(true)
+
+    // SQL variable tools
+    expect(toolNames).toContain('sql_variable_list')
+    expect(toolNames).toContain('sql_variable_create')
+    expect(toolNames).toContain('sql_variable_update')
+    expect(toolNames).toContain('sql_variable_delete')
+    expect(hasAgentTool('sql_variable_list')).toBe(true)
+    expect(hasAgentTool('sql_variable_create')).toBe(true)
+
+    // SQL server tools
+    expect(toolNames).toContain('sql_server_list')
+    expect(toolNames).toContain('sql_server_create')
+    expect(toolNames).toContain('sql_server_update')
+    expect(toolNames).toContain('sql_server_delete')
+    expect(toolNames).toContain('sql_server_test')
+    expect(hasAgentTool('sql_server_list')).toBe(true)
+    expect(hasAgentTool('sql_server_test')).toBe(true)
+
+    // SQL shell file tools
+    expect(toolNames).toContain('sql_shell_file_list')
+    expect(toolNames).toContain('sql_shell_file_create')
+    expect(toolNames).toContain('sql_shell_file_update')
+    expect(toolNames).toContain('sql_shell_file_delete')
+    expect(toolNames).toContain('sql_shell_file_execute')
+    expect(hasAgentTool('sql_shell_file_list')).toBe(true)
+    expect(hasAgentTool('sql_shell_file_execute')).toBe(true)
+
+    // Orchestration tools
+    expect(toolNames).toContain('orchestration_list')
+    expect(toolNames).toContain('orchestration_create')
+    expect(toolNames).toContain('orchestration_update')
+    expect(toolNames).toContain('orchestration_delete')
+    expect(toolNames).toContain('orchestration_execute')
+    expect(toolNames).toContain('orchestration_logs')
+    expect(hasAgentTool('orchestration_execute')).toBe(true)
+
+    expect(describePackForRouting('data-pack')).toContain('SQL')
+  })
+
   it('mounts Intel Brief formatting through channel-pack', () => {
     const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['channel-pack']))
     expect(toolNames).toContain('intel_brief_format')
@@ -183,6 +243,7 @@ describe('agent progressive disclosure helpers', () => {
       exitCode: 0,
       risk: 'safe',
     })
+  })
 
   it('keeps read-only terminal commands on the allow list', async () => {
     expect(isReadonlyTerminalCommandAllowed('rg output-profile backend/src')).toBe(true)
