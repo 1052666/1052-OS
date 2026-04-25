@@ -1,7 +1,7 @@
 import os from 'node:os'
 import path from 'node:path'
 import { httpError, HttpError } from '../../http-error.js'
-import { getSettings } from '../settings/settings.service.js'
+import { getSettings, resolveLlmConfigForTask } from '../settings/settings.service.js'
 import { getChatHistory } from './agent.history.service.js'
 import { formatMemoryRuntimeContext } from '../memory/memory.service.js'
 import { formatOutputProfileRuntimeContext } from '../output-profiles/output-profile.service.js'
@@ -389,6 +389,7 @@ async function* runLegacyStream(
   options: AgentRunOptions,
 ): AsyncGenerator<AgentStreamEvent, void, void> {
   const settings = await getSettings()
+  const llm = resolveLlmConfigForTask(settings.llm, 'agent-chat')
   const latestUserContent = latestUserMessage(history)?.content ?? ''
   const messages = await composeLegacyMessages(
     history,
@@ -401,7 +402,7 @@ async function* runLegacyStream(
   const usedToolNames = new Set<string>()
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const stream = chatCompletionStream(settings.llm, messages, tools, {
+    const stream = chatCompletionStream(llm, messages, tools, {
       abortSignal: options.abortSignal,
       providerCachingEnabled: settings.agent.providerCachingEnabled,
     })
@@ -442,6 +443,7 @@ async function* runProgressiveStream(
   options: AgentRunOptions,
 ): AsyncGenerator<AgentStreamEvent, void, void> {
   const settings = await getSettings()
+  const llm = resolveLlmConfigForTask(settings.llm, 'agent-chat')
   const sessionId = deriveSessionId(options.runtimeContext)
   const storedMessages: StoredChatMessage[] | undefined =
     options.runtimeContext?.source ? undefined : (await getChatHistory()).messages
@@ -516,7 +518,7 @@ async function* runProgressiveStream(
         ? [getContextUpgradeToolDefinition(), ...mountedToolDefinitions]
         : [getContextUpgradeToolDefinition()]
 
-    const stream = chatCompletionStream(settings.llm, built.messages, tools, {
+    const stream = chatCompletionStream(llm, built.messages, tools, {
       abortSignal: options.abortSignal,
       providerCachingEnabled: settings.agent.providerCachingEnabled,
     })

@@ -1,4 +1,5 @@
-import { getSettings } from '../../settings/settings.service.js'
+import { getSettings, resolveLlmConfigForTask } from '../../settings/settings.service.js'
+import { discoverLocalModels } from '../../settings/local-llm-discovery.service.js'
 import {
   shouldUseProviderCaching,
   supportsPromptCacheKey,
@@ -26,6 +27,7 @@ export const agentRuntimeTools: AgentTool[] = [
     },
     async execute() {
       const settings = await getSettings()
+      const chatLlm = resolveLlmConfigForTask(settings.llm, 'agent-chat')
       return {
         agent: {
           progressiveDisclosureEnabled: settings.agent.progressiveDisclosureEnabled,
@@ -35,19 +37,47 @@ export const agentRuntimeTools: AgentTool[] = [
           upgradeDebugEventsEnabled: settings.agent.upgradeDebugEventsEnabled,
         },
         llm: {
-          providerHost: providerHost(settings.llm.baseUrl),
-          modelId: settings.llm.modelId,
-          hasApiKey: settings.llm.apiKey.length > 0,
+          activeProfileId: settings.llm.activeProfileId,
+          routedProfileId: chatLlm.activeProfileId,
+          kind: chatLlm.kind,
+          provider: chatLlm.provider,
+          providerHost: providerHost(chatLlm.baseUrl),
+          modelId: chatLlm.modelId,
+          hasApiKey: chatLlm.apiKey.length > 0,
+          profiles: settings.llm.profiles.map((profile) => ({
+            id: profile.id,
+            name: profile.name,
+            kind: profile.kind,
+            provider: profile.provider,
+            modelId: profile.modelId,
+            providerHost: providerHost(profile.baseUrl),
+            enabled: profile.enabled,
+            detected: profile.detected === true,
+          })),
+          taskRoutes: settings.llm.taskRoutes,
         },
         providerCaching: {
           active: shouldUseProviderCaching(
-            settings.llm,
+            chatLlm,
             settings.agent.providerCachingEnabled,
           ),
-          promptCacheKeySupported: supportsPromptCacheKey(settings.llm),
-          passivePrefixCaching: usesPassivePrefixCaching(settings.llm),
+          promptCacheKeySupported: supportsPromptCacheKey(chatLlm),
+          passivePrefixCaching: usesPassivePrefixCaching(chatLlm),
         },
       }
+    },
+  },
+  {
+    name: 'agent_llm_local_model_scan',
+    description:
+      'Scan localhost for installed local LLM servers and return OpenAI-compatible model candidates. Read-only and does not expose API keys.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+    async execute() {
+      return discoverLocalModels()
     },
   },
 ]

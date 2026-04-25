@@ -80,14 +80,14 @@ const SAFE_COMMAND_PATTERNS: RegExp[] = [
 ]
 
 const READONLY_DENY_PATTERNS: RegExp[] = [
-  /\b(Remove-Item|rm|del|erase|rmdir|rd)\b/i,
-  /\b(Set-Content|Add-Content|Out-File|New-Item|Copy-Item|Move-Item|Rename-Item)\b/i,
-  /\b(Stop-Process|Start-Process|taskkill|sc|net\s+stop|net\s+start)\b/i,
-  /\b(chmod|chown|touch|mkdir|mkfifo|ln|cp|mv|kill|pkill|killall|sudo|su|systemctl|service|launchctl|open|xdg-open)\b/i,
-  /\b(git\s+(add|commit|checkout|switch|reset|clean|merge|rebase|pull|push|tag|stash))(\s|$)/i,
-  /\b(npm|pnpm|yarn)\s+(install|add|remove|uninstall|publish|run)\b/i,
-  /\b(pip|uv)\s+(install|uninstall|sync)\b/i,
-  /\b(Set-ItemProperty|New-ItemProperty|Remove-ItemProperty)\b/i,
+  /^(Remove-Item|rm|del|erase|rmdir|rd)(\s|$)/i,
+  /^(Set-Content|Add-Content|Out-File|New-Item|Copy-Item|Move-Item|Rename-Item)(\s|$)/i,
+  /^(Stop-Process|Start-Process|taskkill|sc|net\s+stop|net\s+start)(\s|$)/i,
+  /^(chmod|chown|touch|mkdir|mkfifo|ln|cp|mv|kill|pkill|killall|sudo|su|systemctl|service|launchctl|open|xdg-open)(\s|$)/i,
+  /^git\s+(add|commit|checkout|switch|reset|clean|merge|rebase|pull|push|tag|stash)(\s|$)/i,
+  /^(npm|pnpm|yarn)\s+(install|add|remove|uninstall|publish|run)\b/i,
+  /^(pip|uv)\s+(install|uninstall|sync)\b/i,
+  /^(Set-ItemProperty|New-ItemProperty|Remove-ItemProperty)(\s|$)/i,
   /(^|[^<])>>?([^=]|$)/,
 ]
 

@@ -1,4 +1,4 @@
-import { getSettings } from '../settings/settings.service.js'
+import { getSettings, resolveLlmConfigForTask } from '../settings/settings.service.js'
 import type { ChatMessage, StoredChatMessage } from './agent.types.js'
 import { chatCompletion, type LLMConversationMessage } from './llm.client.js'
 import { redactSensitiveText } from './agent.redaction.service.js'
@@ -54,6 +54,7 @@ function heuristicSeedFromText(text: string) {
 
 async function summarizeSeedWithModel(input: string) {
   const settings = await getSettings()
+  const llm = resolveLlmConfigForTask(settings.llm, 'summarization')
   const messages: LLMConversationMessage[] = [
     {
       role: 'system',
@@ -65,7 +66,7 @@ async function summarizeSeedWithModel(input: string) {
       content: input,
     },
   ]
-  const response = await chatCompletion(settings.llm, messages, [], {
+  const response = await chatCompletion(llm, messages, [], {
     providerCachingEnabled: settings.agent.providerCachingEnabled,
   })
   try {
