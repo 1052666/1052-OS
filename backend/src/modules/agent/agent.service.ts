@@ -46,6 +46,12 @@ import {
   REQUEST_CONTEXT_UPGRADE_TOOL,
 } from './agent.upgrade.service.js'
 import { appendAgentRuntimeLog } from './agent.runtime-log.service.js'
+import {
+  formatSafeCallerSystemInstructions,
+  sanitizeCheckpointTextForModel,
+  toModelChatMessages,
+} from './agent.context-sanitizer.service.js'
+import { maybeCreateInferredMemorySuggestion } from './agent.memory-autosuggest.service.js'
 
 const MAX_TOOL_ROUNDS = 450
 const PROGRESSIVE_HISTORY_LIMIT = 6
@@ -209,13 +215,7 @@ function appendGeneratedImageMarkdown(content: string, messages: LLMConversation
 }
 
 function normalizeHistoryForProgressive(history: ChatMessage[], limit: number): LLMConversationMessage[] {
-  return history
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .slice(-limit)
-    .map((message) => ({
-      role: message.role,
-      content: message.content,
-    }))
+  return toModelChatMessages(history, limit) as LLMConversationMessage[]
 }
 
 async function composeLegacyMessages(
@@ -226,6 +226,11 @@ async function composeLegacyMessages(
 ): Promise<LLMConversationMessage[]> {
   const limitedHistory = history.slice(-Math.max(1, contextMessageLimit))
   const latestUserContent = latestUserMessage(limitedHistory)?.content ?? ''
+  const callerSystemInstructions = formatSafeCallerSystemInstructions(history)
+  const modelHistory = toModelChatMessages(
+    limitedHistory,
+    Math.max(1, contextMessageLimit),
+  ) as LLMConversationMessage[]
   const [systemPrompt, skillsContext, uapisContext, memoryContext, outputProfileContext] = await Promise.all([
     getAgentSystemPrompt(),
     formatSkillsRuntimeContext(),
@@ -242,6 +247,7 @@ async function composeLegacyMessages(
         formatRuntimeContext(new Date()),
         formatSystemEnvironmentContext(),
         formatPermissionBlock(fullAccess),
+        callerSystemInstructions,
         formatAgentWorkspaceContext(),
         memoryContext,
         outputProfileContext,
@@ -260,12 +266,7 @@ async function composeLegacyMessages(
     })
   }
 
-  messages.push(
-    ...limitedHistory.map((message) => ({
-      role: message.role,
-      content: message.content,
-    })),
-  )
+  messages.push(...modelHistory)
   return messages
 }
 
@@ -283,7 +284,7 @@ function extractToolFailure(toolMessages: LLMConversationMessage[]) {
     if (message.role !== 'tool') continue
     const parsed = parseToolResult(message.content)
     if (parsed?.ok === false && parsed.error) {
-      return `${message.name}: ${truncateText(parsed.error, 160)}`
+      return sanitizeCheckpointTextForModel(`${message.name}: ${truncateText(parsed.error, 240)}`)
     }
   }
   return ''
@@ -323,6 +324,7 @@ async function buildProgressiveMessages(input: {
   userPrompt: string
   checkpointSessionId: string
   latestUserContent: string
+  callerSystemInstructions: string
   contextMessageLimit: number
   fullAccess: boolean
 }) {
@@ -335,6 +337,9 @@ async function buildProgressiveMessages(input: {
     input.latestUserContent,
     input.fullAccess,
   )
+  if (input.callerSystemInstructions) {
+    extraSections.push(input.callerSystemInstructions)
+  }
 
   const built = await buildP0Messages({
     history: progressiveHistory,
@@ -384,6 +389,7 @@ async function* runLegacyStream(
   options: AgentRunOptions,
 ): AsyncGenerator<AgentStreamEvent, void, void> {
   const settings = await getSettings()
+  const latestUserContent = latestUserMessage(history)?.content ?? ''
   const messages = await composeLegacyMessages(
     history,
     settings.agent.userPrompt,
@@ -392,6 +398,7 @@ async function* runLegacyStream(
   )
   const tools = getAgentToolDefinitions()
   let usage: TokenUsage = {}
+  const usedToolNames = new Set<string>()
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     const stream = chatCompletionStream(settings.llm, messages, tools, {
@@ -414,10 +421,15 @@ async function* runLegacyStream(
       if (nextContent !== response.content) {
         yield { type: 'delta', content: nextContent.slice(response.content.length) }
       }
+      await maybeCreateInferredMemorySuggestion({
+        latestUserContent,
+        usedToolNames,
+      }).catch(() => null)
       yield { type: 'usage', usage: withUserTokens(usage, history) }
       return
     }
 
+    response.toolCalls.forEach((toolCall) => usedToolNames.add(toolCall.function.name))
     const toolMessages = await executeToolCalls(response.toolCalls, options.runtimeContext)
     messages.push(...toolMessages)
   }
@@ -434,6 +446,8 @@ async function* runProgressiveStream(
   const storedMessages: StoredChatMessage[] | undefined =
     options.runtimeContext?.source ? undefined : (await getChatHistory()).messages
   const latestUserContent = latestUserMessage(history)?.content ?? ''
+  const callerSystemInstructions = formatSafeCallerSystemInstructions(history)
+  const usedToolNames = new Set<string>()
   let checkpoint = await ensureCheckpointSeedForSession(sessionId, history, storedMessages)
   let conversation = normalizeHistoryForProgressive(
     history,
@@ -468,6 +482,7 @@ async function* runProgressiveStream(
       userPrompt: settings.agent.userPrompt,
       checkpointSessionId: sessionId,
       latestUserContent,
+      callerSystemInstructions,
       contextMessageLimit: settings.agent.contextMessageLimit,
       fullAccess: settings.agent.fullAccess === true,
     })
@@ -544,6 +559,10 @@ async function* runProgressiveStream(
         providerCachingEnabled: settings.agent.providerCachingEnabled,
         usage: finalUsage,
       })
+      await maybeCreateInferredMemorySuggestion({
+        latestUserContent,
+        usedToolNames,
+      }).catch(() => null)
       yield { type: 'usage', usage: finalUsage }
       return
     }
@@ -681,6 +700,7 @@ async function* runProgressiveStream(
     }
 
     conversation.push(toAssistantHistoryMessage(response))
+    response.toolCalls.forEach((toolCall) => usedToolNames.add(toolCall.function.name))
     const toolMessages = await executeToolCalls(response.toolCalls, options.runtimeContext)
     conversation.push(...toolMessages)
 

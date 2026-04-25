@@ -39,6 +39,8 @@ describe('agent progressive disclosure helpers', () => {
     expect(toolNames).toContain('agent_runtime_status')
     expect(toolNames).toContain('filesystem_read_file')
     expect(toolNames).toContain('terminal_run_readonly')
+    expect(toolNames).toContain('terminal_run')
+    expect(toolNames).toContain('terminal_interrupt')
     expect(toolNames).toContain('websearch_search')
     expect(toolNames).toContain('uapis_list_apis')
     expect(toolNames).toContain('uapis_read_api')
@@ -81,6 +83,7 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('memory-pack')
     expect(system).toContain('memory_create')
     expect(system).toContain('memory_suggest')
+    expect(system).toContain('proactively request memory-pack')
   })
 
   it('mounts Wiki tools through data-pack and advertises the route in P0', async () => {

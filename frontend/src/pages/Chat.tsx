@@ -232,13 +232,29 @@ function toStoredMessages(messages: Msg[]): StoredChatMessage[] {
   )
 }
 
+function stripThinkForModel(content: string) {
+  return content
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '')
+    .trim()
+}
+
 function toChatMessages(messages: Msg[], assistantId?: number): ChatMessage[] {
   return messages
     .filter((message) => message.id !== assistantId)
-    .map(({ role, content, compactSummary }) => ({
-      role,
-      content: compactSummary?.trim() ? `${content}\n\n${compactSummary}` : content,
-    }))
+    .filter((message) => !message.error && !message.streaming)
+    .map(({ role, content, compactSummary }) => {
+      const cleanContent = stripThinkForModel(content)
+      const cleanSummary = compactSummary ? stripThinkForModel(compactSummary) : ''
+      return {
+        role,
+        content:
+          cleanContent && cleanSummary
+            ? `${cleanContent}\n\n${cleanSummary}`
+            : cleanContent || cleanSummary,
+      }
+    })
+    .filter((message) => message.content.trim())
 }
 
 function isCommandInput(value: string) {

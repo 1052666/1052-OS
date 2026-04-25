@@ -4,6 +4,10 @@ import type { ChatMessage } from './agent.types.js'
 import type { AgentCheckpoint, AgentPackName } from './agent.runtime.types.js'
 import { estimateTokenCount } from './llm.client.js'
 import { readJson, writeJson } from '../../storage.js'
+import {
+  sanitizeCheckpointTextForModel,
+  toModelChatMessages,
+} from './agent.context-sanitizer.service.js'
 
 const CHECKPOINT_DIR = '1052/checkpoints'
 const MAX_INJECTED_TOKENS = 800
@@ -215,12 +219,18 @@ export async function appendCheckpointEntry(
 ) {
   const current = await getCheckpoint(sessionIdInput)
   const next = { ...current }
-  if (input.fact?.trim()) next.facts = [...next.facts, input.fact.trim()].slice(-50)
-  if (input.done?.trim()) next.done = [...next.done, input.done.trim()].slice(-50)
-  if (input.failedAttempt?.trim()) {
-    next.failedAttempts = [...next.failedAttempts, input.failedAttempt.trim()].slice(-30)
+  const fact = input.fact ? sanitizeCheckpointTextForModel(input.fact) : ''
+  const done = input.done ? sanitizeCheckpointTextForModel(input.done) : ''
+  const failedAttempt = input.failedAttempt
+    ? sanitizeCheckpointTextForModel(input.failedAttempt)
+    : ''
+  const nextStep = input.nextStep ? sanitizeCheckpointTextForModel(input.nextStep) : ''
+  if (fact) next.facts = [...next.facts, fact].slice(-50)
+  if (done) next.done = [...next.done, done].slice(-50)
+  if (failedAttempt) {
+    next.failedAttempts = [...next.failedAttempts, failedAttempt].slice(-30)
   }
-  if (input.nextStep?.trim()) next.nextStep = input.nextStep.trim()
+  if (nextStep) next.nextStep = nextStep
   if (input.mountedPacks?.length) {
     next.mountedPacks = [...new Set([...next.mountedPacks, ...input.mountedPacks])]
   }
@@ -252,15 +262,21 @@ export function deriveSessionId(
   return normalizeSessionId(`feishu:${source.receiveId}`)
 }
 
+function checkpointLine(label: string, value: string | undefined) {
+  if (!value) return ''
+  const sanitized = sanitizeCheckpointTextForModel(value)
+  return sanitized ? `- ${label}: ${sanitized}` : ''
+}
+
 function renderCheckpointLines(checkpoint: AgentCheckpoint) {
   return [
-    checkpoint.goal ? `- goal: ${checkpoint.goal}` : '',
-    checkpoint.phase ? `- phase: ${checkpoint.phase}` : '',
-    checkpoint.nextStep ? `- next: ${checkpoint.nextStep}` : '',
+    checkpointLine('goal', checkpoint.goal),
+    checkpointLine('phase', checkpoint.phase),
+    checkpointLine('next', checkpoint.nextStep),
     checkpoint.mountedPacks.length > 0 ? `- mounted packs: ${checkpoint.mountedPacks.join(', ')}` : '',
-    ...checkpoint.facts.slice(-4).map((item) => `- fact: ${item}`),
-    ...checkpoint.done.slice(-4).map((item) => `- done: ${item}`),
-    ...checkpoint.failedAttempts.slice(-3).map((item) => `- failed: ${item}`),
+    ...checkpoint.facts.slice(-4).map((item) => checkpointLine('fact', item)),
+    ...checkpoint.done.slice(-4).map((item) => checkpointLine('done', item)),
+    ...checkpoint.failedAttempts.slice(-3).map((item) => checkpointLine('failed', item)),
   ].filter(Boolean)
 }
 
@@ -294,8 +310,7 @@ export function fingerprintSeedInput(parts: string[]) {
 }
 
 export function messagesToRecentPlainText(history: ChatMessage[], maxMessages = 20) {
-  return history
-    .slice(-maxMessages)
+  return toModelChatMessages(history, maxMessages)
     .map((message) => `${message.role}: ${message.content}`)
     .join('\n\n')
 }

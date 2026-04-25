@@ -10,6 +10,7 @@ import {
   sanitizeStoredMessages,
 } from './agent.history.service.js'
 import type { ChatHistory, StoredChatMessage } from './agent.types.js'
+import { sanitizeStoredMessageForCompaction } from './agent.context-sanitizer.service.js'
 
 const BACKUP_DIR = 'chat-history-backups'
 const CHUNK_CHAR_LIMIT = 32_000
@@ -213,9 +214,9 @@ export async function compactChatHistory(inputMessages?: unknown): Promise<
   const currentHistory = inputMessages
     ? { messages: sanitizeStoredMessages(inputMessages) }
     : await getChatHistory()
-  const messages = currentHistory.messages.filter(
-    (message) => message.content.trim() && !message.streaming,
-  )
+  const messages = currentHistory.messages
+    .map((message) => sanitizeStoredMessageForCompaction(message))
+    .filter((message): message is StoredChatMessage => message !== null)
 
   if (messages.length === 0) {
     throw new HttpError(400, '当前没有可压缩的聊天上下文')
