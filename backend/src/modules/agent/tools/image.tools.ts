@@ -5,7 +5,7 @@ export const imageTools: AgentTool[] = [
   {
     name: 'image_generate',
     description:
-      'Generate one or more images from a text prompt using the configured image generation API. The backend supports OpenAI-compatible image endpoints and Gemini native image generation. Use this only when the user explicitly asks to create, draw, render, design, or generate an image, illustration, poster, logo concept, cover, or similar visual output.',
+      'Built-in 1052 OS image generation. Generate one or more images from a text prompt using the configured image generation API. The backend supports OpenAI-compatible image endpoints and Gemini native image generation. Use this when the user explicitly asks to create, draw, render, design, or generate an image, illustration, poster, logo concept, cover, wallpaper, avatar, or similar visual output. Do not use web search or UAPIs as a substitute for image creation unless the user asks for reference research or existing images.',
     parameters: {
       type: 'object',
       properties: {

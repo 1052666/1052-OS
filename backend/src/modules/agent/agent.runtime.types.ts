@@ -3,6 +3,7 @@ import type { TokenUsage } from './agent.types.js'
 export type AgentPackName =
   | 'base-read-pack'
   | 'repo-pack'
+  | 'image-pack'
   | 'search-pack'
   | 'memory-pack'
   | 'skill-pack'

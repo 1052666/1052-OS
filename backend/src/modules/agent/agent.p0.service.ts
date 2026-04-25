@@ -94,6 +94,8 @@ function getRoutingPrompt() {
     'Capability routing:',
     ...REQUESTABLE_PACKS.map((pack) => `- ${pack}: ${describePackForRouting(pack)}`),
     '- Start in P0 with no business tools.',
+    '- If the user asks to generate, draw, design, render, create an image, illustration, poster, logo concept, cover, visual, wallpaper, avatar, or similar visual output, request image-pack and use image_generate. This route has priority over search-pack and UAPIs for image creation.',
+    '- Do not search the web for image generation APIs, tools, model docs, stock images, or prompt examples when the user simply wants 1052 OS to create an image. Search only if the user explicitly asks for research/reference material, existing images, or current facts.',
     '- If you need local code, local files, repository inspection, file creation/modification, script execution, build/test commands, or terminal execution, request repo-pack.',
     '- terminal_run_readonly is only for allow-listed read-only inspection. Use terminal_run for scripts, file writes, builds, tests, and other commands that can modify local state when permission allows.',
     '- If you need web search, page reading, or UAPIs lookup/call, request search-pack.',

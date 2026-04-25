@@ -32,8 +32,8 @@ describe('agent progressive disclosure helpers', () => {
   })
 
   it('expands base-read-pack automatically and deduplicates mounted tool names', () => {
-    const mountedPacks = expandMountedPacks(['repo-pack', 'search-pack'])
-    expect(mountedPacks).toEqual(['base-read-pack', 'repo-pack', 'search-pack'])
+    const mountedPacks = expandMountedPacks(['repo-pack', 'image-pack', 'search-pack'])
+    expect(mountedPacks).toEqual(['base-read-pack', 'repo-pack', 'image-pack', 'search-pack'])
 
     const toolNames = getToolNamesForMountedPacks(mountedPacks)
     expect(toolNames).toContain('agent_runtime_status')
@@ -41,11 +41,30 @@ describe('agent progressive disclosure helpers', () => {
     expect(toolNames).toContain('terminal_run_readonly')
     expect(toolNames).toContain('terminal_run')
     expect(toolNames).toContain('terminal_interrupt')
+    expect(toolNames).toContain('image_generate')
     expect(toolNames).toContain('websearch_search')
     expect(toolNames).toContain('uapis_list_apis')
     expect(toolNames).toContain('uapis_read_api')
     expect(toolNames).toContain('uapis_call')
     expect(toolNames.filter((name) => name === 'filesystem_read_file')).toHaveLength(1)
+  })
+
+  it('routes image generation through image-pack before search capabilities', async () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['image-pack']))
+    expect(toolNames).toContain('image_generate')
+    expect(describePackForRouting('image-pack')).toContain('image_generate')
+    expect(hasAgentTool('image_generate')).toBe(true)
+
+    const built = await buildP0Messages({
+      history: [],
+      checkpoint: emptyCheckpoint('web-default'),
+      userPrompt: '',
+      mountedPacks: [],
+    })
+    const system = built.messages[0]?.content ?? ''
+    expect(system).toContain('image-pack')
+    expect(system).toContain('image_generate')
+    expect(system).toContain('priority over search-pack')
   })
 
   it('exposes UAPIs as discoverable search-pack capability in P0', async () => {
