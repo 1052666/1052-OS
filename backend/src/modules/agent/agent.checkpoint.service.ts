@@ -113,6 +113,7 @@ function normalizeCheckpoint(value: unknown, sessionId: string): AgentCheckpoint
       (item): item is AgentPackName =>
         item === 'base-read-pack' ||
         item === 'repo-pack' ||
+        item === 'image-pack' ||
         item === 'search-pack' ||
         item === 'memory-pack' ||
         item === 'skill-pack' ||
@@ -193,6 +194,7 @@ export async function patchCheckpoint(
           (item): item is AgentPackName =>
             item === 'base-read-pack' ||
             item === 'repo-pack' ||
+            item === 'image-pack' ||
             item === 'search-pack' ||
             item === 'memory-pack' ||
             item === 'skill-pack' ||
