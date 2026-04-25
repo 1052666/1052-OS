@@ -8,6 +8,12 @@ import {
   type PublicSettings,
   type SettingsPatch,
 } from '../api/settings'
+import {
+  AppearanceApi,
+  type AppearanceThemeProfile,
+  type PublicAppearanceThemes,
+  type ThemeImportSpec,
+} from '../api/appearance'
 import { AgentApi, type AgentMigrationPreview, type AgentMigrationResult } from '../api/agent'
 import { UpdatesApi, type UpdateRun, type UpdateStatus } from '../api/updates'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
@@ -84,6 +90,42 @@ const IMAGE_ENDPOINT_PRESETS = [
   },
 ] as const
 
+const APPEARANCE_THEME_PRESETS: ThemeImportSpec[] = [
+  {
+    schemaVersion: 1,
+    name: 'Ocean Focus',
+    mode: 'dark',
+    scope: 'workspace',
+    coreTokens: {
+      bg: '#08111f',
+      surface: '#f8fafc',
+      fg: '#f8fafc',
+      accent: '#38bdf8',
+      success: '#34d399',
+      danger: '#fb7185',
+    },
+  },
+  {
+    schemaVersion: 1,
+    name: 'Paper Clarity',
+    mode: 'light',
+    scope: 'workspace',
+    coreTokens: {
+      bg: '#f7f8fb',
+      surface: '#0f172a',
+      fg: '#111827',
+      accent: '#2563eb',
+      success: '#047857',
+      danger: '#dc2626',
+    },
+  },
+]
+
+type AppearanceConfirmation =
+  | { kind: 'apply'; profile: AppearanceThemeProfile }
+  | { kind: 'reset' }
+  | null
+
 type LlmProviderKey =
   | 'openai'
   | 'minimax'
@@ -148,11 +190,19 @@ function SettingsFoldout({
 }
 
 export default function Settings() {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, activeThemeProfile, refreshAppearanceTheme } = useTheme()
   const [uiLanguage, setUiLanguage] = useState<PublicSettings['appearance']['language']>('zh-CN')
   const t = (zh: string, en: string) => (uiLanguage === 'en-US' ? en : zh)
   const foldoutLabels = { collapseLabel: t('收起', 'Collapse'), expandLabel: t('展开', 'Expand') }
   const [loaded, setLoaded] = useState<PublicSettings | null>(null)
+  const [appearanceThemes, setAppearanceThemes] = useState<PublicAppearanceThemes | null>(null)
+  const [themeJson, setThemeJson] = useState('')
+  const [appearanceBusy, setAppearanceBusy] = useState('')
+  const [appearanceError, setAppearanceError] = useState('')
+  const [appearanceConfirmation, setAppearanceConfirmation] =
+    useState<AppearanceConfirmation>(null)
+  const [appearancePreviewConfirmed, setAppearancePreviewConfirmed] = useState(false)
+  const [appearanceExperimentalConfirmed, setAppearanceExperimentalConfirmed] = useState(false)
   const [baseUrl, setBaseUrl] = useState('')
   const [modelId, setModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -245,6 +295,23 @@ export default function Settings() {
       })
       .catch((err) => setError(err.message ?? '设置加载失败'))
   }, [setTheme])
+
+  useEffect(() => {
+    let cancelled = false
+    AppearanceApi.listThemes()
+      .then(async (themes) => {
+        if (cancelled) return
+        setAppearanceThemes(themes)
+        await refreshAppearanceTheme()
+      })
+      .catch((err) => {
+        const errorLike = err as { message?: string }
+        if (!cancelled) setAppearanceError(errorLike.message ?? '主题 Profile 加载失败')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshAppearanceTheme])
 
   useEffect(() => {
     let cancelled = false
@@ -403,6 +470,112 @@ export default function Settings() {
     }
   }
 
+  const syncAppearanceThemes = async (themes: PublicAppearanceThemes) => {
+    setAppearanceThemes(themes)
+    await refreshAppearanceTheme()
+  }
+
+  const runAppearanceAction = async (
+    label: string,
+    action: () => Promise<PublicAppearanceThemes>,
+  ): Promise<boolean> => {
+    setAppearanceBusy(label)
+    setAppearanceError('')
+    try {
+      await syncAppearanceThemes(await action())
+      return true
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setAppearanceError(errorLike.message ?? t('主题 Profile 操作失败', 'Theme profile action failed'))
+      return false
+    } finally {
+      setAppearanceBusy('')
+    }
+  }
+
+  const createPresetTheme = (preset: ThemeImportSpec) =>
+    runAppearanceAction('create', () => AppearanceApi.createTheme(preset))
+
+  const importThemeJson = () => {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(themeJson)
+    } catch {
+      setAppearanceError(t('Theme JSON 格式错误。', 'Theme JSON is invalid.'))
+      return
+    }
+    void runAppearanceAction('import', () =>
+      AppearanceApi.createTheme(parsed as ThemeImportSpec),
+    )
+  }
+
+  const clearAppearanceConfirmation = () => {
+    setAppearanceConfirmation(null)
+    setAppearancePreviewConfirmed(false)
+    setAppearanceExperimentalConfirmed(false)
+  }
+
+  const exportThemeProfile = (profile: AppearanceThemeProfile) => {
+    const exportJson: ThemeImportSpec = {
+      schemaVersion: 1,
+      name: profile.theme.name,
+      mode: profile.theme.mode,
+      scope: profile.theme.scope,
+      coreTokens: profile.theme.coreTokens,
+    }
+    setThemeJson(JSON.stringify(exportJson, null, 2))
+  }
+
+  const requestApplyThemeProfile = (profile: AppearanceThemeProfile) => {
+    setAppearanceError('')
+    setAppearanceConfirmation({ kind: 'apply', profile })
+    setAppearancePreviewConfirmed(false)
+    setAppearanceExperimentalConfirmed(false)
+  }
+
+  const applyThemeProfile = async (
+    profile: AppearanceThemeProfile,
+    allowExperimental: boolean,
+  ) => {
+    const ok = await runAppearanceAction('apply', () =>
+      AppearanceApi.applyTheme(profile.id, {
+        confirmed: true,
+        allowExperimental,
+      }),
+    )
+    if (ok) clearAppearanceConfirmation()
+  }
+
+  const deleteThemeProfile = (profile: AppearanceThemeProfile) =>
+    runAppearanceAction('delete', () => AppearanceApi.deleteTheme(profile.id))
+
+  const requestResetThemeProfile = () => {
+    setAppearanceError('')
+    setAppearanceConfirmation({ kind: 'reset' })
+    setAppearancePreviewConfirmed(false)
+    setAppearanceExperimentalConfirmed(false)
+  }
+
+  const resetThemeProfile = async () => {
+    const ok = await runAppearanceAction('reset', () =>
+      AppearanceApi.resetTheme({ confirmed: true }),
+    )
+    if (ok) clearAppearanceConfirmation()
+  }
+
+  const confirmAppearanceAction = () => {
+    if (!appearanceConfirmation || !appearancePreviewConfirmed) return
+    if (appearanceConfirmation.kind === 'reset') {
+      void resetThemeProfile()
+      return
+    }
+
+    const experimental =
+      appearanceConfirmation.profile.review.safetyLevel === 'experimental'
+    if (experimental && !appearanceExperimentalConfirmed) return
+    void applyThemeProfile(appearanceConfirmation.profile, experimental)
+  }
+
   const previewMigration = async () => {
     const sourcePath = migrationSourcePath.trim()
     if (!sourcePath) {
@@ -484,6 +657,15 @@ export default function Settings() {
       setUpdateBusy(false)
     }
   }
+
+  const pendingAppearanceExperimental =
+    appearanceConfirmation?.kind === 'apply' &&
+    appearanceConfirmation.profile.review.safetyLevel === 'experimental'
+  const canConfirmAppearanceAction = Boolean(
+    appearanceConfirmation &&
+      appearancePreviewConfirmed &&
+      (!pendingAppearanceExperimental || appearanceExperimentalConfirmed),
+  )
 
   return (
     <div className="page">
@@ -1355,6 +1537,275 @@ export default function Settings() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">
+                    {t('受控主题 Profile', 'Controlled Theme Profiles')}
+                  </div>
+                  <div className="settings-row-desc">
+                    {t(
+                      '首版只允许导入 core token，derived token 由系统生成；不支持背景图或任意 CSS。',
+                      'The first version only imports core tokens; derived tokens are generated by the system. Background images and raw CSS are not supported.',
+                    )}
+                  </div>
+                </div>
+
+                {appearanceError ? <div className="banner error">{appearanceError}</div> : null}
+
+                <div className="theme-profile-presets">
+                  {APPEARANCE_THEME_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      className="theme-profile-preset"
+                      disabled={Boolean(appearanceBusy)}
+                      onClick={() => createPresetTheme(preset)}
+                    >
+                      <span className="theme-profile-swatches">
+                        <span style={{ background: preset.coreTokens.bg }} />
+                        <span style={{ background: preset.coreTokens.surface }} />
+                        <span style={{ background: preset.coreTokens.accent }} />
+                      </span>
+                      <strong>{preset.name}</strong>
+                      <small>{preset.mode} · {preset.scope}</small>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="theme-json-box">
+                  <textarea
+                    className="settings-input"
+                    value={themeJson}
+                    onChange={(event) => setThemeJson(event.target.value)}
+                    rows={8}
+                    placeholder={`{
+  "name": "My Theme",
+  "mode": "dark",
+  "scope": "workspace",
+  "coreTokens": {
+    "bg": "#08111f",
+    "surface": "#f8fafc",
+    "fg": "#f8fafc",
+    "accent": "#38bdf8",
+    "success": "#34d399",
+    "danger": "#fb7185"
+  }
+}`}
+                  />
+                  <div className="settings-actions">
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      disabled={Boolean(appearanceBusy) || !themeJson.trim()}
+                      onClick={importThemeJson}
+                    >
+                      {t('导入 Theme JSON', 'Import Theme JSON')}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      disabled={Boolean(appearanceBusy) || !activeThemeProfile}
+                      onClick={requestResetThemeProfile}
+                    >
+                      {t('恢复默认主题', 'Reset Default Theme')}
+                    </button>
+                    {appearanceBusy ? (
+                      <span className="settings-inline-note">
+                        {t('主题操作处理中...', 'Theme action in progress...')}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                {appearanceConfirmation ? (
+                  <div className="theme-confirm-panel">
+                    <div>
+                      <strong>
+                        {appearanceConfirmation.kind === 'apply'
+                          ? t('确认应用主题', 'Confirm Theme Apply')
+                          : t('确认恢复默认主题', 'Confirm Theme Reset')}
+                      </strong>
+                      <p>
+                        {appearanceConfirmation.kind === 'apply'
+                          ? t(
+                              `将应用 "${appearanceConfirmation.profile.theme.name}"。请先查看上方固定预览快照，确认文字、表格、设置行和强调色仍可读。`,
+                              `Applying "${appearanceConfirmation.profile.theme.name}". Review the fixed preview snapshot first and confirm that text, tables, settings rows, and accents remain readable.`,
+                            )
+                          : t(
+                              '将恢复默认主题。最近 5 个已应用主题仍会保留在历史记录里，方便回滚。',
+                              'The default theme will be restored. The latest 5 applied themes stay in history for rollback.',
+                            )}
+                      </p>
+                    </div>
+                    {appearanceConfirmation.kind === 'apply' &&
+                    appearanceConfirmation.profile.review.warnings.length > 0 ? (
+                      <div className="theme-profile-issues warning">
+                        {appearanceConfirmation.profile.review.warnings.map((item) => (
+                          <span key={`${item.code}-${item.path}`}>
+                            {item.path}: {item.message}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    <label className="theme-confirm-check">
+                      <input
+                        type="checkbox"
+                        checked={appearancePreviewConfirmed}
+                        onChange={(event) => setAppearancePreviewConfirmed(event.target.checked)}
+                      />
+                      <span>
+                        {t(
+                          '我已查看固定 Preview Matrix，并确认该主题不会造成文字不可读或模块重叠。',
+                          'I reviewed the fixed Preview Matrix and confirm this theme does not make text unreadable or modules overlap.',
+                        )}
+                      </span>
+                    </label>
+                    {pendingAppearanceExperimental ? (
+                      <label className="theme-confirm-check">
+                        <input
+                          type="checkbox"
+                          checked={appearanceExperimentalConfirmed}
+                          onChange={(event) =>
+                            setAppearanceExperimentalConfirmed(event.target.checked)
+                          }
+                        />
+                        <span>
+                          {t(
+                            '这是 experimental 主题，我确认接受强风格风险并请求后端放行。',
+                            'This is an experimental theme. I accept the strong-style risk and request backend approval.',
+                          )}
+                        </span>
+                      </label>
+                    ) : null}
+                    <div className="theme-profile-actions">
+                      <button
+                        type="button"
+                        className="btn small secondary"
+                        disabled={Boolean(appearanceBusy)}
+                        onClick={clearAppearanceConfirmation}
+                      >
+                        {t('取消', 'Cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn small"
+                        disabled={Boolean(appearanceBusy) || !canConfirmAppearanceAction}
+                        onClick={confirmAppearanceAction}
+                      >
+                        {t('确认执行', 'Confirm')}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="theme-profile-grid">
+                  {(appearanceThemes?.profiles ?? []).length === 0 ? (
+                    <div className="settings-help">
+                      {t(
+                        '还没有自定义主题。可以先添加一个内置示例，或导入 Theme JSON。',
+                        'No custom themes yet. Add a built-in sample or import Theme JSON.',
+                      )}
+                    </div>
+                  ) : (
+                    appearanceThemes?.profiles.map((profile) => {
+                      const active = profile.id === activeThemeProfile?.id
+                      const rejected = profile.review.safetyLevel === 'rejected'
+                      return (
+                        <div
+                          key={profile.id}
+                          className={'theme-profile-card' + (active ? ' active' : '')}
+                        >
+                          <div className="theme-profile-card-head">
+                            <div>
+                              <strong>{profile.theme.name}</strong>
+                              <small>{profile.theme.mode} · {profile.theme.scope}</small>
+                            </div>
+                            <span className={`theme-profile-status ${profile.review.safetyLevel}`}>
+                              {profile.review.safetyLevel}
+                            </span>
+                          </div>
+                          <div
+                            className="theme-profile-preview"
+                            style={{
+                              background: `linear-gradient(135deg, ${profile.theme.tokens.bgGrad1}, ${profile.theme.tokens.bgGrad2})`,
+                              color: profile.theme.tokens.fg,
+                              borderColor: profile.theme.tokens.hairline2,
+                            }}
+                          >
+                            <div style={{ background: profile.theme.tokens.surface1 }}>
+                              <span style={{ background: profile.theme.tokens.accent }} />
+                              <p>{t('固定预览快照', 'Fixed preview snapshot')}</p>
+                            </div>
+                            <code style={{ color: profile.theme.tokens.fg2 }}>
+                              SELECT status, count(*) FROM runs;
+                            </code>
+                          </div>
+                          {profile.review.blockingIssues.length > 0 ? (
+                            <div className="theme-profile-issues">
+                              {profile.review.blockingIssues.slice(0, 2).map((item) => (
+                                <span key={`${item.code}-${item.path}`}>
+                                  {item.path}: {item.message}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {profile.review.warnings.length > 0 ? (
+                            <div className="theme-profile-issues warning">
+                              {profile.review.warnings.slice(0, 2).map((item) => (
+                                <span key={`${item.code}-${item.path}`}>
+                                  {item.path}: {item.message}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="theme-profile-actions">
+                            <button
+                              type="button"
+                              className="btn small"
+                              disabled={Boolean(appearanceBusy) || active || rejected}
+                              onClick={() => requestApplyThemeProfile(profile)}
+                            >
+                              {active
+                                ? t('使用中', 'Active')
+                                : profile.review.safetyLevel === 'experimental'
+                                  ? t('请求应用', 'Request Apply')
+                                  : t('应用', 'Apply')}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn small secondary"
+                              disabled={Boolean(appearanceBusy)}
+                              onClick={() => exportThemeProfile(profile)}
+                            >
+                              {t('导出', 'Export')}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn small secondary"
+                              disabled={Boolean(appearanceBusy)}
+                              onClick={() => deleteThemeProfile(profile)}
+                            >
+                              {t('删除', 'Delete')}
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                {appearanceThemes?.applyHistory.length ? (
+                  <div className="theme-apply-history">
+                    <strong>{t('最近应用', 'Recent Apply History')}</strong>
+                    {appearanceThemes.applyHistory.map((entry) => (
+                      <span key={`${entry.profileId}-${entry.appliedAt}`}>
+                        {entry.themeName} · {entry.safetyLevel}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </SettingsFoldout>
           </div>

@@ -3829,6 +3829,245 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   white-space: nowrap;
 }
 
+.theme-profile-presets,
+.theme-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.theme-json-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.theme-json-box textarea {
+  min-height: 160px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.theme-profile-preset,
+.theme-profile-card {
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+}
+
+.theme-profile-preset {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.theme-profile-preset strong,
+.theme-profile-card strong {
+  display: block;
+  overflow: hidden;
+  min-width: 0;
+  color: var(--fg);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-profile-preset small,
+.theme-profile-card small {
+  display: block;
+  overflow: hidden;
+  color: var(--fg-4);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-profile-swatches {
+  grid-row: span 2;
+  display: flex;
+  overflow: hidden;
+  width: 42px;
+  height: 24px;
+  border: 1px solid var(--hairline-2);
+  border-radius: 8px;
+}
+
+.theme-profile-swatches span {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.theme-profile-card.active {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 1px var(--accent-ring);
+}
+
+.theme-confirm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--accent-ring);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.theme-confirm-panel strong {
+  display: block;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.theme-confirm-panel p {
+  margin: 4px 0 0;
+  color: var(--fg-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.theme-confirm-check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--fg-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.theme-confirm-check input {
+  margin-top: 2px;
+}
+
+.theme-profile-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.theme-profile-status {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.theme-profile-status.safe {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.theme-profile-status.experimental {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.theme-profile-status.rejected {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.theme-profile-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid;
+  border-radius: 10px;
+}
+
+.theme-profile-preview > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.theme-profile-preview span {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 7px;
+}
+
+.theme-profile-preview p {
+  margin: 0;
+  overflow: hidden;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-profile-preview code {
+  overflow: hidden;
+  padding: 8px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.14);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-profile-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.theme-profile-issues.warning {
+  color: var(--accent);
+}
+
+.theme-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.theme-apply-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  color: var(--fg-4);
+  font-size: 11.5px;
+}
+
+.theme-apply-history strong {
+  color: var(--fg-3);
+}
+
+.theme-apply-history span {
+  padding: 3px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface-1);
+}
+
 .settings-preset-group {
   display: contents;
 }
