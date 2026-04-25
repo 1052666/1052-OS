@@ -21,6 +21,7 @@ import { uapisRouter } from './modules/uapis/uapis.routes.js'
 import { runtimeLogsRouter } from './modules/runtime-logs/runtime-logs.routes.js'
 import { wikiRouter } from './modules/wiki/wiki.routes.js'
 import { outputProfileRouter } from './modules/output-profiles/output-profile.routes.js'
+import { updatesRouter } from './modules/updates/updates.routes.js'
 import {
   feishuCardWebhookHandler,
   feishuEventWebhookHandler,
@@ -62,6 +63,7 @@ export function createApp(): Express {
   app.use('/api/resources', resourcesRouter)
   app.use('/api/wiki', wikiRouter)
   app.use('/api/output-profiles', outputProfileRouter)
+  app.use('/api/updates', updatesRouter)
   app.use('/api/websearch', websearchRouter)
   app.use('/api/notifications', notificationsRouter)
   app.use('/api/skills', skillsRouter)

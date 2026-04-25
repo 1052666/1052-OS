@@ -3853,6 +3853,175 @@ textarea.settings-input {
   line-height: 1.55;
 }
 
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-help,
+.settings-error {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.settings-help {
+  border: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  color: var(--fg-3);
+}
+
+.settings-help strong {
+  color: var(--fg);
+  font-size: 12.5px;
+}
+
+.settings-help a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.settings-error {
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.update-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.update-status-card {
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface-2) 84%, transparent);
+}
+
+.update-status-card span,
+.update-status-card small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-4);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-status-card strong {
+  display: block;
+  margin: 4px 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-warning {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.update-actions {
+  justify-content: flex-start;
+}
+
+.update-run-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+}
+
+.update-run-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.update-run-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.update-run-head strong,
+.update-run-head span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.update-run-head strong {
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.update-run-head span {
+  color: var(--fg-4);
+  font-size: 12px;
+}
+
+.update-run-head em {
+  color: var(--fg-3);
+  font-size: 12px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-1);
+  border: 1px solid var(--hairline);
+}
+
+.update-progress-bar {
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.22s var(--ease);
+}
+
+.update-log {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--surface-0) 88%, black 12%);
+  color: var(--fg-3);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .token-usage-panel {
   position: static;
   top: auto;
@@ -4654,7 +4823,8 @@ textarea.settings-input {
   .memory-summary-grid,
   .memory-summary-note,
   .memory-stats,
-  .memory-form-grid {
+  .memory-form-grid,
+  .update-status-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

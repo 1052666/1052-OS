@@ -1,11 +1,28 @@
 ﻿import { useEffect, useState, type ReactNode } from 'react'
 import { SettingsApi, type PublicSettings, type SettingsPatch } from '../api/settings'
 import { AgentApi, type AgentMigrationPreview, type AgentMigrationResult } from '../api/agent'
+import { UpdatesApi, type UpdateRun, type UpdateStatus } from '../api/updates'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
 import TokenUsagePanel from '../components/TokenUsagePanel'
 import { useTheme } from '../theme-context'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+function isUpdateRunActive(run: UpdateRun | null): boolean {
+  return run?.status === 'queued' || run?.status === 'running'
+}
+
+function formatUpdateTime(value: string | null | undefined): string {
+  if (!value) return '未知'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
 
 const LLM_ENDPOINT_PRESETS = [
   {
@@ -170,8 +187,14 @@ export default function Settings() {
   const [migrationResult, setMigrationResult] = useState<AgentMigrationResult | null>(null)
   const [migrationBusy, setMigrationBusy] = useState(false)
   const [migrationError, setMigrationError] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
+  const [updateRun, setUpdateRun] = useState<UpdateRun | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
+  const [updateError, setUpdateError] = useState('')
+  const [restartMessage, setRestartMessage] = useState('')
   const llmProvider = detectLlmProvider(baseUrl, modelId)
   const llmApiKeyPortal = LLM_API_KEY_PORTALS[llmProvider]
+  const updateRunActive = isUpdateRunActive(updateRun)
 
   useEffect(() => {
     SettingsApi.get()
@@ -201,6 +224,39 @@ export default function Settings() {
       })
       .catch((err) => setError(err.message ?? '设置加载失败'))
   }, [setTheme])
+
+  useEffect(() => {
+    let cancelled = false
+    UpdatesApi.status()
+      .then((status) => {
+        if (!cancelled) setUpdateStatus(status)
+      })
+      .catch((err) => {
+        const errorLike = err as { message?: string }
+        if (!cancelled) setUpdateError(errorLike.message ?? '更新状态加载失败')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!updateRun || !isUpdateRunActive(updateRun)) return undefined
+    const timer = window.setInterval(() => {
+      void UpdatesApi.run(updateRun.id)
+        .then((nextRun) => {
+          setUpdateRun(nextRun)
+          if (nextRun.status === 'success' || nextRun.status === 'failed') {
+            void UpdatesApi.status().then(setUpdateStatus).catch(() => undefined)
+          }
+        })
+        .catch((err) => {
+          const errorLike = err as { message?: string }
+          setUpdateError(errorLike.message ?? '更新进度读取失败')
+        })
+    }, 1200)
+    return () => window.clearInterval(timer)
+  }, [updateRun])
 
   const applyLlmPreset = (preset: (typeof LLM_ENDPOINT_PRESETS)[number]) => {
     setBaseUrl(preset.baseUrl)
@@ -302,6 +358,49 @@ export default function Settings() {
       setMigrationError(errorLike.message ?? t('迁移执行失败', 'Migration failed'))
     } finally {
       setMigrationBusy(false)
+    }
+  }
+
+  const checkSystemUpdate = async () => {
+    setUpdateBusy(true)
+    setUpdateError('')
+    setRestartMessage('')
+    try {
+      setUpdateStatus(await UpdatesApi.check())
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setUpdateError(errorLike.message ?? '检查更新失败')
+    } finally {
+      setUpdateBusy(false)
+    }
+  }
+
+  const installSystemUpdate = async () => {
+    setUpdateBusy(true)
+    setUpdateError('')
+    setRestartMessage('')
+    try {
+      const response = await UpdatesApi.install()
+      setUpdateRun(response.run)
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setUpdateError(errorLike.message ?? '启动更新失败')
+    } finally {
+      setUpdateBusy(false)
+    }
+  }
+
+  const restartSystemServices = async () => {
+    setUpdateBusy(true)
+    setUpdateError('')
+    try {
+      const result = await UpdatesApi.restart()
+      setRestartMessage(result.message)
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setUpdateError(errorLike.message ?? '重启服务失败')
+    } finally {
+      setUpdateBusy(false)
     }
   }
 
@@ -801,6 +900,118 @@ export default function Settings() {
                 >
                   <span className="switch-thumb" />
                 </button>
+              </div>
+            </SettingsFoldout>
+
+            <SettingsFoldout title={t('系统更新', 'System Update')} {...foldoutLabels}>
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">检查与安装 GitHub 最新版</div>
+                  <div className="settings-row-desc">
+                    从 1052-OS 的 main 分支读取最新提交，安装时会保留 data、密钥、日志、AGENTS.md 和 CHANGELOG.md，并在构建完成后自动重启前后端。
+                  </div>
+                </div>
+
+                <div className="update-status-grid">
+                  <div className="update-status-card">
+                    <span>当前版本</span>
+                    <strong>{updateStatus?.current.shortCommit || '未知'}</strong>
+                    <small>
+                      {updateStatus?.mode === 'git' ? `Git ${updateStatus.current.branch || 'main'}` : '源码包'}
+                    </small>
+                  </div>
+                  <div className="update-status-card">
+                    <span>最新版本</span>
+                    <strong>{updateStatus?.latest?.shortCommit || '未检查'}</strong>
+                    <small>{updateStatus?.latest ? formatUpdateTime(updateStatus.latest.date) : '点击检查更新'}</small>
+                  </div>
+                  <div className="update-status-card">
+                    <span>状态</span>
+                    <strong>
+                      {updateRunActive
+                        ? '更新中'
+                        : updateStatus?.updateAvailable
+                          ? '可更新'
+                          : updateStatus?.latest
+                            ? '已是最新'
+                            : '待检查'}
+                    </strong>
+                    <small>{updateStatus?.lastCheckedAt ? formatUpdateTime(updateStatus.lastCheckedAt) : '尚无记录'}</small>
+                  </div>
+                </div>
+
+                {updateStatus?.latest ? (
+                  <div className="settings-help">
+                    <strong>GitHub main</strong>
+                    <span>{updateStatus.latest.message}</span>
+                    <a href={updateStatus.latest.url} target="_blank" rel="noreferrer">
+                      查看提交 {updateStatus.latest.shortCommit}
+                    </a>
+                  </div>
+                ) : null}
+
+                {updateStatus?.warnings.length ? (
+                  <div className="settings-help update-warning">
+                    <strong>更新提示</strong>
+                    {updateStatus.warnings.map((warning) => (
+                      <span key={warning}>{warning}</span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {updateError ? <div className="settings-error">{updateError}</div> : null}
+                {restartMessage ? <div className="settings-help">{restartMessage}</div> : null}
+
+                <div className="settings-actions update-actions">
+                  <button
+                    className="chip"
+                    type="button"
+                    disabled={updateBusy || updateRunActive}
+                    onClick={() => void checkSystemUpdate()}
+                  >
+                    {updateBusy && !updateRunActive ? '处理中...' : '检查更新'}
+                  </button>
+                  <button
+                    className="chip primary"
+                    type="button"
+                    disabled={
+                      updateBusy ||
+                      updateRunActive ||
+                      !updateStatus?.canInstall ||
+                      !updateStatus?.updateAvailable
+                    }
+                    onClick={() => void installSystemUpdate()}
+                  >
+                    安装更新
+                  </button>
+                  <button
+                    className="chip"
+                    type="button"
+                    disabled={updateBusy || updateRunActive || updateRun?.status !== 'success'}
+                    onClick={() => void restartSystemServices()}
+                  >
+                    再次重启
+                  </button>
+                </div>
+
+                {updateRun ? (
+                  <div className="update-run-panel">
+                    <div className="update-run-head">
+                      <div>
+                        <strong>{updateRun.phaseLabel}</strong>
+                        <span>{updateRun.message}</span>
+                      </div>
+                      <em>{Math.max(0, Math.min(100, Math.round(updateRun.progress)))}%</em>
+                    </div>
+                    <div className="update-progress" aria-label="更新进度">
+                      <div
+                        className="update-progress-bar"
+                        style={{ width: `${Math.max(0, Math.min(100, updateRun.progress))}%` }}
+                      />
+                    </div>
+                    {updateRun.logTail ? <pre className="update-log">{updateRun.logTail}</pre> : null}
+                  </div>
+                ) : null}
               </div>
             </SettingsFoldout>
 
