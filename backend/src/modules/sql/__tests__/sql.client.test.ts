@@ -5,16 +5,25 @@ vi.mock('node:child_process', () => ({
   execFile: vi.fn(),
 }))
 
+vi.mock('mysql2/promise', () => ({
+  default: { createConnection: vi.fn() },
+}))
+
+vi.mock('better-sqlite3', () => ({
+  default: vi.fn(),
+}))
+
 import { execFile } from 'node:child_process'
 import { testConnection, executeDbQuery } from '../sql.client.js'
 
+// Use oracle type since MySQL/SQLite now go through Node.js, not Python bridge
 const mockConfig = {
-  type: 'mysql' as const,
+  type: 'oracle' as const,
   host: 'localhost',
-  port: 3306,
-  user: 'root',
+  port: 1521,
+  user: 'system',
   password: 'pass',
-  database: 'test',
+  database: 'ORCL',
   filePath: '',
 }
 

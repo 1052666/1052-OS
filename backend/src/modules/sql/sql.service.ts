@@ -48,6 +48,30 @@ function fileDirPath() {
   return path.join(config.dataDir, FILE_DIR)
 }
 
+function sqlContentPath(id: string): string {
+  return path.join(fileDirPath(), `${id}.sql`)
+}
+
+async function readSqlContent(id: string): Promise<string> {
+  try {
+    return await fs.readFile(sqlContentPath(id), 'utf-8')
+  } catch {
+    return ''
+  }
+}
+
+async function writeSqlContent(id: string, content: string): Promise<void> {
+  await fs.writeFile(sqlContentPath(id), content, 'utf-8')
+}
+
+async function deleteSqlContent(id: string): Promise<void> {
+  try {
+    await fs.unlink(sqlContentPath(id))
+  } catch {
+    // .sql file may not exist for legacy records
+  }
+}
+
 function varDirPath() {
   return path.join(config.dataDir, VAR_DIR)
 }
@@ -225,12 +249,16 @@ function validateFileInput(input: SqlFileInput, requireName: boolean): {
 
 async function readFileEntity(id: string): Promise<SqlFile> {
   const filePath = path.join(fileDirPath(), `${id}.json`)
+  let rawJson: string
   try {
-    const raw = await fs.readFile(filePath, 'utf-8')
-    return JSON.parse(raw) as SqlFile
+    rawJson = await fs.readFile(filePath, 'utf-8')
   } catch {
     throw new HttpError(404, `SQL 文件不存在: ${id}`)
   }
+  const parsed = JSON.parse(rawJson) as SqlFile
+  const sqlContent = await readSqlContent(id)
+  const content = sqlContent || parsed.content || ''
+  return { ...parsed, content }
 }
 
 export async function listSqlFiles(): Promise<SqlFile[]> {
@@ -246,7 +274,10 @@ export async function listSqlFiles(): Promise<SqlFile[]> {
     if (!file.endsWith('.json')) continue
     try {
       const raw = await fs.readFile(path.join(dir, file), 'utf-8')
-      items.push(JSON.parse(raw) as SqlFile)
+      const parsed = JSON.parse(raw) as SqlFile
+      const sqlContent = await readSqlContent(parsed.id || file.replace('.json', ''))
+      parsed.content = sqlContent || parsed.content || ''
+      items.push(parsed)
     } catch {
       // skip broken files
     }
@@ -268,11 +299,15 @@ export async function createSqlFile(input: SqlFileInput): Promise<SqlFile> {
     updatedAt: now,
   }
   await fs.mkdir(fileDirPath(), { recursive: true })
+  // Write metadata JSON (without content)
+  const { content: _content, ...metadata } = item
   await fs.writeFile(
     path.join(fileDirPath(), `${item.id}.json`),
-    JSON.stringify(item, null, 2),
+    JSON.stringify(metadata, null, 2),
     'utf-8',
   )
+  // Write SQL content file
+  await writeSqlContent(item.id, validated.content)
   return item
 }
 
@@ -286,17 +321,24 @@ export async function updateSqlFile(id: string, input: SqlFileInput): Promise<Sq
     content: input.content !== undefined ? validated.content : current.content,
     updatedAt: Date.now(),
   }
+  // Write metadata JSON (without content)
+  const { content: _content, ...metadata } = updated
   await fs.writeFile(
     path.join(fileDirPath(), `${id}.json`),
-    JSON.stringify(updated, null, 2),
+    JSON.stringify(metadata, null, 2),
     'utf-8',
   )
+  // Update SQL content file only if content changed
+  if (input.content !== undefined) {
+    await writeSqlContent(id, validated.content)
+  }
   return updated
 }
 
 export async function deleteSqlFile(id: string) {
   const item = await readFileEntity(id)
   await fs.unlink(path.join(fileDirPath(), `${id}.json`))
+  await deleteSqlContent(id)
   return { ok: true as const, deleted: item }
 }
 
@@ -328,12 +370,13 @@ function hasLimit(sql: string, dbType?: DatabaseType): boolean {
 }
 
 function appendLimit(sql: string, limit: number, dbType: DatabaseType): string {
+  const trimmed = sql.trimEnd().replace(/;$/, '')
   if (dbType === 'oracle') {
     // Oracle 11g doesn't support FETCH FIRST, Python fetchmany handles row limit
-    return sql.trimEnd().replace(/;$/, '')
+    return trimmed
   }
-  const trimmed = sql.trimEnd().replace(/;$/, '')
-  return `${trimmed} LIMIT ${limit}`
+  // Fetch limit + 1 rows to detect truncation
+  return `${trimmed} LIMIT ${limit + 1}`
 }
 
 export async function executeQuery(input: QueryInput): Promise<QueryResult> {

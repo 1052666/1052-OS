@@ -1,4 +1,7 @@
-"""Unified database query runner for MySQL, Oracle, SQLite, Hive.
+"""Unified database query runner for Oracle and Hive.
+
+MySQL and SQLite are now handled by Node.js native drivers.
+This script only handles Oracle and Hive connections.
 
 Usage: uv run db_runner.py
 Input:  JSON via stdin
@@ -8,7 +11,6 @@ Output: JSON via stdout
 import json
 import os
 import sys
-import sqlite3
 
 _oracle_thick_initialized = False
 
@@ -31,19 +33,6 @@ def _init_oracle_client(oracledb_mod):
     _oracle_thick_initialized = True
 
 
-def connect_mysql(cfg):
-    import pymysql
-    return pymysql.connect(
-        host=cfg.get('host', '127.0.0.1'),
-        port=int(cfg.get('port', 3306)),
-        user=cfg.get('user', ''),
-        password=cfg.get('password', ''),
-        database=cfg.get('database', ''),
-        charset='utf8mb4',
-        cursorclass=pymysql.cursors.DictCursor,
-    )
-
-
 def connect_oracle(cfg):
     import oracledb
     _init_oracle_client(oracledb)
@@ -55,15 +44,6 @@ def connect_oracle(cfg):
     dsn = f'{host}:{port}/{database}' if database else f'{host}:{port}'
     conn = oracledb.connect(user=user, password=password, dsn=dsn)
     conn.default_fetch_lobs = False
-    return conn
-
-
-def connect_sqlite(cfg):
-    file_path = cfg.get('filePath', '')
-    if not file_path:
-        raise ValueError('SQLite filePath is required')
-    conn = sqlite3.connect(file_path)
-    conn.row_factory = sqlite3.Row
     return conn
 
 
@@ -90,9 +70,7 @@ def connect_hive(cfg):
 
 
 CONNECTORS = {
-    'mysql': connect_mysql,
     'oracle': connect_oracle,
-    'sqlite': connect_sqlite,
     'hive': connect_hive,
 }
 
@@ -136,15 +114,7 @@ def do_query(cfg, sql, limit):
                 'truncated': False,
             }
 
-        if db_type == 'sqlite':
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            rows_raw = cursor.fetchmany(limit + 1)
-            rows = [dict(zip(columns, row)) for row in rows_raw]
-        elif db_type == 'mysql':
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            rows_raw = cursor.fetchmany(limit + 1)
-            rows = list(rows_raw)
-        elif db_type == 'oracle':
+        if db_type == 'oracle':
             columns = [desc[0].lower() for desc in cursor.description] if cursor.description else []
             rows_raw = cursor.fetchmany(limit + 1)
             rows = [dict(zip(columns, row)) for row in rows_raw]
