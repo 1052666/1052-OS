@@ -56,6 +56,32 @@ export type SkillMarketplacePreviewInput = {
   path?: unknown
 }
 
+export type BundledSkillUpdateStatus = {
+  id: string
+  name: string
+  description: string
+  installed: boolean
+  enabled?: boolean
+  path?: string
+  updatedAt?: number
+  sourceHash: string
+  installedSourceHash?: string
+  localHash?: string
+  updateAvailable: boolean
+  localModified: boolean
+  lastInstalledAt?: number
+  lastUpdatedAt?: number
+}
+
+export type BundledSkillApplyInput = {
+  confirmed?: unknown
+}
+
+export type BundledSkillApplyResult = BundledSkillUpdateStatus & {
+  applied: true
+  backupPath?: string
+}
+
 export type SkillMarketplacePreview = {
   id: string
   owner: string

@@ -8,6 +8,7 @@ data/
 *.log
 *.out.log
 *.err.log
+*.tsbuildinfo
 
 .env
 .env.*

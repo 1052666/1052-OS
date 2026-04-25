@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -6,6 +7,9 @@ import { config } from '../../config.js'
 import { HttpError } from '../../http-error.js'
 import type {
   SkillDetail,
+  BundledSkillApplyInput,
+  BundledSkillApplyResult,
+  BundledSkillUpdateStatus,
   SkillInput,
   SkillInstallInput,
   SkillItem,
@@ -114,10 +118,28 @@ type MarketplaceFile = {
 }
 
 type BundledSeedState = {
-  installedIds: string[]
+  installedIds?: string[]
+  skills?: Record<string, BundledSkillSeedRecord>
+}
+
+type BundledSkillSeedRecord = {
+  id: string
+  sourceHash: string
+  installedSourceHash?: string
+  installedHash?: string
+  installedAt?: number
+  updatedAt?: number
+}
+
+type BundledSkillEntry = {
+  id: string
+  sourceDir: string
+  sourceSkillFile: string
 }
 
 const marketplaceIndexCache = new Map<string, { expiresAt: number; index: RepositoryArchiveIndex }>()
+const BUNDLED_RUNTIME_FILE_PATHS = new Set(['scripts/market-snapshot.json'])
+const BUNDLED_RUNTIME_FILE_NAMES = new Set(['.DS_Store'])
 
 function skillsRoot() {
   return path.join(config.dataDir, SKILLS_DIR)
@@ -125,6 +147,10 @@ function skillsRoot() {
 
 function bundledSeedStatePath() {
   return path.join(skillsRoot(), BUNDLED_SEED_STATE_FILE)
+}
+
+function bundledBackupRoot() {
+  return path.join(skillsRoot(), '.bundled-backups')
 }
 
 function normalizeId(value: string) {
@@ -142,6 +168,14 @@ function normalizeId(value: string) {
     throw new HttpError(400, 'Skill id is invalid')
   }
   return id
+}
+
+function normalizeOptionalStateId(value: string) {
+  try {
+    return normalizeId(value)
+  } catch {
+    return null
+  }
 }
 
 function normalizeText(value: unknown) {
@@ -269,25 +303,65 @@ async function ensureSkillsRoot() {
   await fs.mkdir(skillsRoot(), { recursive: true })
 }
 
-async function readBundledSeedState(): Promise<Set<string>> {
+function normalizeBundledSkillSeedRecord(id: string, value: unknown): BundledSkillSeedRecord | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Partial<BundledSkillSeedRecord>
+  return {
+    id,
+    sourceHash: typeof record.sourceHash === 'string' ? record.sourceHash : '',
+    installedSourceHash:
+      typeof record.installedSourceHash === 'string' ? record.installedSourceHash : undefined,
+    installedHash: typeof record.installedHash === 'string' ? record.installedHash : undefined,
+    installedAt: typeof record.installedAt === 'number' ? record.installedAt : undefined,
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : undefined,
+  }
+}
+
+async function readBundledSeedState(): Promise<Map<string, BundledSkillSeedRecord>> {
   const raw = await fs
     .readFile(bundledSeedStatePath(), 'utf-8')
     .then((content) => JSON.parse(content) as Partial<BundledSeedState>)
     .catch(() => null)
-  const installedIds = Array.isArray(raw?.installedIds)
+  const records = new Map<string, BundledSkillSeedRecord>()
+
+  if (raw?.skills && typeof raw.skills === 'object') {
+    for (const [idInput, value] of Object.entries(raw.skills)) {
+      const id = normalizeOptionalStateId(idInput)
+      if (!id) continue
+      const record = normalizeBundledSkillSeedRecord(id, value)
+      if (record) records.set(id, record)
+    }
+  }
+
+  const legacyInstalledIds = Array.isArray(raw?.installedIds)
     ? raw.installedIds
         .map((id) => (typeof id === 'string' ? id.trim() : ''))
         .filter(Boolean)
     : []
-  return new Set(installedIds)
+  for (const idInput of legacyInstalledIds) {
+    const id = normalizeOptionalStateId(idInput)
+    if (!id) continue
+    if (!records.has(id)) {
+      records.set(id, {
+        id,
+        sourceHash: '',
+      })
+    }
+  }
+
+  return records
 }
 
-async function writeBundledSeedState(installedIds: Set<string>) {
+async function writeBundledSeedState(records: Map<string, BundledSkillSeedRecord>) {
+  const sortedRecords = [...records.values()].sort((a, b) => a.id.localeCompare(b.id, 'zh-CN'))
   await fs.writeFile(
     bundledSeedStatePath(),
     JSON.stringify(
       {
-        installedIds: [...installedIds].sort((a, b) => a.localeCompare(b, 'zh-CN')),
+        installedIds: sortedRecords
+          .filter((record) => Boolean(record.installedSourceHash))
+          .map((record) => record.id),
+        skills: Object.fromEntries(sortedRecords.map((record) => [record.id, record])),
       } satisfies BundledSeedState,
       null,
       2,
@@ -307,6 +381,152 @@ async function fileExists(target: string) {
     return true
   } catch {
     return false
+  }
+}
+
+function shouldIgnoreBundledSkillHashPath(relativePath: string) {
+  const normalized = relativePath.replace(/\\/g, '/')
+  return (
+    BUNDLED_RUNTIME_FILE_PATHS.has(normalized) ||
+    BUNDLED_RUNTIME_FILE_NAMES.has(path.posix.basename(normalized))
+  )
+}
+
+async function listSkillHashFiles(root: string) {
+  const files: string[] = []
+
+  async function walk(dir: string, prefix = '') {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))) {
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name
+      const full = path.join(dir, entry.name)
+      if (shouldIgnoreBundledSkillHashPath(relative)) continue
+      if (entry.isDirectory()) {
+        await walk(full, relative)
+      } else if (entry.isFile()) {
+        files.push(relative)
+      }
+    }
+  }
+
+  await walk(root)
+  return files
+}
+
+async function hashSkillDirectory(root: string) {
+  const hash = createHash('sha256')
+  const files = await listSkillHashFiles(root)
+  for (const relative of files) {
+    const full = path.join(root, ...relative.split('/'))
+    hash.update(relative)
+    hash.update('\0')
+    hash.update(await fs.readFile(full))
+    hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+async function readPreservedRuntimeFiles(targetDir: string) {
+  const files: { relativePath: string; content: Buffer }[] = []
+  for (const relativePath of BUNDLED_RUNTIME_FILE_PATHS) {
+    const full = path.join(targetDir, ...relativePath.split('/'))
+    const stat = await fs.stat(full).catch(() => null)
+    if (stat?.isFile()) {
+      files.push({ relativePath, content: await fs.readFile(full) })
+    }
+  }
+  return files
+}
+
+async function restorePreservedRuntimeFiles(targetDir: string, files: { relativePath: string; content: Buffer }[]) {
+  for (const file of files) {
+    const full = path.join(targetDir, ...file.relativePath.split('/'))
+    await fs.mkdir(path.dirname(full), { recursive: true })
+    await fs.writeFile(full, file.content)
+  }
+}
+
+async function syncBundledSkillSource(sourceDir: string, targetDir: string) {
+  const preserved = await readPreservedRuntimeFiles(targetDir)
+  await resetDir(targetDir)
+  await fs.cp(sourceDir, targetDir, {
+    recursive: true,
+    force: true,
+  })
+  await restorePreservedRuntimeFiles(targetDir, preserved)
+}
+
+function backupStamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-')
+}
+
+async function backupSkillDirectory(id: string, targetDir: string) {
+  if (!(await fileExists(skillFilePath(id)))) return undefined
+  const backupDir = path.join(bundledBackupRoot(), `${id}-${backupStamp()}`)
+  await fs.mkdir(path.dirname(backupDir), { recursive: true })
+  await fs.cp(targetDir, backupDir, { recursive: true, force: true })
+  return backupDir
+}
+
+async function listBundledSkillEntries(): Promise<BundledSkillEntry[]> {
+  const bundledEntries = await fs
+    .readdir(BUNDLED_SKILLS_DIR, { withFileTypes: true })
+    .catch(() => [])
+  const entries: BundledSkillEntry[] = []
+  for (const entry of bundledEntries) {
+    if (!entry.isDirectory()) continue
+    const id = normalizeId(entry.name)
+    const sourceDir = path.join(BUNDLED_SKILLS_DIR, entry.name)
+    const sourceSkillFile = path.join(sourceDir, SKILL_FILE)
+    if (!(await fileExists(sourceSkillFile))) continue
+    entries.push({ id, sourceDir, sourceSkillFile })
+  }
+  return entries.sort((a, b) => a.id.localeCompare(b.id, 'zh-CN'))
+}
+
+async function readBundledSkillMeta(sourceSkillFile: string) {
+  const body = await fs.readFile(sourceSkillFile, 'utf-8')
+  const meta = parseFrontmatter(body)
+  return {
+    name: meta.name || titleFromBody(body),
+    description: meta.description || descriptionFromBody(body),
+  }
+}
+
+async function buildBundledSkillUpdateStatus(
+  entry: BundledSkillEntry,
+  record?: BundledSkillSeedRecord,
+): Promise<BundledSkillUpdateStatus> {
+  const sourceHash = await hashSkillDirectory(entry.sourceDir)
+  const targetDir = skillDir(entry.id)
+  const summary = await readSkillSummary(entry.id)
+  const installed = Boolean(summary)
+  const localHash = installed ? await hashSkillDirectory(targetDir) : undefined
+  const trackedInstalledHash = record?.installedHash
+  const installedSourceHash = record?.installedSourceHash
+  const localModified = installed
+    ? trackedInstalledHash
+      ? localHash !== trackedInstalledHash
+      : localHash !== sourceHash
+    : false
+  const updateAvailable = installed ? sourceHash !== (installedSourceHash ?? sourceHash) : true
+  const meta = await readBundledSkillMeta(entry.sourceSkillFile)
+
+  return {
+    id: entry.id,
+    name: meta.name || summary?.name || entry.id,
+    description: meta.description || summary?.description || '',
+    installed,
+    enabled: summary?.enabled,
+    path: summary?.path,
+    updatedAt: summary?.updatedAt,
+    sourceHash,
+    installedSourceHash,
+    localHash,
+    updateAvailable,
+    localModified,
+    lastInstalledAt: record?.installedAt,
+    lastUpdatedAt: record?.updatedAt,
   }
 }
 
@@ -427,54 +647,147 @@ export async function listSkills() {
 
 export async function ensureBundledSkillsInstalled() {
   await ensureSkillsRoot()
-  const bundledEntries = await fs
-    .readdir(BUNDLED_SKILLS_DIR, { withFileTypes: true })
-    .catch(() => [])
+  const bundledEntries = await listBundledSkillEntries()
   if (bundledEntries.length === 0) {
-    return { installed: [] as string[], skipped: [] as string[] }
+    return {
+      installed: [] as string[],
+      updated: [] as string[],
+      skipped: [] as string[],
+      updatesAvailable: [] as string[],
+    }
   }
 
-  const seededIds = await readBundledSeedState()
+  const records = await readBundledSeedState()
   const installed: string[] = []
+  const updated: string[] = []
   const skipped: string[] = []
+  const updatesAvailable: string[] = []
   let stateChanged = false
 
   for (const entry of bundledEntries) {
-    if (!entry.isDirectory()) continue
-    const id = normalizeId(entry.name)
-    const sourceDir = path.join(BUNDLED_SKILLS_DIR, entry.name)
-    const sourceSkillFile = path.join(sourceDir, SKILL_FILE)
-    if (!(await fileExists(sourceSkillFile))) continue
-    if (seededIds.has(id)) {
-      skipped.push(id)
-      continue
-    }
-
-    const targetDir = skillDir(id)
+    const sourceHash = await hashSkillDirectory(entry.sourceDir)
+    const targetDir = skillDir(entry.id)
     const targetSkillFile = path.join(targetDir, SKILL_FILE)
-    if (await fileExists(targetSkillFile)) {
-      seededIds.add(id)
-      skipped.push(id)
+    const targetExists = await fileExists(targetSkillFile)
+    const record = records.get(entry.id)
+
+    if (!targetExists) {
+      await fs.mkdir(path.dirname(targetDir), { recursive: true })
+      await syncBundledSkillSource(entry.sourceDir, targetDir)
+      const localHash = await hashSkillDirectory(targetDir)
+      records.set(entry.id, {
+        id: entry.id,
+        sourceHash,
+        installedSourceHash: sourceHash,
+        installedHash: localHash,
+        installedAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+      installed.push(entry.id)
       stateChanged = true
       continue
     }
 
-    await fs.mkdir(path.dirname(targetDir), { recursive: true })
-    await fs.cp(sourceDir, targetDir, {
-      recursive: true,
-      force: false,
-      errorOnExist: true,
+    const localHash = await hashSkillDirectory(targetDir)
+    if (!record?.installedSourceHash || !record.installedHash) {
+      records.set(entry.id, {
+        id: entry.id,
+        sourceHash,
+        installedSourceHash: localHash === sourceHash ? sourceHash : undefined,
+        installedHash: localHash === sourceHash ? localHash : undefined,
+        installedAt: localHash === sourceHash ? Date.now() : undefined,
+        updatedAt: Date.now(),
+      })
+      skipped.push(entry.id)
+      stateChanged = true
+      continue
+    }
+
+    const sourceChanged = sourceHash !== record.installedSourceHash
+    const localUntouched = localHash === record.installedHash
+    if (sourceChanged && localUntouched) {
+      await backupSkillDirectory(entry.id, targetDir)
+      await syncBundledSkillSource(entry.sourceDir, targetDir)
+      const nextLocalHash = await hashSkillDirectory(targetDir)
+      records.set(entry.id, {
+        ...record,
+        sourceHash,
+        installedSourceHash: sourceHash,
+        installedHash: nextLocalHash,
+        updatedAt: Date.now(),
+      })
+      updated.push(entry.id)
+      stateChanged = true
+      continue
+    }
+
+    records.set(entry.id, {
+      ...record,
+      sourceHash,
+      updatedAt: record.updatedAt ?? Date.now(),
     })
-    seededIds.add(id)
-    installed.push(id)
-    stateChanged = true
+    if (sourceChanged) {
+      updatesAvailable.push(entry.id)
+      stateChanged = true
+    } else {
+      skipped.push(entry.id)
+      if (record.sourceHash !== sourceHash) stateChanged = true
+    }
   }
 
   if (stateChanged) {
-    await writeBundledSeedState(seededIds)
+    await writeBundledSeedState(records)
   }
 
-  return { installed, skipped }
+  return { installed, updated, skipped, updatesAvailable }
+}
+
+export async function listBundledSkillUpdates(): Promise<BundledSkillUpdateStatus[]> {
+  await ensureSkillsRoot()
+  const [records, entries] = await Promise.all([
+    readBundledSeedState(),
+    listBundledSkillEntries(),
+  ])
+  return Promise.all(entries.map((entry) => buildBundledSkillUpdateStatus(entry, records.get(entry.id))))
+}
+
+export async function applyBundledSkillUpdate(
+  idInput: unknown,
+  input: BundledSkillApplyInput = {},
+): Promise<BundledSkillApplyResult> {
+  if (input.confirmed !== true) {
+    throw new HttpError(400, 'Applying a bundled Skill update requires explicit confirmation.')
+  }
+
+  await ensureSkillsRoot()
+  const id = normalizeId(normalizeText(idInput))
+  const entry = (await listBundledSkillEntries()).find((item) => item.id === id)
+  if (!entry) throw new HttpError(404, 'Bundled Skill does not exist')
+
+  const records = await readBundledSeedState()
+  const targetDir = skillDir(id)
+  const backupPath = await backupSkillDirectory(id, targetDir)
+  await syncBundledSkillSource(entry.sourceDir, targetDir)
+  const sourceHash = await hashSkillDirectory(entry.sourceDir)
+  const localHash = await hashSkillDirectory(targetDir)
+  const previous = records.get(id)
+  records.set(id, {
+    ...previous,
+    id,
+    sourceHash,
+    installedSourceHash: sourceHash,
+    installedHash: localHash,
+    installedAt: previous?.installedAt ?? Date.now(),
+    updatedAt: Date.now(),
+  })
+  await writeBundledSeedState(records)
+
+  const status = await buildBundledSkillUpdateStatus(entry, records.get(id))
+  return {
+    ...status,
+    applied: true,
+    backupPath,
+  }
 }
 
 export async function getEnabledSkillIndex() {

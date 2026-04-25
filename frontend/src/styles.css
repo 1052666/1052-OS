@@ -7838,6 +7838,61 @@ button.social-platform-card:hover {
   gap: 16px;
 }
 
+.intel-update-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+}
+
+.intel-update-panel.update-available {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+}
+
+.intel-update-panel.local-modified {
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+}
+
+.intel-update-panel span {
+  color: var(--fg-4);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.intel-update-panel strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--fg);
+  font-size: 17px;
+}
+
+.intel-update-panel p {
+  margin: 6px 0 0;
+  max-width: 760px;
+  color: var(--fg-3);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.intel-update-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.intel-update-actions code {
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+  border-radius: 999px;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+
 .intel-sector-grid,
 .intel-detail-grid {
   display: grid;
@@ -7966,6 +8021,7 @@ button.social-platform-card:hover {
 
   .toolbox-provider-panel,
   .intel-provider-panel,
+  .intel-update-panel,
   .intel-sector-grid,
   .intel-detail-grid,
   .uapis-layout {
@@ -7998,6 +8054,11 @@ button.social-platform-card:hover {
 
   .intel-asset-list > div {
     grid-template-columns: 1fr;
+  }
+
+  .intel-update-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
