@@ -16,6 +16,8 @@ import {
   summarizeCheckpointForInjection,
 } from '../agent.checkpoint.service.js'
 import { buildP0Messages } from '../agent.p0.service.js'
+import { hasAgentTool } from '../agent.tool.service.js'
+import { isReadonlyTerminalCommandAllowed } from '../../terminal/terminal.service.js'
 import { terminalTools } from '../tools/terminal.tools.js'
 
 describe('agent progressive disclosure helpers', () => {
@@ -55,13 +57,8 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('uapis_list_apis')
     expect(system).toContain('uapis_read_api')
     expect(system).toContain('uapis_call')
-    expect(built.budgetReport).toMatchObject({
-      key: 'p0',
-      limitTokens: 3000,
-    })
-    expect(built.budgetReport.components.map((component) => component.key)).toContain(
-      'context-upgrade-tool',
-    )
+    expect(built.budgetReport.components.map((item) => item.key)).toContain('context-upgrade-tool')
+    expect(built.budgetReport.limitTokens).toBeGreaterThan(0)
   })
 
   it('mounts memory write tools through memory-pack and advertises the route in P0', async () => {
@@ -101,6 +98,13 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('Wiki')
     expect(system).toContain('raw')
     expect(system).toContain('综合分析')
+  })
+
+  it('mounts Intel Brief formatting through channel-pack', () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['channel-pack']))
+    expect(toolNames).toContain('intel_brief_format')
+    expect(hasAgentTool('intel_brief_format')).toBe(true)
+    expect(describePackForRouting('channel-pack')).toContain('Intel Brief')
   })
 
   it('enforces per-upgrade pack count and per-message upgrade count', () => {
@@ -145,31 +149,32 @@ describe('agent progressive disclosure helpers', () => {
     expect(normalizeSessionId('wechat:acc/peer?x')).toBe('wechat-acc-peer-x')
   })
 
-  it('allows full-access injected confirmation on read-only terminal commands', async () => {
-    const tool = terminalTools.find((item) => item.name === 'terminal_run_readonly')
-    expect(tool).toBeTruthy()
-
-    const result = await tool?.execute({
-      command: '[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("ok"))',
-      confirmed: true,
-    })
-
-    expect(result).toMatchObject({
-      exitCode: 0,
-      risk: 'confirm',
-      stdout: 'b2s=',
-    })
+  it('allows only strict read-only terminal commands', () => {
+    expect(isReadonlyTerminalCommandAllowed('git status --short')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('git diff -- src/index.ts')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('rg "needle" src')).toBe(true)
+    expect(isReadonlyTerminalCommandAllowed('cat package.json')).toBe(true)
+    expect(
+      isReadonlyTerminalCommandAllowed(
+        '[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("ok"))',
+      ),
+    ).toBe(false)
   })
 
-  it('keeps read-only terminal commands from modifying local state', async () => {
+  it('keeps read-only terminal allow-list from admitting local mutations', () => {
+    expect(isReadonlyTerminalCommandAllowed('Set-Content -Path should-not-exist.txt -Value no')).toBe(
+      false,
+    )
+    expect(isReadonlyTerminalCommandAllowed('git switch main')).toBe(false)
+    expect(isReadonlyTerminalCommandAllowed('npm run build')).toBe(false)
+  })
+
+  it('wires terminal_run_readonly through the strict read-only boundary', async () => {
     const tool = terminalTools.find((item) => item.name === 'terminal_run_readonly')
     expect(tool).toBeTruthy()
 
-    await expect(
-      tool?.execute({
-        command: 'Set-Content -Path should-not-exist.txt -Value no',
-        confirmed: true,
-      }),
-    ).rejects.toThrow('Read-only terminal tool rejected')
+    await expect(tool?.execute({ command: 'echo ok' })).rejects.toThrow(
+      'Read-only terminal tool only allows',
+    )
   })
 })

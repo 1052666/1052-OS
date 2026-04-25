@@ -86,6 +86,7 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'wiki_log_append',
   ],
   'channel-pack': [
+    'intel_brief_format',
     'feishu_list_calendars',
     'feishu_list_calendar_events',
     'feishu_list_tasks',
@@ -148,6 +149,6 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'data-pack':
       return '笔记、资源列表、SQL 数据源、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。Wiki 写入、索引、日志和 lint 修复默认需要用户确认。'
     case 'channel-pack':
-      return '微信、飞书等外部通道能力和飞书工作区工具。'
+      return '微信、飞书等外部通道能力、Intel Brief 通道格式渲染和飞书工作区工具。'
   }
 }
