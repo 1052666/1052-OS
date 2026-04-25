@@ -4,6 +4,11 @@ export type PublicSettings = {
   llm: {
     baseUrl: string
     modelId: string
+    kind: 'cloud' | 'local'
+    provider: 'openai-compatible' | 'ollama' | 'lm-studio' | 'localai' | 'custom'
+    activeProfileId: string
+    profiles: PublicLlmProfile[]
+    taskRoutes: LlmTaskRoute[]
     hasApiKey: boolean
     apiKeyMask: string
   }
@@ -42,8 +47,47 @@ export type PublicSettings = {
   }
 }
 
+export type LlmTaskKind =
+  | 'agent-chat'
+  | 'pdf-to-markdown'
+  | 'coding'
+  | 'summarization'
+  | 'vision'
+
+export type LlmTaskRoute = {
+  task: LlmTaskKind
+  profileId: string
+}
+
+export type PublicLlmProfile = {
+  id: string
+  name: string
+  kind: PublicSettings['llm']['kind']
+  provider: PublicSettings['llm']['provider']
+  baseUrl: string
+  modelId: string
+  enabled: boolean
+  detected?: boolean
+  source?: string
+  lastSeenAt?: number
+  hasApiKey: boolean
+  apiKeyMask: string
+}
+
+export type LocalModelDiscoveryResult = {
+  scannedAt: number
+  candidates: PublicLlmProfile[]
+  errors: { source: string; baseUrl: string; message: string }[]
+}
+
 export type SettingsPatch = {
-  llm?: Partial<{ baseUrl: string; modelId: string; apiKey: string }>
+  llm?: Partial<{
+    baseUrl: string
+    modelId: string
+    apiKey: string
+    activeProfileId: string
+    taskRoutes: LlmTaskRoute[]
+  }>
   imageGeneration?: Partial<{
     apiFormat: PublicSettings['imageGeneration']['apiFormat']
     baseUrl: string
@@ -63,4 +107,12 @@ export type SettingsPatch = {
 export const SettingsApi = {
   get: () => api.get<PublicSettings>('/settings'),
   update: (patch: SettingsPatch) => api.put<PublicSettings>('/settings', patch),
+  discoverLocalModels: () =>
+    api.get<LocalModelDiscoveryResult>('/settings/llm/local-discovery'),
+  upsertLlmProfile: (profile: PublicLlmProfile, activate = false) =>
+    api.post<PublicSettings>('/settings/llm/profiles', { profile, activate }),
+  activateLlmProfile: (profileId: string) =>
+    api.post<PublicSettings>(`/settings/llm/profiles/${encodeURIComponent(profileId)}/activate`, {}),
+  updateLlmTaskRoutes: (routes: LlmTaskRoute[]) =>
+    api.put<PublicSettings>('/settings/llm/task-routes', { routes }),
 }

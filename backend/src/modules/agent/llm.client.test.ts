@@ -137,6 +137,26 @@ describe('provider prompt caching payload', () => {
     expect(secondBody).not.toHaveProperty('prompt_cache_key')
   })
 
+  it('allows local OpenAI-compatible profiles without an API key', async () => {
+    const fetchMock = vi.fn(async () => mockChatCompletionResponse())
+    vi.stubGlobal('fetch', fetchMock)
+
+    await chatCompletion(
+      {
+        baseUrl: 'http://127.0.0.1:11434/v1',
+        modelId: 'llama3.2',
+        apiKey: '',
+        kind: 'local',
+        provider: 'ollama',
+      },
+      [{ role: 'user', content: 'hello' }],
+    )
+
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit | undefined][]
+    const init = calls[0]?.[1]
+    expect(init?.headers).not.toHaveProperty('Authorization')
+  })
+
   it('normalizes nested cached token usage fields', () => {
     expect(
       normalizeUsage({

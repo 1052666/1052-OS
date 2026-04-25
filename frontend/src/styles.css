@@ -3848,6 +3848,108 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   box-shadow: inset 3px 0 0 var(--accent-ring);
 }
 
+.settings-model-grid,
+.settings-route-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-model-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+}
+
+.settings-model-card.active {
+  border-color: var(--accent-ring);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.settings-model-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.settings-model-card-head strong,
+.settings-route-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-model-card-head span {
+  flex: 0 0 auto;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--fg-3);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.settings-model-card-meta,
+.settings-model-card-url,
+.settings-inline-note,
+.settings-route-row small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-4);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-route-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+}
+
+.settings-route-row > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settings-route-row .settings-input {
+  flex: 0 1 260px;
+  min-width: min(220px, 100%);
+}
+
+@media (max-width: 720px) {
+  .settings-route-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-route-row .settings-input {
+    flex-basis: auto;
+    width: 100%;
+  }
+}
+
 .settings-input {
   background: var(--surface-2);
   border: 1px solid var(--hairline-2);

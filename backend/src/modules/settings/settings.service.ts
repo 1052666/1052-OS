@@ -1,8 +1,17 @@
+import { createHash } from 'node:crypto'
+import { httpError } from '../../http-error.js'
 import { readJson, writeJson } from '../../storage.js'
 import type {
   AgentSettings,
   AppearanceSettings,
   ImageGenerationSettings,
+  LLMProfile,
+  LLMProfileKind,
+  LLMProviderKind,
+  LLMSettings,
+  LLMTaskKind,
+  LLMTaskRoute,
+  PublicLLMProfile,
   Settings,
   PublicSettings,
   SettingsPatch,
@@ -16,6 +25,11 @@ const DEFAULT_SETTINGS: Settings = {
     baseUrl: '',
     modelId: '',
     apiKey: '',
+    kind: 'cloud',
+    provider: 'openai-compatible',
+    activeProfileId: '',
+    profiles: [],
+    taskRoutes: [],
   },
   imageGeneration: {
     apiFormat: 'openai-compatible',
@@ -54,6 +68,178 @@ type LegacyAgentSettings = Partial<AgentSettings> & {
 
 type LegacySettings = Omit<Partial<Settings>, 'agent'> & {
   agent?: LegacyAgentSettings
+}
+
+const VALID_LLM_KINDS = new Set<LLMProfileKind>(['cloud', 'local'])
+const VALID_LLM_PROVIDERS = new Set<LLMProviderKind>([
+  'openai-compatible',
+  'ollama',
+  'lm-studio',
+  'localai',
+  'custom',
+])
+const VALID_LLM_TASKS = new Set<LLMTaskKind>([
+  'agent-chat',
+  'pdf-to-markdown',
+  'coding',
+  'summarization',
+  'vision',
+])
+
+function hashId(prefix: string, parts: string[]) {
+  const hash = createHash('sha256')
+  for (const part of parts) hash.update(part).update('\n')
+  return `${prefix}_${hash.digest('hex').slice(0, 16)}`
+}
+
+function inferLlmProvider(baseUrl: string, modelId: string): LLMProviderKind {
+  const signature = `${baseUrl} ${modelId}`.toLowerCase()
+  if (signature.includes('ollama')) return 'ollama'
+  if (signature.includes('lmstudio') || signature.includes('lm-studio')) return 'lm-studio'
+  if (signature.includes('localai')) return 'localai'
+  return 'openai-compatible'
+}
+
+function inferLlmKind(baseUrl: string, provider: LLMProviderKind): LLMProfileKind {
+  if (provider === 'ollama' || provider === 'lm-studio' || provider === 'localai') return 'local'
+  try {
+    const host = new URL(baseUrl).hostname
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return 'local'
+  } catch {
+    // Keep remote-safe default when the URL cannot be parsed.
+  }
+  return 'cloud'
+}
+
+function normalizeLlmProfile(input: unknown, fallbackIndex = 0): LLMProfile | null {
+  if (!input || typeof input !== 'object') return null
+  const raw = input as Partial<LLMProfile>
+  const baseUrl = typeof raw.baseUrl === 'string' ? raw.baseUrl.trim() : ''
+  const modelId = typeof raw.modelId === 'string' ? raw.modelId.trim() : ''
+  if (!baseUrl || !modelId) return null
+
+  const provider = VALID_LLM_PROVIDERS.has(raw.provider as LLMProviderKind)
+    ? (raw.provider as LLMProviderKind)
+    : inferLlmProvider(baseUrl, modelId)
+  const kind = VALID_LLM_KINDS.has(raw.kind as LLMProfileKind)
+    ? (raw.kind as LLMProfileKind)
+    : inferLlmKind(baseUrl, provider)
+  const id =
+    typeof raw.id === 'string' && raw.id.trim()
+      ? raw.id.trim().replace(/[^A-Za-z0-9_-]/g, '_')
+      : hashId('llm', [kind, provider, baseUrl, modelId, String(fallbackIndex)])
+
+  return {
+    id,
+    name:
+      typeof raw.name === 'string' && raw.name.trim()
+        ? raw.name.trim()
+        : `${kind === 'local' ? '本地模型' : '云端模型'} · ${modelId}`,
+    kind,
+    provider,
+    baseUrl,
+    modelId,
+    apiKey: typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '',
+    enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
+    detected: raw.detected === true,
+    source: typeof raw.source === 'string' && raw.source.trim() ? raw.source.trim() : undefined,
+    lastSeenAt:
+      typeof raw.lastSeenAt === 'number' && Number.isFinite(raw.lastSeenAt)
+        ? raw.lastSeenAt
+        : undefined,
+  }
+}
+
+function normalizeLlmTaskRoutes(input: unknown, profiles: readonly LLMProfile[]): LLMTaskRoute[] {
+  if (!Array.isArray(input)) return []
+  const profileIds = new Set(profiles.map((profile) => profile.id))
+  const routes: LLMTaskRoute[] = []
+  const seen = new Set<LLMTaskKind>()
+
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue
+    const route = item as Partial<LLMTaskRoute>
+    if (!VALID_LLM_TASKS.has(route.task as LLMTaskKind)) continue
+    if (typeof route.profileId !== 'string' || !profileIds.has(route.profileId)) continue
+    if (seen.has(route.task as LLMTaskKind)) continue
+    seen.add(route.task as LLMTaskKind)
+    routes.push({
+      task: route.task as LLMTaskKind,
+      profileId: route.profileId,
+    })
+  }
+
+  return routes
+}
+
+function createLegacyLlmProfile(llm: Partial<LLMSettings>): LLMProfile | null {
+  const baseUrl = typeof llm.baseUrl === 'string' ? llm.baseUrl.trim() : ''
+  const modelId = typeof llm.modelId === 'string' ? llm.modelId.trim() : ''
+  const apiKey = typeof llm.apiKey === 'string' ? llm.apiKey.trim() : ''
+  if (!baseUrl && !modelId && !apiKey) return null
+  if (!baseUrl || !modelId) return null
+
+  const provider = VALID_LLM_PROVIDERS.has(llm.provider as LLMProviderKind)
+    ? (llm.provider as LLMProviderKind)
+    : inferLlmProvider(baseUrl, modelId)
+  const kind = VALID_LLM_KINDS.has(llm.kind as LLMProfileKind)
+    ? (llm.kind as LLMProfileKind)
+    : inferLlmKind(baseUrl, provider)
+
+  return {
+    id: hashId('llm', ['legacy', kind, provider, baseUrl, modelId]),
+    name: '当前模型',
+    kind,
+    provider,
+    baseUrl,
+    modelId,
+    apiKey,
+    enabled: true,
+  }
+}
+
+function mirrorActiveLlmProfile(llm: Omit<LLMSettings, 'baseUrl' | 'modelId' | 'apiKey'>): LLMSettings {
+  const activeProfile =
+    llm.profiles.find((profile) => profile.id === llm.activeProfileId && profile.enabled) ??
+    llm.profiles.find((profile) => profile.enabled)
+
+  return {
+    ...llm,
+    activeProfileId: activeProfile?.id ?? '',
+    baseUrl: activeProfile?.baseUrl ?? '',
+    modelId: activeProfile?.modelId ?? '',
+    apiKey: activeProfile?.apiKey ?? '',
+    kind: activeProfile?.kind ?? llm.kind,
+    provider: activeProfile?.provider ?? llm.provider,
+  }
+}
+
+function normalizeLlmSettings(llm: Partial<LLMSettings> | undefined): LLMSettings {
+  const current = llm ?? {}
+  const profiles = Array.isArray(current.profiles)
+    ? current.profiles
+        .map((profile, index) => normalizeLlmProfile(profile, index))
+        .filter((profile): profile is LLMProfile => profile !== null)
+    : []
+  const legacyProfile = createLegacyLlmProfile(current)
+  const normalizedProfiles = profiles.length > 0 ? profiles : legacyProfile ? [legacyProfile] : []
+  const activeProfileId =
+    typeof current.activeProfileId === 'string' &&
+    normalizedProfiles.some((profile) => profile.id === current.activeProfileId)
+      ? current.activeProfileId
+      : legacyProfile?.id ?? normalizedProfiles[0]?.id ?? ''
+
+  return mirrorActiveLlmProfile({
+    kind: VALID_LLM_KINDS.has(current.kind as LLMProfileKind)
+      ? (current.kind as LLMProfileKind)
+      : DEFAULT_SETTINGS.llm.kind,
+    provider: VALID_LLM_PROVIDERS.has(current.provider as LLMProviderKind)
+      ? (current.provider as LLMProviderKind)
+      : DEFAULT_SETTINGS.llm.provider,
+    activeProfileId,
+    profiles: normalizedProfiles,
+    taskRoutes: normalizeLlmTaskRoutes(current.taskRoutes, normalizedProfiles),
+  })
 }
 
 function normalizeImageGenerationSettings(
@@ -112,7 +298,7 @@ function normalizeImageGenerationSettings(
 
 function mergeSettings(base: Settings, partial: Partial<Settings>): Settings {
   return {
-    llm: { ...base.llm, ...(partial.llm ?? {}) },
+    llm: normalizeLlmSettings({ ...base.llm, ...(partial.llm ?? {}) }),
     imageGeneration: {
       ...base.imageGeneration,
       ...(partial.imageGeneration ?? {}),
@@ -204,11 +390,25 @@ function maskKey(key: string): string {
   return key.slice(0, 3) + '****' + key.slice(-4)
 }
 
+function toPublicLlmProfile(profile: LLMProfile): PublicLLMProfile {
+  const { apiKey: _apiKey, ...safeProfile } = profile
+  return {
+    ...safeProfile,
+    hasApiKey: profile.apiKey.length > 0,
+    apiKeyMask: maskKey(profile.apiKey),
+  }
+}
+
 function toPublic(settings: Settings): PublicSettings {
   return {
     llm: {
       baseUrl: settings.llm.baseUrl,
       modelId: settings.llm.modelId,
+      kind: settings.llm.kind,
+      provider: settings.llm.provider,
+      activeProfileId: settings.llm.activeProfileId,
+      profiles: settings.llm.profiles.map((profile) => toPublicLlmProfile(profile)),
+      taskRoutes: settings.llm.taskRoutes,
       hasApiKey: settings.llm.apiKey.length > 0,
       apiKeyMask: maskKey(settings.llm.apiKey),
     },
@@ -238,10 +438,122 @@ function toPublic(settings: Settings): PublicSettings {
   }
 }
 
+function replaceProfile(profiles: readonly LLMProfile[], nextProfile: LLMProfile): LLMProfile[] {
+  const next: LLMProfile[] = []
+  let replaced = false
+  for (const profile of profiles) {
+    if (profile.id === nextProfile.id) {
+      next.push(nextProfile)
+      replaced = true
+    } else {
+      next.push(profile)
+    }
+  }
+  if (!replaced) next.push(nextProfile)
+  return next
+}
+
+function applyLlmPatch(current: LLMSettings, patch: Partial<LLMSettings> | undefined): LLMSettings {
+  if (!patch) return current
+
+  let profiles = current.profiles
+  if (Array.isArray(patch.profiles)) {
+    profiles = patch.profiles
+      .map((profile, index) => normalizeLlmProfile(profile, index))
+      .filter((profile): profile is LLMProfile => profile !== null)
+  }
+
+  const hasManualConfigPatch =
+    typeof patch.baseUrl === 'string' ||
+    typeof patch.modelId === 'string' ||
+    (typeof patch.apiKey === 'string' && patch.apiKey.trim().length > 0) ||
+    VALID_LLM_KINDS.has(patch.kind as LLMProfileKind) ||
+    VALID_LLM_PROVIDERS.has(patch.provider as LLMProviderKind)
+
+  let activeProfileId =
+    typeof patch.activeProfileId === 'string' &&
+    profiles.some((profile) => profile.id === patch.activeProfileId)
+      ? patch.activeProfileId
+      : current.activeProfileId
+
+  if (hasManualConfigPatch) {
+    const currentActive =
+      profiles.find((profile) => profile.id === activeProfileId) ??
+      profiles.find((profile) => profile.id === current.activeProfileId)
+    const baseUrl =
+      typeof patch.baseUrl === 'string' ? patch.baseUrl.trim() : currentActive?.baseUrl ?? ''
+    const modelId =
+      typeof patch.modelId === 'string' ? patch.modelId.trim() : currentActive?.modelId ?? ''
+    const provider = VALID_LLM_PROVIDERS.has(patch.provider as LLMProviderKind)
+      ? (patch.provider as LLMProviderKind)
+      : currentActive?.provider ?? inferLlmProvider(baseUrl, modelId)
+    const kind = VALID_LLM_KINDS.has(patch.kind as LLMProfileKind)
+      ? (patch.kind as LLMProfileKind)
+      : currentActive?.kind ?? inferLlmKind(baseUrl, provider)
+    const apiKey =
+      typeof patch.apiKey === 'string' && patch.apiKey.trim().length > 0
+        ? patch.apiKey.trim()
+        : currentActive?.apiKey ?? ''
+
+    if (baseUrl && modelId) {
+      const nextProfile: LLMProfile = {
+        id: currentActive?.id ?? hashId('llm', ['manual', kind, provider, baseUrl, modelId]),
+        name: currentActive?.name ?? '当前模型',
+        kind,
+        provider,
+        baseUrl,
+        modelId,
+        apiKey,
+        enabled: currentActive?.enabled ?? true,
+        detected: currentActive?.detected,
+        source: currentActive?.source,
+        lastSeenAt: currentActive?.lastSeenAt,
+      }
+      profiles = replaceProfile(profiles, nextProfile)
+      activeProfileId = nextProfile.id
+    }
+  }
+
+  const next = mirrorActiveLlmProfile({
+    kind: current.kind,
+    provider: current.provider,
+    activeProfileId,
+    profiles,
+    taskRoutes: normalizeLlmTaskRoutes(patch.taskRoutes ?? current.taskRoutes, profiles),
+  })
+  return normalizeLlmSettings(next)
+}
+
+export function resolveLlmConfigForTask(
+  llm: LLMSettings,
+  task: LLMTaskKind = 'agent-chat',
+): LLMSettings {
+  const route = llm.taskRoutes.find((item) => item.task === task)
+  const routedProfile =
+    route ? llm.profiles.find((profile) => profile.id === route.profileId && profile.enabled) : null
+  const activeProfile =
+    routedProfile ??
+    llm.profiles.find((profile) => profile.id === llm.activeProfileId && profile.enabled) ??
+    llm.profiles.find((profile) => profile.enabled)
+
+  if (!activeProfile) return llm
+
+  return {
+    ...llm,
+    activeProfileId: activeProfile.id,
+    baseUrl: activeProfile.baseUrl,
+    modelId: activeProfile.modelId,
+    apiKey: activeProfile.apiKey,
+    kind: activeProfile.kind,
+    provider: activeProfile.provider,
+  }
+}
+
 export async function getSettings(): Promise<Settings> {
   const raw = await readJson<LegacySettings>(FILE, {})
   return mergeSettings(DEFAULT_SETTINGS, {
     ...raw,
+    llm: normalizeLlmSettings(raw.llm),
     imageGeneration: normalizeImageGenerationSettings(raw.imageGeneration),
     appearance: normalizeAppearanceSettings(raw.appearance),
     agent: normalizeAgentSettings(raw.agent),
@@ -257,15 +569,7 @@ export async function updateSettings(patch: SettingsPatch): Promise<PublicSettin
   const current = await getSettings()
   const next: Settings = {
     ...current,
-    llm: {
-      ...current.llm,
-      baseUrl: patch.llm?.baseUrl ?? current.llm.baseUrl,
-      modelId: patch.llm?.modelId ?? current.llm.modelId,
-      apiKey:
-        typeof patch.llm?.apiKey === 'string' && patch.llm.apiKey.trim().length > 0
-          ? patch.llm.apiKey.trim()
-          : current.llm.apiKey,
-    },
+    llm: applyLlmPatch(current.llm, patch.llm),
     imageGeneration: {
       ...current.imageGeneration,
       ...(patch.imageGeneration
@@ -298,6 +602,62 @@ export async function updateSettings(patch: SettingsPatch): Promise<PublicSettin
     },
   }
 
+  await writeJson(FILE, next)
+  return toPublic(next)
+}
+
+export async function upsertLlmProfile(
+  profileInput: unknown,
+  options: { activate?: boolean } = {},
+): Promise<PublicSettings> {
+  const current = await getSettings()
+  const profile = normalizeLlmProfile(profileInput)
+  if (!profile) throw httpError(400, '无效的 LLM profile：baseUrl 和 modelId 必填')
+
+  const existing = current.llm.profiles.find((item) => item.id === profile.id)
+  const nextProfile: LLMProfile = {
+    ...existing,
+    ...profile,
+    apiKey: profile.apiKey || (profile.kind === 'cloud' ? existing?.apiKey ?? '' : ''),
+  }
+  const profiles = replaceProfile(current.llm.profiles, nextProfile)
+  const nextLlm = mirrorActiveLlmProfile({
+    ...current.llm,
+    activeProfileId: options.activate ? nextProfile.id : current.llm.activeProfileId,
+    profiles,
+    taskRoutes: normalizeLlmTaskRoutes(current.llm.taskRoutes, profiles),
+  })
+
+  const next = { ...current, llm: normalizeLlmSettings(nextLlm) }
+  await writeJson(FILE, next)
+  return toPublic(next)
+}
+
+export async function activateLlmProfile(profileId: string): Promise<PublicSettings> {
+  const current = await getSettings()
+  if (!current.llm.profiles.some((profile) => profile.id === profileId)) {
+    throw httpError(404, '未找到 LLM profile')
+  }
+  const next = {
+    ...current,
+    llm: normalizeLlmSettings({
+      ...current.llm,
+      activeProfileId: profileId,
+    }),
+  }
+  await writeJson(FILE, next)
+  return toPublic(next)
+}
+
+export async function updateLlmTaskRoutes(routesInput: unknown): Promise<PublicSettings> {
+  const current = await getSettings()
+  const next = {
+    ...current,
+    llm: normalizeLlmSettings({
+      ...current.llm,
+      taskRoutes: normalizeLlmTaskRoutes(routesInput, current.llm.profiles),
+    }),
+  }
   await writeJson(FILE, next)
   return toPublic(next)
 }

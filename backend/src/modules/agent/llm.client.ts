@@ -4,11 +4,14 @@ import {
   normalizeCacheUsage,
 } from './agent.cache-policy.service.js'
 import { isMiniMaxCompatible } from './agent.provider.js'
+import type { LLMProfileKind, LLMProviderKind } from '../settings/settings.types.js'
 
 export type LLMConfig = {
   baseUrl: string
   modelId: string
   apiKey: string
+  kind?: LLMProfileKind
+  provider?: LLMProviderKind
 }
 
 export type LLMToolDefinition = {
@@ -114,6 +117,14 @@ function normalizeMiniMaxBaseUrl(cfg: LLMConfig): string {
     if (/^https?:\/\/api\.minimaxi\.com\/?$/i.test(trimmed)) return 'https://api.minimaxi.com/v1'
     return trimmed
   }
+}
+
+function requiresApiKey(cfg: LLMConfig): boolean {
+  if (cfg.kind === 'local') return false
+  if (cfg.provider === 'ollama' || cfg.provider === 'lm-studio' || cfg.provider === 'localai') {
+    return false
+  }
+  return true
 }
 
 export function normalizeMessagesForMiniMax(
@@ -245,17 +256,22 @@ async function postChatCompletion(
 ): Promise<Response> {
   if (!cfg.baseUrl) throw httpError(400, 'LLM baseUrl 未配置，请前往设置页填写')
   if (!cfg.modelId) throw httpError(400, 'LLM modelId 未配置，请前往设置页填写')
-  if (!cfg.apiKey) throw httpError(400, 'LLM apiKey 未配置，请前往设置页填写')
+  if (requiresApiKey(cfg) && !cfg.apiKey) {
+    throw httpError(400, 'LLM apiKey 未配置，请前往设置页填写')
+  }
 
   let res: Response
   try {
     const requestBaseUrl = normalizeMiniMaxBaseUrl(cfg)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (cfg.apiKey) {
+      headers.Authorization = `Bearer ${cfg.apiKey}`
+    }
     res = await fetch(joinUrl(requestBaseUrl, 'chat/completions'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${cfg.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(payload),
       signal: abortSignal,
     })

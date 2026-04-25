@@ -2,6 +2,7 @@
 
 const BASE_READ_PACK_TOOL_NAMES = [
   'agent_runtime_status',
+  'agent_llm_local_model_scan',
   'filesystem_stat_path',
   'filesystem_list_directory',
   'filesystem_search_files',

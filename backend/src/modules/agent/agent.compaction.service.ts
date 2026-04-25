@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { config } from '../../config.js'
 import { HttpError } from '../../http-error.js'
-import { getSettings } from '../settings/settings.service.js'
+import { getSettings, resolveLlmConfigForTask } from '../settings/settings.service.js'
 import { chatCompletion } from './llm.client.js'
 import {
   getChatHistory,
@@ -108,8 +108,9 @@ async function summarizeChunk(
   total: number,
 ) {
   const settings = await getSettings()
+  const llm = resolveLlmConfigForTask(settings.llm, 'summarization')
   const response = await chatCompletion(
-    settings.llm,
+    llm,
     [
       {
         role: 'system',
@@ -151,8 +152,9 @@ async function summarizeFinal(
   chunkSummaries: string[],
 ) {
   const settings = await getSettings()
+  const llm = resolveLlmConfigForTask(settings.llm, 'summarization')
   const response = await chatCompletion(
-    settings.llm,
+    llm,
     [
       {
         role: 'system',

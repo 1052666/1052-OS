@@ -1,5 +1,13 @@
 ﻿import { useEffect, useState, type ReactNode } from 'react'
-import { SettingsApi, type PublicSettings, type SettingsPatch } from '../api/settings'
+import {
+  SettingsApi,
+  type LlmTaskKind,
+  type LlmTaskRoute,
+  type LocalModelDiscoveryResult,
+  type PublicLlmProfile,
+  type PublicSettings,
+  type SettingsPatch,
+} from '../api/settings'
 import { AgentApi, type AgentMigrationPreview, type AgentMigrationResult } from '../api/agent'
 import { UpdatesApi, type UpdateRun, type UpdateStatus } from '../api/updates'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
@@ -26,6 +34,14 @@ function formatUpdateTime(value: string | null | undefined): string {
 
 type LlmPreset = { name: string; baseUrl: string; modelId: string }
 type LlmPresetGroup = { name: string; children: LlmPreset[] }
+
+const LLM_TASKS: { task: LlmTaskKind; label: string; description: string }[] = [
+  { task: 'agent-chat', label: 'Agent 对话', description: '默认对话、工具调用和多轮协作' },
+  { task: 'pdf-to-markdown', label: 'PDF 转 Markdown', description: '后续 PDF 解析链路的本地优先任务' },
+  { task: 'coding', label: '代码任务', description: '代码阅读、修改和解释类任务' },
+  { task: 'summarization', label: '摘要压缩', description: 'checkpoint seed 和上下文压缩' },
+  { task: 'vision', label: '视觉任务', description: '预留给多模态识别链路' },
+]
 
 const ZHIPU_PRESETS: LlmPresetGroup = {
   name: '智谱',
@@ -140,6 +156,11 @@ export default function Settings() {
   const [baseUrl, setBaseUrl] = useState('')
   const [modelId, setModelId] = useState('')
   const [apiKey, setApiKey] = useState('')
+  const [llmTaskRoutes, setLlmTaskRoutes] = useState<LlmTaskRoute[]>([])
+  const [localDiscovery, setLocalDiscovery] = useState<LocalModelDiscoveryResult | null>(null)
+  const [localDiscoveryBusy, setLocalDiscoveryBusy] = useState(false)
+  const [llmActionBusy, setLlmActionBusy] = useState('')
+  const [llmActionError, setLlmActionError] = useState('')
   const [imageApiFormat, setImageApiFormat] =
     useState<PublicSettings['imageGeneration']['apiFormat']>('openai-compatible')
   const [imageBaseUrl, setImageBaseUrl] = useState('')
@@ -187,6 +208,8 @@ export default function Settings() {
   const [restartMessage, setRestartMessage] = useState('')
   const llmProvider = detectLlmProvider(baseUrl, modelId)
   const llmApiKeyPortal = LLM_API_KEY_PORTALS[llmProvider]
+  const llmProfiles = loaded?.llm.profiles ?? []
+  const activeLlmProfileId = loaded?.llm.activeProfileId ?? ''
   const updateRunActive = isUpdateRunActive(updateRun)
   const canInstallSystemUpdate = Boolean(
     updateStatus?.canInstall &&
@@ -199,6 +222,7 @@ export default function Settings() {
         setLoaded(settings)
         setBaseUrl(settings.llm.baseUrl)
         setModelId(settings.llm.modelId)
+        setLlmTaskRoutes(settings.llm.taskRoutes)
         setImageApiFormat(settings.imageGeneration.apiFormat)
         setImageBaseUrl(settings.imageGeneration.baseUrl)
         setImageModelId(settings.imageGeneration.modelId)
@@ -266,6 +290,64 @@ export default function Settings() {
     setImageModelId(preset.modelId)
   }
 
+  const syncLlmSettings = (settings: PublicSettings) => {
+    setLoaded(settings)
+    setBaseUrl(settings.llm.baseUrl)
+    setModelId(settings.llm.modelId)
+    setApiKey('')
+    setLlmTaskRoutes(settings.llm.taskRoutes)
+  }
+
+  const scanLocalModels = async () => {
+    setLocalDiscoveryBusy(true)
+    setLlmActionError('')
+    try {
+      setLocalDiscovery(await SettingsApi.discoverLocalModels())
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setLlmActionError(errorLike.message ?? t('本地模型扫描失败', 'Local model scan failed'))
+    } finally {
+      setLocalDiscoveryBusy(false)
+    }
+  }
+
+  const saveAndActivateProfile = async (profile: PublicLlmProfile) => {
+    setLlmActionBusy(profile.id)
+    setLlmActionError('')
+    try {
+      syncLlmSettings(await SettingsApi.upsertLlmProfile(profile, true))
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setLlmActionError(errorLike.message ?? t('模型切换失败', 'Failed to switch model'))
+    } finally {
+      setLlmActionBusy('')
+    }
+  }
+
+  const activateProfile = async (profileId: string) => {
+    setLlmActionBusy(profileId)
+    setLlmActionError('')
+    try {
+      syncLlmSettings(await SettingsApi.activateLlmProfile(profileId))
+    } catch (err) {
+      const errorLike = err as { message?: string }
+      setLlmActionError(errorLike.message ?? t('模型切换失败', 'Failed to switch model'))
+    } finally {
+      setLlmActionBusy('')
+    }
+  }
+
+  const updateTaskRoute = (task: LlmTaskKind, profileId: string) => {
+    setLlmTaskRoutes((current) => {
+      const remaining = current.filter((route) => route.task !== task)
+      if (!profileId) return remaining
+      return [...remaining, { task, profileId }]
+    })
+  }
+
+  const taskRouteProfileId = (task: LlmTaskKind) =>
+    llmTaskRoutes.find((route) => route.task === task)?.profileId ?? ''
+
   const save = async () => {
     setState('saving')
     setError('')
@@ -274,6 +356,7 @@ export default function Settings() {
       llm: {
         baseUrl: baseUrl.trim(),
         modelId: modelId.trim(),
+        taskRoutes: llmTaskRoutes,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
       },
       imageGeneration: {
@@ -307,6 +390,7 @@ export default function Settings() {
     try {
       const settings = await SettingsApi.update(patch)
       setLoaded(settings)
+      setLlmTaskRoutes(settings.llm.taskRoutes)
       setApiKey('')
       setImageApiKey('')
       setUapisApiKey('')
@@ -479,6 +563,123 @@ export default function Settings() {
                       </div>
                     )}
                   </div>
+                </div>
+              </div>
+
+              {llmActionError ? <div className="settings-error">{llmActionError}</div> : null}
+
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">模型 Profile</div>
+                  <div className="settings-row-desc">
+                    当前激活：{loaded?.llm.kind === 'local' ? '本地' : '云端'} · {loaded?.llm.modelId || '未配置'}
+                  </div>
+                </div>
+                {llmProfiles.length > 0 ? (
+                  <div className="settings-model-grid">
+                    {llmProfiles.map((profile) => {
+                      const active = profile.id === activeLlmProfileId
+                      return (
+                        <div key={profile.id} className={`settings-model-card${active ? ' active' : ''}`}>
+                          <div className="settings-model-card-head">
+                            <strong>{profile.name}</strong>
+                            <span>{profile.kind === 'local' ? 'Local' : 'Cloud'}</span>
+                          </div>
+                          <div className="settings-model-card-meta">{profile.provider} · {profile.modelId}</div>
+                          <div className="settings-model-card-url">{profile.baseUrl}</div>
+                          <button
+                            className="chip"
+                            type="button"
+                            disabled={active || llmActionBusy === profile.id}
+                            onClick={() => void activateProfile(profile.id)}
+                          >
+                            {active ? '使用中' : llmActionBusy === profile.id ? '切换中...' : '切换'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="settings-help">保存一次当前 Base URL 和 Model ID 后会生成默认 Profile。</div>
+                )}
+              </div>
+
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">本地模型扫描</div>
+                  <div className="settings-row-desc">
+                    扫描 Ollama、LM Studio、LocalAI、vLLM、llama.cpp 和常见 OpenAI 兼容本地端口。
+                  </div>
+                </div>
+                <div className="settings-actions">
+                  <button
+                    className="chip"
+                    type="button"
+                    disabled={localDiscoveryBusy}
+                    onClick={() => void scanLocalModels()}
+                  >
+                    {localDiscoveryBusy ? '扫描中...' : '扫描本地模型'}
+                  </button>
+                  {localDiscovery ? (
+                    <span className="settings-inline-note">
+                      发现 {localDiscovery.candidates.length} 个候选
+                    </span>
+                  ) : null}
+                </div>
+                {localDiscovery?.candidates.length ? (
+                  <div className="settings-model-grid">
+                    {localDiscovery.candidates.map((profile) => (
+                      <div key={profile.id} className="settings-model-card">
+                        <div className="settings-model-card-head">
+                          <strong>{profile.name}</strong>
+                          <span>Detected</span>
+                        </div>
+                        <div className="settings-model-card-meta">{profile.provider} · {profile.modelId}</div>
+                        <div className="settings-model-card-url">{profile.baseUrl}</div>
+                        <button
+                          className="chip primary"
+                          type="button"
+                          disabled={llmActionBusy === profile.id}
+                          onClick={() => void saveAndActivateProfile(profile)}
+                        >
+                          {llmActionBusy === profile.id ? '保存中...' : '保存并切换'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : localDiscovery ? (
+                  <div className="settings-help">没有发现运行中的本地 OpenAI 兼容模型服务。</div>
+                ) : null}
+              </div>
+
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">任务级模型路由</div>
+                  <div className="settings-row-desc">
+                    未指定时使用当前激活 Profile；保存设置后生效。
+                  </div>
+                </div>
+                <div className="settings-route-grid">
+                  {LLM_TASKS.map((item) => (
+                    <label key={item.task} className="settings-route-row">
+                      <span>
+                        <strong>{item.label}</strong>
+                        <small>{item.description}</small>
+                      </span>
+                      <select
+                        className="settings-input"
+                        value={taskRouteProfileId(item.task)}
+                        onChange={(event) => updateTaskRoute(item.task, event.target.value)}
+                      >
+                        <option value="">跟随当前 Profile</option>
+                        {llmProfiles.map((profile) => (
+                          <option key={profile.id} value={profile.id}>
+                            {profile.name} · {profile.modelId}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
                 </div>
               </div>
 

@@ -33,6 +33,7 @@ describe('agent progressive disclosure helpers', () => {
 
     const toolNames = getToolNamesForMountedPacks(mountedPacks)
     expect(toolNames).toContain('agent_runtime_status')
+    expect(toolNames).toContain('agent_llm_local_model_scan')
     expect(toolNames).toContain('filesystem_read_file')
     expect(toolNames).toContain('terminal_run_readonly')
     expect(toolNames).toContain('terminal_run')
@@ -183,6 +184,7 @@ describe('agent progressive disclosure helpers', () => {
       exitCode: 0,
       risk: 'safe',
     })
+  })
 
   it('keeps read-only terminal commands on the allow list', async () => {
     expect(isReadonlyTerminalCommandAllowed('rg output-profile backend/src')).toBe(true)

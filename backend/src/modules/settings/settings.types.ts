@@ -1,7 +1,52 @@
+export type LLMProfileKind = 'cloud' | 'local'
+
+export type LLMProviderKind =
+  | 'openai-compatible'
+  | 'ollama'
+  | 'lm-studio'
+  | 'localai'
+  | 'custom'
+
+export type LLMTaskKind =
+  | 'agent-chat'
+  | 'pdf-to-markdown'
+  | 'coding'
+  | 'summarization'
+  | 'vision'
+
+export type LLMProfile = {
+  id: string
+  name: string
+  kind: LLMProfileKind
+  provider: LLMProviderKind
+  baseUrl: string
+  modelId: string
+  apiKey: string
+  enabled: boolean
+  detected?: boolean
+  source?: string
+  lastSeenAt?: number
+}
+
+export type PublicLLMProfile = Omit<LLMProfile, 'apiKey'> & {
+  hasApiKey: boolean
+  apiKeyMask: string
+}
+
+export type LLMTaskRoute = {
+  task: LLMTaskKind
+  profileId: string
+}
+
 export type LLMSettings = {
   baseUrl: string
   modelId: string
   apiKey: string
+  kind: LLMProfileKind
+  provider: LLMProviderKind
+  activeProfileId: string
+  profiles: LLMProfile[]
+  taskRoutes: LLMTaskRoute[]
 }
 
 export type ImageGenerationSettings = {
@@ -50,6 +95,11 @@ export type PublicSettings = {
   llm: {
     baseUrl: string
     modelId: string
+    kind: LLMProfileKind
+    provider: LLMProviderKind
+    activeProfileId: string
+    profiles: PublicLLMProfile[]
+    taskRoutes: LLMTaskRoute[]
     hasApiKey: boolean
     apiKeyMask: string
   }
