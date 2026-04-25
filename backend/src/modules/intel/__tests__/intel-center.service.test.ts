@@ -43,6 +43,8 @@ import json
 import os
 print(json.dumps({
   "cwd": os.getcwd(),
+  "collector_budget": os.environ.get("INTEL_CENTER_TOTAL_BUDGET_SECONDS"),
+  "python_unbuffered": os.environ.get("PYTHONUNBUFFERED"),
   "script_exists": os.path.exists("scripts/intel.py"),
   "gnews": {"total": 1, "items": [{"title": "Signal"}]}
 }))
@@ -56,6 +58,8 @@ print(json.dumps({
     expect(result.scriptPath).toBe(path.join(skillRoot, 'scripts', 'intel.py'))
     expect(result.data).toMatchObject({
       cwd: realSkillRoot,
+      collector_budget: '1',
+      python_unbuffered: '1',
       script_exists: true,
       gnews: { total: 1 },
     })

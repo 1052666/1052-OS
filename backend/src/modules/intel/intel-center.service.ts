@@ -43,6 +43,11 @@ function pythonCommand() {
     : { file: 'python3', args: ['scripts/intel.py'] }
 }
 
+function collectorBudgetSeconds(timeoutMs: number) {
+  const reserveMs = 10_000
+  return String(Math.max(1, Math.floor((timeoutMs - reserveMs) / 1000)))
+}
+
 async function resolveIntelCenterScript() {
   const skill = await readSkill('intel-center')
   const skillRoot = path.dirname(skill.path)
@@ -73,7 +78,9 @@ export async function collectIntelCenterData(input: {
       env: {
         ...process.env,
         FORCE_COLOR: '0',
+        INTEL_CENTER_TOTAL_BUDGET_SECONDS: collectorBudgetSeconds(timeoutMs),
         NO_COLOR: '1',
+        PYTHONUNBUFFERED: '1',
         TERM: 'dumb',
       },
     })

@@ -37,6 +37,7 @@ python3 scripts/intel.py 2>&1
 
 The script outputs JSON to stdout with all collected data. Progress goes to stderr.
 When running manually, set the current working directory to the directory containing this `SKILL.md`; `scripts/intel.py` is relative to that directory.
+The collector has a hard runtime budget and per-source stage budgets. In 1052 OS Agent mode the total budget is derived from the tool timeout; manual runs can override it with `INTEL_CENTER_TOTAL_BUDGET_SECONDS`.
 
 Then analyze the JSON output following the workflow below.
 
@@ -152,10 +153,11 @@ Structure your output as a brief with:
 
 | Package | Purpose | Install |
 |---------|---------|---------|
+| certifi | HTTPS CA fallback when the local Python CA store is incomplete | `pip install certifi` |
 | akshare | A/H stock data (northbound flow, sectors, limit up/down) | `pip install akshare` |
 | tencent-news-cli | Chinese news (Tencent hot topics, morning brief) | npm package |
 
-The script works without these — they provide additional Chinese market data.
+The script works without optional packages, but `certifi` improves reliability on Python installs whose default OpenSSL CA store is incomplete. `akshare` and `tencent-news-cli` provide additional Chinese market data.
 
 ## Scheduling
 
@@ -183,6 +185,7 @@ Use 1052 OS's built-in calendar/scheduler to automate.
   "rss":            { "total": 52, "items": [...] },
   "hackernews":     { "total": 25, "items": [...] },
   "search_engines": { "total": 18, "items": [...] },
-  "china_market":   { "northbound": {...}, "sectors_top": [...], ... }
+  "china_market":   { "northbound": {...}, "sectors_top": [...], ... },
+  "diagnostics":    { "warning_count": 0, "warnings": [], "elapsed_seconds": 0.0 }
 }
 ```
