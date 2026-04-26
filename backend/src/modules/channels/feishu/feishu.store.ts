@@ -99,6 +99,10 @@ export async function loadFeishuAppConfig(): Promise<FeishuAppConfigRecord> {
     enabled: raw.enabled === true,
     autoReplyEnabled: raw.autoReplyEnabled !== false,
     cardCallbackEnabled: raw.cardCallbackEnabled !== false,
+    cardkitStreamingEnabled:
+      typeof raw.cardkitStreamingEnabled === 'boolean'
+        ? raw.cardkitStreamingEnabled
+        : undefined,
     savedAt: typeof raw.savedAt === 'string' ? raw.savedAt : undefined,
   }
 }
@@ -119,6 +123,8 @@ export async function saveFeishuAppConfig(
     autoReplyEnabled: update.autoReplyEnabled ?? existing.autoReplyEnabled ?? true,
     cardCallbackEnabled:
       update.cardCallbackEnabled ?? existing.cardCallbackEnabled ?? true,
+    cardkitStreamingEnabled:
+      update.cardkitStreamingEnabled ?? existing.cardkitStreamingEnabled,
     savedAt: new Date().toISOString(),
   }
 

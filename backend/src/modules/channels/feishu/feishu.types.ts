@@ -19,6 +19,7 @@ export type FeishuAppConfigRecord = {
   enabled: boolean
   autoReplyEnabled: boolean
   cardCallbackEnabled: boolean
+  cardkitStreamingEnabled?: boolean
   savedAt?: string
 }
 
