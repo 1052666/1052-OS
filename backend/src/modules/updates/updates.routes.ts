@@ -24,9 +24,9 @@ updatesRouter.post('/check', async (_req, res, next) => {
   }
 })
 
-updatesRouter.post('/install', async (_req, res, next) => {
+updatesRouter.post('/install', async (req, res, next) => {
   try {
-    res.status(202).json({ run: await startUpdateInstall() })
+    res.status(202).json({ run: await startUpdateInstall(req.body ?? {}) })
   } catch (error) {
     next(error)
   }

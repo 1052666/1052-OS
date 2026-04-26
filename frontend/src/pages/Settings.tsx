@@ -20,6 +20,11 @@ import ThemePreviewMatrix from '../components/appearance/ThemePreviewMatrix'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
 import TokenUsagePanel from '../components/TokenUsagePanel'
 import { useTheme } from '../theme-context'
+import {
+  canInstallSystemUpdate as getCanInstallSystemUpdate,
+  canReinstallArchiveLatest,
+  getSystemUpdateInstallOptions,
+} from './settings-update'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -264,10 +269,8 @@ export default function Settings() {
   const llmProfiles = loaded?.llm.profiles ?? []
   const activeLlmProfileId = loaded?.llm.activeProfileId ?? ''
   const updateRunActive = isUpdateRunActive(updateRun)
-  const canInstallSystemUpdate = Boolean(
-    updateStatus?.canInstall &&
-      (updateStatus.updateAvailable || (updateStatus.mode === 'archive' && updateStatus.latest)),
-  )
+  const canReinstallArchiveLatestStatus = canReinstallArchiveLatest(updateStatus)
+  const canInstallSystemUpdate = getCanInstallSystemUpdate(updateStatus)
 
   useEffect(() => {
     SettingsApi.get()
@@ -643,7 +646,7 @@ export default function Settings() {
     setUpdateError('')
     setRestartMessage('')
     try {
-      const response = await UpdatesApi.install()
+      const response = await UpdatesApi.install(getSystemUpdateInstallOptions(updateStatus))
       setUpdateRun(response.run)
     } catch (err) {
       const errorLike = err as { message?: string }
@@ -1432,7 +1435,7 @@ export default function Settings() {
                     }
                     onClick={() => void installSystemUpdate()}
                   >
-                    {updateStatus && !updateStatus.updateAvailable && updateStatus.mode === 'archive'
+                    {canReinstallArchiveLatestStatus
                       ? '重新安装最新版'
                       : '安装更新'}
                   </button>

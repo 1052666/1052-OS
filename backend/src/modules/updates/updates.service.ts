@@ -12,6 +12,7 @@ import { httpError } from '../../http-error.js'
 import type {
   GitHubCommitResponse,
   UpdateCommitInfo,
+  UpdateInstallInput,
   UpdateInstallMode,
   UpdateRestartResponse,
   UpdateRun,
@@ -69,7 +70,48 @@ type LocalSourceState = {
   dirtyFiles: string[]
 }
 
+type UpdateInstallOptions = {
+  force: boolean
+}
+
+type UpdateInstallPreflight =
+  | { action: 'blocked'; message: string }
+  | { action: 'noop' }
+  | { action: 'install'; latest: UpdateCommitInfo; forcedArchiveReinstallCommit?: string }
+
 const runs = new Map<string, UpdateRun>()
+
+export function normalizeUpdateInstallInput(input: UpdateInstallInput = {}): UpdateInstallOptions {
+  return {
+    force: input.force === true,
+  }
+}
+
+export function shouldRunUpdateInstall(status: UpdateStatus, options: UpdateInstallOptions) {
+  return Boolean(
+    status.updateAvailable ||
+      (status.mode === 'archive' && options.force && status.latest),
+  )
+}
+
+export function planUpdateInstall(status: UpdateStatus, options: UpdateInstallOptions): UpdateInstallPreflight {
+  if (!status.latest) return { action: 'blocked', message: '无法获取 GitHub 最新版本。' }
+  if (!status.canInstall) {
+    return {
+      action: 'blocked',
+      message: status.warnings[0] ?? '当前环境暂不满足自动更新条件。',
+    }
+  }
+  if (!shouldRunUpdateInstall(status, options)) return { action: 'noop' }
+  return {
+    action: 'install',
+    latest: status.latest,
+    forcedArchiveReinstallCommit:
+      options.force && status.mode === 'archive' && !status.updateAvailable
+        ? status.latest.commit
+        : undefined,
+  }
+}
 
 export async function getUpdateStatus(refreshRemote = true): Promise<UpdateStatus> {
   const workspaceRoot = await resolveWorkspaceRoot()
@@ -133,11 +175,12 @@ export async function getUpdateStatus(refreshRemote = true): Promise<UpdateStatu
   return status
 }
 
-export async function startUpdateInstall(): Promise<UpdateRun> {
+export async function startUpdateInstall(input: UpdateInstallInput = {}): Promise<UpdateRun> {
   const activeRun = [...runs.values()].find((run) => run.status === 'queued' || run.status === 'running')
   if (activeRun) {
     throw httpError(409, '已有更新任务正在执行，请等待当前任务结束。')
   }
+  const options = normalizeUpdateInstallInput(input)
 
   await fs.mkdir(LOG_DIR, { recursive: true })
   await fs.mkdir(RUNS_DIR, { recursive: true })
@@ -161,7 +204,7 @@ export async function startUpdateInstall(): Promise<UpdateRun> {
   await persistRun(run)
 
   queueMicrotask(() => {
-    void executeUpdate(run)
+    void executeUpdate(run, options)
   })
 
   return cloneRun(run)
@@ -183,7 +226,7 @@ export async function scheduleUpdateRestart(): Promise<UpdateRestartResponse> {
   return schedulePosixRestart(workspaceRoot)
 }
 
-async function executeUpdate(run: UpdateRun) {
+async function executeUpdate(run: UpdateRun, options: UpdateInstallOptions) {
   try {
     await setRun(run, {
       status: 'running',
@@ -195,11 +238,9 @@ async function executeUpdate(run: UpdateRun) {
 
     const status = await getUpdateStatus(true)
     await setRun(run, { statusSnapshot: status })
-    if (!status.latest) throw new Error('无法获取 GitHub 最新版本。')
-    if (!status.canInstall) {
-      throw new Error(status.warnings[0] ?? '当前环境暂不满足自动更新条件。')
-    }
-    if (!status.updateAvailable) {
+    const installPlan = planUpdateInstall(status, options)
+    if (installPlan.action === 'blocked') throw new Error(installPlan.message)
+    if (installPlan.action === 'noop') {
       await setRun(run, {
         status: 'success',
         phase: 'complete',
@@ -209,6 +250,12 @@ async function executeUpdate(run: UpdateRun) {
         finishedAt: new Date().toISOString(),
       })
       return
+    }
+    if (installPlan.forcedArchiveReinstallCommit) {
+      await appendRunLog(
+        run,
+        `[preflight] archive reinstall forced for ${installPlan.forcedArchiveReinstallCommit}${os.EOL}`,
+      )
     }
 
     if (status.mode === 'git') {
@@ -220,9 +267,9 @@ async function executeUpdate(run: UpdateRun) {
     const state = await readStoredState()
     await writeStoredState({
       ...state,
-      installedCommit: status.latest.commit,
+      installedCommit: installPlan.latest.commit,
       installedAt: new Date().toISOString(),
-      latest: status.latest,
+      latest: installPlan.latest,
       mode: status.mode,
     })
 
