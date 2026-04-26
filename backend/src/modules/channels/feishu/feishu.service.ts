@@ -20,6 +20,7 @@ import {
   normalizeCardActionValue,
 } from './feishu.cards.js'
 import {
+  createFeishuClient,
   createFeishuWsClient,
   isFeishuConfigured,
   sendFeishuCard,
@@ -71,6 +72,9 @@ type FeishuRuntime = {
   lastOutboundAt?: number
   lastEventAt?: number
   lastError?: string
+  botOpenId?: string
+  botName?: string
+  botIdentitySource?: string
 }
 
 let runtime: FeishuRuntime | null = null
@@ -147,6 +151,79 @@ function parseContentJson(raw: string) {
   } catch {
     return null
   }
+}
+
+function cleanString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+async function refreshFeishuBotIdentity(config: FeishuAppConfigRecord) {
+  const client = createFeishuClient(config)
+  const response = (await client.request({
+    method: 'GET',
+    url: 'https://open.feishu.cn/open-apis/bot/v3/info',
+  })) as any
+  if (!response || response.code !== 0) {
+    throw new HttpError(502, response?.msg || 'Failed to fetch Feishu bot info.')
+  }
+
+  const data = response.data ?? {}
+  const botOpenId =
+    cleanString(data.open_id) ||
+    cleanString(data.bot?.open_id) ||
+    cleanString(data.bot_info?.open_id)
+  const botName =
+    cleanString(data.app_name) ||
+    cleanString(data.name) ||
+    cleanString(data.bot_name) ||
+    cleanString(data.bot?.name) ||
+    cleanString(data.bot_info?.name)
+
+  if (runtime) {
+    runtime.botOpenId = botOpenId
+    runtime.botName = botName
+    runtime.botIdentitySource = botOpenId ? 'bot.v3.info.open_id' : botName ? 'bot.v3.info.name' : 'bot.v3.info.empty'
+  }
+
+  return { botOpenId, botName }
+}
+
+async function getFeishuBotIdentity(config: FeishuAppConfigRecord) {
+  if (runtime?.botOpenId || runtime?.botName) {
+    return {
+      botOpenId: runtime.botOpenId,
+      botName: runtime.botName,
+    }
+  }
+  try {
+    return await refreshFeishuBotIdentity(config)
+  } catch (error) {
+    setRuntimeError(error)
+    return {
+      botOpenId: runtime?.botOpenId,
+      botName: runtime?.botName,
+    }
+  }
+}
+
+function getFeishuMentions(message: any): any[] {
+  if (Array.isArray(message?.mentions)) return message.mentions
+  if (Array.isArray(message?.mention)) return message.mention
+  return []
+}
+
+async function isFeishuBotMentioned(config: FeishuAppConfigRecord, message: any) {
+  const mentions = getFeishuMentions(message)
+  if (mentions.length === 0) return false
+
+  const { botOpenId, botName } = await getFeishuBotIdentity(config)
+  if (botOpenId) {
+    return mentions.some((mention) => cleanString(mention?.id?.open_id) === botOpenId)
+  }
+  if (botName) {
+    return mentions.some((mention) => cleanString(mention?.name) === botName)
+  }
+  return false
 }
 
 async function extractPostText(params: {
@@ -826,7 +903,10 @@ async function handleInboundFeishuMessage(event: any) {
   const createdAt = Number(message?.create_time)
   const ts = Number.isFinite(createdAt) ? createdAt : Date.now()
   const config = await loadFeishuAppConfig()
-  const content = await buildFeishuInboundContent(config, message)
+  let content = await buildFeishuInboundContent(config, message)
+  if (!content) return
+  if (chatType === 'group' && !(await isFeishuBotMentioned(config, message))) return
+  content = content.replace(/(@_user_\d+\s*)+/g, '').trim()
   if (!content) return
   const command = await resolveAgentCommand(content)
   const effectiveContent = command?.mode === 'prompt' ? command.promptText : content
@@ -1340,6 +1420,7 @@ export async function startFeishuChannel(options?: { persist?: boolean }) {
         runtime.lastError = sanitizeError(error)
       }
     })
+  void refreshFeishuBotIdentity(config).catch(setRuntimeError)
 
   return currentStatusFromConfig({
     ...config,
