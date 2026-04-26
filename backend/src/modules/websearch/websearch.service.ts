@@ -12,8 +12,8 @@ type SearchIntent =
   | 'academic'
   | 'wechat'
   | 'knowledge'
-type SearchEngineStatus = 'stable' | 'pass'
-export type SearchSourceFamily = 'web-search' | 'skill-marketplace' | 'uapis'
+type SearchEngineStatus = 'stable' | 'needs_work' | 'pass'
+export type SearchSourceFamily = 'web-search' | 'skill-marketplace' | 'uapis' | 'intel-source'
 type SearchSourceKind = 'engine' | 'marketplace' | 'repository' | 'api'
 
 type SearchEngine = {
@@ -168,6 +168,7 @@ const SEARCH_SOURCES_CONFIG_FILE = 'search-sources-config.json'
 
 type SearchSourcesConfig = {
   disabledSourceKeys: string[]
+  enabledSourceKeys: string[]
   updatedAt: number
 }
 
@@ -188,8 +189,264 @@ type SetSearchSourceEnabledInput = {
   enabled: boolean
 }
 
-const SEARCH_SOURCE_FAMILIES: SearchSourceFamily[] = ['web-search', 'skill-marketplace', 'uapis']
+const SEARCH_SOURCE_FAMILIES: SearchSourceFamily[] = ['web-search', 'skill-marketplace', 'uapis', 'intel-source']
 const SKILL_MARKETPLACE_SOURCE_IDS = new Set(['skills-sh', 'github-archive'])
+
+type IntelSourceDefinition = {
+  id: string
+  name: string
+  homepage: string
+  region: SearchRegion | 'shared'
+  status: SearchEngineStatus
+  statusReason: string
+  intents: string[]
+  tags: string[]
+  defaultEnabled?: boolean
+}
+
+const INTEL_SOURCE_DEFINITIONS: IntelSourceDefinition[] = [
+  {
+    id: 'google-news-rss',
+    name: 'Google News RSS',
+    homepage: 'https://news.google.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Used by Intel Center for global news query RSS collection.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'News'],
+  },
+  {
+    id: 'yahoo-finance',
+    name: 'Yahoo Finance Market Data',
+    homepage: 'https://finance.yahoo.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Used by Intel Center for market signals and scan-to-scan delta tracking.',
+    intents: ['intel', 'market', 'finance'],
+    tags: ['Intel Center', 'Market Data', 'Finance'],
+  },
+  {
+    id: 'rss-bbc-world',
+    name: 'BBC World RSS',
+    homepage: 'https://www.bbc.com/news/world',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center politics coverage.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'Politics'],
+  },
+  {
+    id: 'rss-al-jazeera',
+    name: 'Al Jazeera RSS',
+    homepage: 'https://www.aljazeera.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center politics coverage.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'Politics'],
+  },
+  {
+    id: 'rss-guardian-world',
+    name: 'The Guardian World RSS',
+    homepage: 'https://www.theguardian.com/world',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center politics coverage.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'Politics'],
+  },
+  {
+    id: 'rss-foreign-policy',
+    name: 'Foreign Policy RSS',
+    homepage: 'https://foreignpolicy.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center geopolitics coverage.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'Politics'],
+  },
+  {
+    id: 'rss-npr-world',
+    name: 'NPR World RSS',
+    homepage: 'https://www.npr.org/sections/world/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center politics coverage.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'Politics'],
+  },
+  {
+    id: 'rss-global-times',
+    name: 'Global Times RSS',
+    homepage: 'https://www.globaltimes.cn/',
+    region: 'cn',
+    status: 'stable',
+    statusReason: 'Registered RSS input for China-facing global affairs coverage.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'China'],
+  },
+  {
+    id: 'rss-reuters-world',
+    name: 'Reuters World RSS',
+    homepage: 'https://www.reuters.com/world/',
+    region: 'global',
+    status: 'needs_work',
+    statusReason: 'Registered for Intel Center, but upstream Reuters RSS endpoints can be unstable or retired.',
+    intents: ['intel', 'news', 'rss'],
+    tags: ['Intel Center', 'RSS', 'Finance'],
+  },
+  {
+    id: 'rss-yahoo-finance',
+    name: 'Yahoo Finance RSS',
+    homepage: 'https://finance.yahoo.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center finance coverage.',
+    intents: ['intel', 'news', 'rss', 'finance'],
+    tags: ['Intel Center', 'RSS', 'Finance'],
+  },
+  {
+    id: 'rss-caixin',
+    name: 'Caixin RSS',
+    homepage: 'https://www.caixin.com/',
+    region: 'cn',
+    status: 'stable',
+    statusReason: 'Registered RSS input for China finance coverage.',
+    intents: ['intel', 'news', 'rss', 'finance'],
+    tags: ['Intel Center', 'RSS', 'China'],
+  },
+  {
+    id: 'rss-techcrunch',
+    name: 'TechCrunch RSS',
+    homepage: 'https://techcrunch.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center technology coverage.',
+    intents: ['intel', 'news', 'rss', 'tech'],
+    tags: ['Intel Center', 'RSS', 'Tech'],
+  },
+  {
+    id: 'rss-ars-technica',
+    name: 'Ars Technica RSS',
+    homepage: 'https://arstechnica.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center technology coverage.',
+    intents: ['intel', 'news', 'rss', 'tech'],
+    tags: ['Intel Center', 'RSS', 'Tech'],
+  },
+  {
+    id: 'rss-the-verge',
+    name: 'The Verge RSS',
+    homepage: 'https://www.theverge.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center technology coverage.',
+    intents: ['intel', 'news', 'rss', 'tech'],
+    tags: ['Intel Center', 'RSS', 'Tech'],
+  },
+  {
+    id: 'rss-hacker-news',
+    name: 'Hacker News RSS',
+    homepage: 'https://news.ycombinator.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center technology coverage.',
+    intents: ['intel', 'news', 'rss', 'tech'],
+    tags: ['Intel Center', 'RSS', 'Tech'],
+  },
+  {
+    id: 'rss-mit-tech-review',
+    name: 'MIT Technology Review RSS',
+    homepage: 'https://www.technologyreview.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center technology coverage.',
+    intents: ['intel', 'news', 'rss', 'tech'],
+    tags: ['Intel Center', 'RSS', 'Tech'],
+  },
+  {
+    id: 'rss-wired',
+    name: 'Wired RSS',
+    homepage: 'https://www.wired.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Registered RSS input for Intel Center technology coverage.',
+    intents: ['intel', 'news', 'rss', 'tech'],
+    tags: ['Intel Center', 'RSS', 'Tech'],
+  },
+  {
+    id: 'hacker-news',
+    name: 'Hacker News API',
+    homepage: 'https://news.ycombinator.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Used by Intel Center through the Algolia front-page API with Firebase fallback.',
+    intents: ['intel', 'news', 'tech'],
+    tags: ['Intel Center', 'API', 'Tech'],
+  },
+  {
+    id: 'search-bing-cn',
+    name: 'Intel Search · Bing CN',
+    homepage: 'https://cn.bing.com/',
+    region: 'cn',
+    status: 'stable',
+    statusReason: 'Used by Intel Center search scraping for Chinese-region query coverage.',
+    intents: ['intel', 'search', 'news'],
+    tags: ['Intel Center', 'Search'],
+  },
+  {
+    id: 'search-bing-int',
+    name: 'Intel Search · Bing INT',
+    homepage: 'https://cn.bing.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Used by Intel Center search scraping for global query coverage.',
+    intents: ['intel', 'search', 'news'],
+    tags: ['Intel Center', 'Search'],
+  },
+  {
+    id: 'search-sogou-wechat',
+    name: 'Intel Search · Sogou WeChat',
+    homepage: 'https://wx.sogou.com/',
+    region: 'cn',
+    status: 'stable',
+    statusReason: 'Used by Intel Center for WeChat article search results.',
+    intents: ['intel', 'search', 'wechat'],
+    tags: ['Intel Center', 'Search', 'WeChat'],
+  },
+  {
+    id: 'search-duckduckgo',
+    name: 'Intel Search · DuckDuckGo',
+    homepage: 'https://duckduckgo.com/',
+    region: 'global',
+    status: 'stable',
+    statusReason: 'Used by Intel Center as a privacy-oriented global search source.',
+    intents: ['intel', 'search', 'privacy'],
+    tags: ['Intel Center', 'Search'],
+  },
+  {
+    id: 'china-market-akshare',
+    name: 'A/H Stock Data · akshare',
+    homepage: 'https://akshare.akfamily.xyz/',
+    region: 'cn',
+    status: 'needs_work',
+    statusReason: 'Optional Intel Center source. It is active only when the local Python environment has akshare installed.',
+    intents: ['intel', 'market', 'finance'],
+    tags: ['Intel Center', 'Optional', 'China Market'],
+  },
+  {
+    id: 'tencent-news',
+    name: 'Tencent News',
+    homepage: 'https://news.qq.com/',
+    region: 'cn',
+    status: 'needs_work',
+    statusReason: 'Registered as the Tencent News slot for Intel Center, but the collector adapter is not implemented yet.',
+    intents: ['intel', 'news', 'cn'],
+    tags: ['Intel Center', 'Tencent', 'Adapter Pending'],
+    defaultEnabled: false,
+  },
+]
 
 function makeSourceKey(family: SearchSourceFamily, id: string) {
   return `${family}:${id}`
@@ -198,6 +455,7 @@ function makeSourceKey(family: SearchSourceFamily, id: string) {
 function defaultSearchSourcesConfig(): SearchSourcesConfig {
   return {
     disabledSourceKeys: [],
+    enabledSourceKeys: [],
     updatedAt: Date.now(),
   }
 }
@@ -208,6 +466,9 @@ function normalizeSearchSourcesConfig(
   return {
     disabledSourceKeys: Array.isArray(input?.disabledSourceKeys)
       ? [...new Set(input.disabledSourceKeys.filter((item): item is string => typeof item === 'string'))]
+      : [],
+    enabledSourceKeys: Array.isArray(input?.enabledSourceKeys)
+      ? [...new Set(input.enabledSourceKeys.filter((item): item is string => typeof item === 'string'))]
       : [],
     updatedAt:
       typeof input?.updatedAt === 'number' && Number.isFinite(input.updatedAt)
@@ -232,8 +493,15 @@ async function writeSearchSourcesConfig(next: SearchSourcesConfig) {
   )
 }
 
-function isSourceEnabled(config: SearchSourcesConfig, family: SearchSourceFamily, id: string) {
-  return !config.disabledSourceKeys.includes(makeSourceKey(family, id))
+function isSourceEnabled(
+  config: SearchSourcesConfig,
+  family: SearchSourceFamily,
+  id: string,
+  defaultEnabled = true,
+) {
+  const key = makeSourceKey(family, id)
+  if (!defaultEnabled) return config.enabledSourceKeys.includes(key)
+  return !config.disabledSourceKeys.includes(key)
 }
 
 function withDisabledStatus(
@@ -836,6 +1104,31 @@ export async function listSearchSourceGroups(): Promise<SearchSourceGroup[]> {
       ],
     }))
 
+  const intelItems: SearchSourceInfo[] = INTEL_SOURCE_DEFINITIONS.map((source) => {
+    const enabled = isSourceEnabled(config, 'intel-source', source.id, source.defaultEnabled !== false)
+    const state =
+      !enabled && source.status === 'needs_work'
+        ? {
+            status: 'needs_work' as const,
+            statusReason: `${source.statusReason} This source is currently disabled.`,
+          }
+        : withDisabledStatus(source.status, source.statusReason, enabled)
+    return {
+      id: source.id,
+      name: source.name,
+      family: 'intel-source' as const,
+      kind: 'api' as const,
+      status: state.status,
+      statusReason: state.statusReason,
+      enabled,
+      homepage: source.homepage,
+      region: source.region,
+      supportsTime: false,
+      intents: source.intents,
+      tags: source.tags,
+    }
+  })
+
   return [
     {
       id: 'web-search',
@@ -855,7 +1148,20 @@ export async function listSearchSourceGroups(): Promise<SearchSourceGroup[]> {
       description: '这些来源来自 UAPIs 工具箱，适合优先用于更聚焦的搜索请求。',
       items: uapisItems,
     },
+    {
+      id: 'intel-source',
+      title: 'Intel Center 情报源',
+      description: '这些来源服务于 Intel Center 采集、早报和政经科技联动分析。',
+      items: intelItems,
+    },
   ]
+}
+
+export async function listEnabledIntelSourceIds() {
+  const config = await readSearchSourcesConfig()
+  return INTEL_SOURCE_DEFINITIONS.filter((source) =>
+    isSourceEnabled(config, 'intel-source', source.id, source.defaultEnabled !== false),
+  ).map((source) => source.id)
 }
 
 export async function setSearchSourceEnabled(input: SetSearchSourceEnabledInput) {
@@ -884,14 +1190,31 @@ export async function setSearchSourceEnabled(input: SetSearchSourceEnabledInput)
     throw new HttpError(404, 'Skill marketplace source not found.')
   }
 
+  const intelSource = family === 'intel-source'
+    ? INTEL_SOURCE_DEFINITIONS.find((source) => source.id === id)
+    : null
+  if (family === 'intel-source' && !intelSource) {
+    throw new HttpError(404, 'Intel source not found.')
+  }
+
   const current = await readSearchSourcesConfig()
   const disabled = new Set(current.disabledSourceKeys)
+  const enabled = new Set(current.enabledSourceKeys)
   const key = makeSourceKey(family, id)
-  if (input.enabled) disabled.delete(key)
-  else disabled.add(key)
+  const defaultEnabled = intelSource?.defaultEnabled !== false
+  if (defaultEnabled) {
+    enabled.delete(key)
+    if (input.enabled) disabled.delete(key)
+    else disabled.add(key)
+  } else {
+    disabled.delete(key)
+    if (input.enabled) enabled.add(key)
+    else enabled.delete(key)
+  }
 
   await writeSearchSourcesConfig({
     disabledSourceKeys: [...disabled].sort(),
+    enabledSourceKeys: [...enabled].sort(),
     updatedAt: Date.now(),
   })
 

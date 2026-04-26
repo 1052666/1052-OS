@@ -56,6 +56,10 @@ export type UpdateRun = {
   statusSnapshot: UpdateStatus | null
 }
 
+export type UpdateInstallInput = {
+  force?: unknown
+}
+
 export type UpdateInstallResponse = {
   run: UpdateRun
 }

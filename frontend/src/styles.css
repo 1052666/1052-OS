@@ -3756,6 +3756,23 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   gap: 10px;
 }
 .settings-row-stack .settings-input { min-width: 0; width: 100%; }
+.settings-row-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.settings-time-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+.settings-time-control .settings-input {
+  width: 132px;
+}
 
 .banner {
   padding: 10px 14px;

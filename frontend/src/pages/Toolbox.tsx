@@ -28,6 +28,7 @@ const intelSources = [
   'Hacker News',
   'Search engines',
   'A/H market optional',
+  'Tencent News registered',
 ]
 
 export default function Toolbox() {

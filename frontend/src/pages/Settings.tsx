@@ -20,6 +20,11 @@ import ThemePreviewMatrix from '../components/appearance/ThemePreviewMatrix'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
 import TokenUsagePanel from '../components/TokenUsagePanel'
 import { useTheme } from '../theme-context'
+import {
+  canInstallSystemUpdate as getCanInstallSystemUpdate,
+  canReinstallArchiveLatest,
+  getSystemUpdateInstallOptions,
+} from './settings-update'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -234,6 +239,8 @@ export default function Settings() {
   const [providerCachingEnabled, setProviderCachingEnabled] = useState(true)
   const [checkpointEnabled, setCheckpointEnabled] = useState(true)
   const [seedOnResumeEnabled, setSeedOnResumeEnabled] = useState(true)
+  const [morningBriefEnabled, setMorningBriefEnabled] = useState(false)
+  const [morningBriefTime, setMorningBriefTime] = useState('09:30')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
   const toggleGroup = (name: string) => {
@@ -262,10 +269,8 @@ export default function Settings() {
   const llmProfiles = loaded?.llm.profiles ?? []
   const activeLlmProfileId = loaded?.llm.activeProfileId ?? ''
   const updateRunActive = isUpdateRunActive(updateRun)
-  const canInstallSystemUpdate = Boolean(
-    updateStatus?.canInstall &&
-      (updateStatus.updateAvailable || (updateStatus.mode === 'archive' && updateStatus.latest)),
-  )
+  const canReinstallArchiveLatestStatus = canReinstallArchiveLatest(updateStatus)
+  const canInstallSystemUpdate = getCanInstallSystemUpdate(updateStatus)
 
   useEffect(() => {
     SettingsApi.get()
@@ -291,6 +296,8 @@ export default function Settings() {
         setCheckpointEnabled(settings.agent.checkpointEnabled)
         setSeedOnResumeEnabled(settings.agent.seedOnResumeEnabled)
         setUpgradeDebugEventsEnabled(settings.agent.upgradeDebugEventsEnabled)
+        setMorningBriefEnabled(settings.agent.morningBrief.enabled)
+        setMorningBriefTime(settings.agent.morningBrief.time)
         setTheme(settings.appearance.theme)
         setUiLanguage(settings.appearance.language)
       })
@@ -452,6 +459,10 @@ export default function Settings() {
         checkpointEnabled,
         seedOnResumeEnabled,
         upgradeDebugEventsEnabled,
+        morningBrief: {
+          enabled: morningBriefEnabled,
+          time: morningBriefTime,
+        },
       },
     }
 
@@ -635,7 +646,7 @@ export default function Settings() {
     setUpdateError('')
     setRestartMessage('')
     try {
-      const response = await UpdatesApi.install()
+      const response = await UpdatesApi.install(getSystemUpdateInstallOptions(updateStatus))
       setUpdateRun(response.run)
     } catch (err) {
       const errorLike = err as { message?: string }
@@ -1194,6 +1205,35 @@ export default function Settings() {
                 </button>
               </div>
 
+              <div className="settings-row settings-row-stack">
+                <div className="settings-row-head">
+                  <div className="settings-row-label">
+                    <div className="settings-row-title">早报推送</div>
+                    <div className="settings-row-desc">
+                      开启后创建或更新系统托管的每日 Intel Center 早报任务，默认只回写应用内聊天和通知。
+                    </div>
+                  </div>
+                  <button
+                    className={'switch' + (morningBriefEnabled ? ' on' : '')}
+                    type="button"
+                    onClick={() => setMorningBriefEnabled((current) => !current)}
+                  >
+                    <span className="switch-thumb" />
+                  </button>
+                </div>
+                {morningBriefEnabled ? (
+                  <label className="settings-time-control">
+                    <span>推送时间</span>
+                    <input
+                      className="settings-input"
+                      type="time"
+                      value={morningBriefTime}
+                      onChange={(event) => setMorningBriefTime(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+              </div>
+
               <div className="settings-row">
                 <div className="settings-row-label">
                   <div className="settings-row-title">聊天上下文条数</div>
@@ -1395,7 +1435,7 @@ export default function Settings() {
                     }
                     onClick={() => void installSystemUpdate()}
                   >
-                    {updateStatus && !updateStatus.updateAvailable && updateStatus.mode === 'archive'
+                    {canReinstallArchiveLatestStatus
                       ? '重新安装最新版'
                       : '安装更新'}
                   </button>

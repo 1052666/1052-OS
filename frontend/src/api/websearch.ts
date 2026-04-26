@@ -1,7 +1,7 @@
 import { api } from './client'
 
 export type SearchEngineStatus = 'stable' | 'needs_work' | 'pass'
-export type SearchSourceFamily = 'web-search' | 'skill-marketplace' | 'uapis'
+export type SearchSourceFamily = 'web-search' | 'skill-marketplace' | 'uapis' | 'intel-source'
 export type SearchSourceKind = 'engine' | 'marketplace' | 'repository' | 'api'
 
 export type SearchEngineInfo = {

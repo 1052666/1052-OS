@@ -24,13 +24,13 @@ export const websearchTools: AgentTool[] = [
   {
     name: 'websearch_set_source_enabled',
     description:
-      'Enable or disable one search source. This is a configuration change and affects future web search or skill-marketplace usage.',
+      'Enable or disable one search source. This is a configuration change and affects future web search, skill-marketplace, UAPIs, or Intel Center usage.',
     parameters: {
       type: 'object',
       properties: {
         family: {
           type: 'string',
-          enum: ['web-search', 'skill-marketplace', 'uapis'],
+          enum: ['web-search', 'skill-marketplace', 'uapis', 'intel-source'],
           description: 'Search source family.',
         },
         id: {
@@ -48,7 +48,7 @@ export const websearchTools: AgentTool[] = [
     execute: async (args) => {
       const input = (args ?? {}) as Record<string, unknown>
       return setSearchSourceEnabled({
-        family: String(input.family ?? '') as 'web-search' | 'skill-marketplace' | 'uapis',
+        family: String(input.family ?? '') as 'web-search' | 'skill-marketplace' | 'uapis' | 'intel-source',
         id: String(input.id ?? ''),
         enabled: input.enabled as boolean,
       })

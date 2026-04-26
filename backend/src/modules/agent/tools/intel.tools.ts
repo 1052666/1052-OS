@@ -3,6 +3,7 @@ import {
   formatIntelBrief,
   type IntelBriefTargetFormat,
 } from '../../intel/intel-brief.service.js'
+import { collectIntelCenterData } from '../../intel/intel-center.service.js'
 
 const TARGET_FORMATS: IntelBriefTargetFormat[] = [
   'markdown',
@@ -13,6 +14,25 @@ const TARGET_FORMATS: IntelBriefTargetFormat[] = [
 ]
 
 export const intelTools: AgentTool[] = [
+  {
+    name: 'intel_center_collect',
+    description:
+      'Run the installed intel-center Skill collector with the correct skill directory as cwd and return collected raw intelligence JSON. Collection only; the Agent must analyze the result. It does not render channel formats or send messages.',
+    parameters: {
+      type: 'object',
+      properties: {
+        timeoutMs: {
+          type: 'number',
+          description: 'Optional timeout in milliseconds. Defaults to 180000 and is clamped.',
+        },
+      },
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return collectIntelCenterData({ timeoutMs: input.timeoutMs })
+    },
+  },
   {
     name: 'intel_brief_format',
     description:

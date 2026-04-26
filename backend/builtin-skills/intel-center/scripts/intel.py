@@ -6,7 +6,7 @@ Three sectors: Politics / Finance / Tech (interconnected)
 Data sources:
   1. Google News RSS  — 10 queries across 3 sectors
   2. Yahoo Finance    — 15 key asset prices with anomaly detection
-  3. RSS Aggregation  — 20 sources (BBC/Reuters/Guardian/TechCrunch/etc.)
+  3. RSS Aggregation  — 15 sources (BBC/Reuters/Guardian/TechCrunch/etc.)
   4. Hacker News      — Top stories, keyword-classified by sector
   5. Search Engines   — Bing/Sogou/DuckDuckGo HTML scraping (optional)
 
@@ -18,6 +18,7 @@ Optional: akshare (for A/H stock data), tencent-news-cli (for Chinese news)
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import time
@@ -111,23 +112,23 @@ SNAPSHOT_PATH = Path(__file__).parent / "market-snapshot.json"
 # ── RSS Sources ──────────────────────────────────────────────────────────────
 RSS_FEEDS = [
     # Politics
-    {"url": "http://feeds.bbci.co.uk/news/world/rss.xml",             "sector": "politics", "source": "BBC World"},
-    {"url": "https://www.aljazeera.com/xml/rss/all.xml",              "sector": "politics", "source": "Al Jazeera"},
-    {"url": "https://www.theguardian.com/world/rss",                   "sector": "politics", "source": "The Guardian"},
-    {"url": "https://foreignpolicy.com/feed/",                         "sector": "politics", "source": "Foreign Policy"},
-    {"url": "https://feeds.npr.org/1004/rss.xml",                      "sector": "politics", "source": "NPR World"},
-    {"url": "https://www.globaltimes.cn/rss/outbrain.xml",             "sector": "politics", "source": "Global Times"},
+    {"id": "rss-bbc-world",       "url": "http://feeds.bbci.co.uk/news/world/rss.xml", "sector": "politics", "source": "BBC World"},
+    {"id": "rss-al-jazeera",      "url": "https://www.aljazeera.com/xml/rss/all.xml",  "sector": "politics", "source": "Al Jazeera"},
+    {"id": "rss-guardian-world",  "url": "https://www.theguardian.com/world/rss",      "sector": "politics", "source": "The Guardian"},
+    {"id": "rss-foreign-policy",  "url": "https://foreignpolicy.com/feed/",            "sector": "politics", "source": "Foreign Policy"},
+    {"id": "rss-npr-world",       "url": "https://feeds.npr.org/1004/rss.xml",         "sector": "politics", "source": "NPR World"},
+    {"id": "rss-global-times",    "url": "https://www.globaltimes.cn/rss/outbrain.xml", "sector": "politics", "source": "Global Times"},
     # Finance
-    {"url": "https://feeds.reuters.com/Reuters/worldNews",             "sector": "finance",  "source": "Reuters World"},
-    {"url": "https://finance.yahoo.com/rss/topfinstories",             "sector": "finance",  "source": "Yahoo Finance"},
-    {"url": "https://www.caixin.com/rss/",                             "sector": "finance",  "source": "Caixin"},
+    {"id": "rss-reuters-world",   "url": "https://feeds.reuters.com/Reuters/worldNews", "sector": "finance", "source": "Reuters World"},
+    {"id": "rss-yahoo-finance",   "url": "https://finance.yahoo.com/rss/topfinstories", "sector": "finance", "source": "Yahoo Finance"},
+    {"id": "rss-caixin",          "url": "https://www.caixin.com/rss/",                 "sector": "finance", "source": "Caixin"},
     # Tech
-    {"url": "https://techcrunch.com/feed/",                            "sector": "tech",     "source": "TechCrunch"},
-    {"url": "http://feeds.arstechnica.com/arstechnica/index",          "sector": "tech",     "source": "Ars Technica"},
-    {"url": "https://www.theverge.com/rss/index.xml",                  "sector": "tech",     "source": "The Verge"},
-    {"url": "https://news.ycombinator.com/rss",                        "sector": "tech",     "source": "Hacker News"},
-    {"url": "https://www.technologyreview.com/feed/",                  "sector": "tech",     "source": "MIT Tech Review"},
-    {"url": "https://www.wired.com/feed/rss",                          "sector": "tech",     "source": "Wired"},
+    {"id": "rss-techcrunch",      "url": "https://techcrunch.com/feed/",                   "sector": "tech", "source": "TechCrunch"},
+    {"id": "rss-ars-technica",    "url": "http://feeds.arstechnica.com/arstechnica/index", "sector": "tech", "source": "Ars Technica"},
+    {"id": "rss-the-verge",       "url": "https://www.theverge.com/rss/index.xml",         "sector": "tech", "source": "The Verge"},
+    {"id": "rss-hacker-news",     "url": "https://news.ycombinator.com/rss",               "sector": "tech", "source": "Hacker News"},
+    {"id": "rss-mit-tech-review", "url": "https://www.technologyreview.com/feed/",          "sector": "tech", "source": "MIT Tech Review"},
+    {"id": "rss-wired",           "url": "https://www.wired.com/feed/rss",                  "sector": "tech", "source": "Wired"},
 ]
 RSS_MAX_PER_FEED = 5
 
@@ -135,6 +136,7 @@ RSS_MAX_PER_FEED = 5
 HN_MAX_ITEMS = 60
 HN_FETCH_ITEMS = 30
 HN_MIN_SCORE = 50
+HN_ALGOLIA_URL = "https://hn.algolia.com/api/v1/search?tags=front_page"
 HN_SECTOR_KEYWORDS = {
     "tech": [
         "AI", "LLM", "GPT", "Claude", "Gemini", "machine learning", "neural",
@@ -160,24 +162,28 @@ HN_SECTOR_KEYWORDS = {
 SEARCH_ENGINES = [
     {
         "id": "bing-cn",
+        "source_id": "search-bing-cn",
         "name": "Bing CN",
         "template": "https://cn.bing.com/search?q={query}&ensearch=0",
         "region": "cn",
     },
     {
         "id": "bing-int",
+        "source_id": "search-bing-int",
         "name": "Bing INT",
         "template": "https://cn.bing.com/search?q={query}&ensearch=1",
         "region": "global",
     },
     {
         "id": "sogou-wechat",
+        "source_id": "search-sogou-wechat",
         "name": "Sogou WeChat",
         "template": "https://wx.sogou.com/weixin?type=2&query={query}",
         "region": "cn",
     },
     {
         "id": "duckduckgo",
+        "source_id": "search-duckduckgo",
         "name": "DuckDuckGo",
         "template": "https://duckduckgo.com/html/?q={query}",
         "region": "global",
@@ -191,22 +197,137 @@ SEARCH_QUERIES = [
 ]
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
-SEARCH_TIMEOUT = 12
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, ""))
+        return value if value > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
+REQUEST_TIMEOUT = _env_float("INTEL_CENTER_REQUEST_TIMEOUT_SECONDS", 8.0)
+SEARCH_TIMEOUT = _env_float("INTEL_CENTER_SEARCH_TIMEOUT_SECONDS", 8.0)
+HN_INDEX_TIMEOUT = _env_float("INTEL_CENTER_HN_INDEX_TIMEOUT_SECONDS", 10.0)
+HN_ITEM_TIMEOUT = _env_float("INTEL_CENTER_HN_ITEM_TIMEOUT_SECONDS", 5.0)
+TOTAL_BUDGET_SECONDS = _env_float("INTEL_CENTER_TOTAL_BUDGET_SECONDS", 150.0)
+GNEWS_STAGE_BUDGET_SECONDS = _env_float("INTEL_CENTER_GNEWS_BUDGET_SECONDS", 40.0)
+MARKET_STAGE_BUDGET_SECONDS = _env_float("INTEL_CENTER_MARKET_BUDGET_SECONDS", 35.0)
+RSS_STAGE_BUDGET_SECONDS = _env_float("INTEL_CENTER_RSS_BUDGET_SECONDS", 35.0)
+HN_STAGE_BUDGET_SECONDS = _env_float("INTEL_CENTER_HN_BUDGET_SECONDS", 25.0)
+SEARCH_STAGE_BUDGET_SECONDS = _env_float("INTEL_CENTER_SEARCH_BUDGET_SECONDS", 25.0)
+CHINA_MARKET_STAGE_BUDGET_SECONDS = _env_float("INTEL_CENTER_CHINA_MARKET_BUDGET_SECONDS", 10.0)
+STARTED_AT = time.monotonic()
+STAGE_DEADLINE: Optional[float] = None
+WARNINGS: list[str] = []
+SOURCE_REGISTRY_ENABLED = os.environ.get("INTEL_CENTER_SOURCE_REGISTRY") == "1"
+ENABLED_SOURCE_IDS = {
+    item.strip()
+    for item in os.environ.get("INTEL_CENTER_ENABLED_SOURCES", "").split(",")
+    if item.strip()
+}
+DEFAULT_DISABLED_SOURCE_IDS = {"tencent-news"}
+SKIPPED_SOURCE_IDS: list[str] = []
+
+
+def _source_enabled(source_id: str) -> bool:
+    if SOURCE_REGISTRY_ENABLED:
+        return source_id in ENABLED_SOURCE_IDS
+    return source_id not in DEFAULT_DISABLED_SOURCE_IDS
+
+
+def _skip_source(source_id: str, label: str) -> None:
+    SKIPPED_SOURCE_IDS.append(source_id)
+    print(f"  [INFO] {label} disabled by Source Registry", file=sys.stderr)
+
+
+def _remaining_budget() -> Optional[float]:
+    candidates = []
+    if TOTAL_BUDGET_SECONDS > 0:
+        candidates.append(TOTAL_BUDGET_SECONDS - (time.monotonic() - STARTED_AT))
+    if STAGE_DEADLINE is not None:
+        candidates.append(STAGE_DEADLINE - time.monotonic())
+    if not candidates:
+        return None
+    return min(candidates)
+
+
+def _begin_stage(seconds: float) -> None:
+    global STAGE_DEADLINE
+    STAGE_DEADLINE = time.monotonic() + seconds
+
+
+def _budgeted_timeout(timeout: float) -> Optional[float]:
+    remaining = _remaining_budget()
+    if remaining is not None and remaining <= 1:
+        return None
+    if remaining is None:
+        return timeout
+    return max(1.0, min(float(timeout), remaining))
+
+
+def _sleep(seconds: float) -> None:
+    remaining = _remaining_budget()
+    if remaining is not None and remaining <= 1:
+        return
+    if remaining is not None:
+        seconds = min(seconds, max(0.0, remaining - 1))
+    if seconds > 0:
+        time.sleep(seconds)
+
+
+def _warn(message: str) -> None:
+    WARNINGS.append(message)
+    print(f"  [WARN] {message}", file=sys.stderr)
+
+
+def _make_certifi_context() -> Optional[ssl.SSLContext]:
+    try:
+        import certifi  # type: ignore
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
+
+
+CERTIFI_CONTEXT = _make_certifi_context()
+
+
+def _is_cert_error(error: Exception) -> bool:
+    reason = getattr(error, "reason", None)
+    return (
+        isinstance(error, ssl.SSLCertVerificationError)
+        or isinstance(reason, ssl.SSLCertVerificationError)
+        or "CERTIFICATE_VERIFY_FAILED" in str(error)
+    )
 
 
 # ── Helper Functions ─────────────────────────────────────────────────────────
 
-def _http_get(url: str, timeout: int = 15, headers: dict = None) -> Optional[bytes]:
+def _http_get(url: str, timeout: float = REQUEST_TIMEOUT, headers: dict = None) -> Optional[bytes]:
     """Safe HTTP GET with timeout and error handling."""
+    effective_timeout = _budgeted_timeout(timeout)
+    if effective_timeout is None:
+        _warn(f"Budget exhausted before GET {url[:80]}")
+        return None
+
     hdrs = {"User-Agent": USER_AGENT}
     if headers:
         hdrs.update(headers)
     try:
         req = urllib.request.Request(url, headers=hdrs)
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        context = CERTIFI_CONTEXT if CERTIFI_CONTEXT is not None else None
+        with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
             return resp.read()
     except Exception as e:
-        print(f"  [WARN] GET {url[:80]}: {e}", file=sys.stderr)
+        if CERTIFI_CONTEXT is not None and _is_cert_error(e):
+            try:
+                req = urllib.request.Request(url, headers=hdrs)
+                with urllib.request.urlopen(req, timeout=effective_timeout) as resp:
+                    return resp.read()
+            except Exception as default_ca_error:
+                e = default_ca_error
+        _warn(f"GET {url[:80]}: {e}")
         return None
 
 
@@ -321,6 +442,10 @@ def fetch_rss(url: str, source: str, sector: str, max_items: int) -> list[dict]:
 
 def collect_gnews() -> list[dict]:
     """Google News RSS search across 3 sectors."""
+    _begin_stage(GNEWS_STAGE_BUDGET_SECONDS)
+    if not _source_enabled("google-news-rss"):
+        _skip_source("google-news-rss", "Google News RSS")
+        return []
     seen, results = set(), []
     for sector, query in GNEWS_QUERIES:
         url = GNEWS_BASE + urllib.parse.quote(query)
@@ -331,7 +456,7 @@ def collect_gnews() -> list[dict]:
                 seen.add(item["url"])
                 seen.add(item["title"])
                 results.append(item)
-        time.sleep(0.5)
+        _sleep(0.5)
     print(f"  Google News: {len(results)} items", file=sys.stderr)
     return results
 
@@ -363,9 +488,18 @@ def fetch_yahoo_price(symbol: str) -> Optional[dict]:
 
 def collect_market() -> dict:
     """Collect all asset prices, classify by sector, flag anomalies."""
+    _begin_stage(MARKET_STAGE_BUDGET_SECONDS)
     signals = {}
     anomalies = []
     by_sector = {"politics": [], "finance": [], "tech": []}
+    if not _source_enabled("yahoo-finance"):
+        _skip_source("yahoo-finance", "Yahoo Finance market data")
+        return {
+            "signals": signals,
+            "anomalies": anomalies,
+            "by_sector": by_sector,
+            "snapshot_enabled": False,
+        }
 
     print("  Collecting market signals...", file=sys.stderr)
     for key, cfg in MARKET_ASSETS.items():
@@ -383,21 +517,30 @@ def collect_market() -> dict:
         by_sector[cfg["sector"]].append(label)
         if is_anomaly:
             anomalies.append(f"[{cfg['sector']}] {label}")
-        time.sleep(0.5)
+        _sleep(0.5)
 
     if anomalies:
         print(f"  Anomalies: {', '.join(anomalies)}", file=sys.stderr)
     else:
         print("  Market signals normal", file=sys.stderr)
 
-    return {"signals": signals, "anomalies": anomalies, "by_sector": by_sector}
+    return {
+        "signals": signals,
+        "anomalies": anomalies,
+        "by_sector": by_sector,
+        "snapshot_enabled": True,
+    }
 
 
 def collect_rss() -> list[dict]:
     """Collect from all RSS sources."""
+    _begin_stage(RSS_STAGE_BUDGET_SECONDS)
     seen, results = set(), []
     print(f"  Collecting {len(RSS_FEEDS)} RSS feeds...", file=sys.stderr)
     for feed in RSS_FEEDS:
+        if not _source_enabled(feed["id"]):
+            _skip_source(feed["id"], feed["source"])
+            continue
         items = fetch_rss(feed["url"], feed["source"], feed["sector"], RSS_MAX_PER_FEED)
         for item in items:
             if item["url"] not in seen:
@@ -417,8 +560,33 @@ def _hn_classify_sector(title: str) -> str:
 
 def collect_hackernews() -> list[dict]:
     """Collect top stories from Hacker News, classify by sector."""
+    _begin_stage(HN_STAGE_BUDGET_SECONDS)
+    if not _source_enabled("hacker-news"):
+        _skip_source("hacker-news", "Hacker News API")
+        return []
     seen, results = set(), []
     print("  Collecting Hacker News...", file=sys.stderr)
+    raw_algolia = _http_get(HN_ALGOLIA_URL, timeout=HN_INDEX_TIMEOUT)
+    if raw_algolia:
+        try:
+            data = json.loads(raw_algolia)
+            for item in data.get("hits", [])[:HN_FETCH_ITEMS]:
+                title = (item.get("title") or item.get("story_title") or "").strip()
+                score = item.get("points") or 0
+                item_id = item.get("objectID")
+                url = item.get("url") or (f"https://news.ycombinator.com/item?id={item_id}" if item_id else "")
+                if title and score >= HN_MIN_SCORE and url and url not in seen:
+                    seen.add(url)
+                    results.append({
+                        "title": title, "url": url, "source": "HackerNews",
+                        "sector": _hn_classify_sector(title), "score": score,
+                    })
+            if results:
+                print(f"  HN: {len(results)} items", file=sys.stderr)
+                return results
+        except Exception as e:
+            _warn(f"HN Algolia parse: {e}")
+
     try:
         raw = _http_get("https://hacker-news.firebaseio.com/v0/topstories.json")
         if not raw:
@@ -432,7 +600,7 @@ def collect_hackernews() -> list[dict]:
     for item_id in top_ids:
         if fetched >= HN_FETCH_ITEMS:
             break
-        raw = _http_get(f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json", timeout=10)
+        raw = _http_get(f"https://hacker-news.firebaseio.com/v0/item/{item_id}.json", timeout=HN_ITEM_TIMEOUT)
         if not raw:
             continue
         item = json.loads(raw)
@@ -446,7 +614,7 @@ def collect_hackernews() -> list[dict]:
                 "sector": _hn_classify_sector(title), "score": score,
             })
             fetched += 1
-        time.sleep(0.05)
+        _sleep(0.05)
 
     print(f"  HN: {len(results)} items", file=sys.stderr)
     return results
@@ -514,12 +682,16 @@ def _parse_sogou_wechat_results(html: str) -> list[dict]:
 
 def collect_search_engines() -> list[dict]:
     """Scrape search engine results for intel queries."""
+    _begin_stage(SEARCH_STAGE_BUDGET_SECONDS)
     all_results = []
     seen_urls = set()
 
     print("  Collecting from search engines...", file=sys.stderr)
     for sector, query in SEARCH_QUERIES:
         for engine in SEARCH_ENGINES:
+            if not _source_enabled(engine["source_id"]):
+                _skip_source(engine["source_id"], engine["name"])
+                continue
             url = engine["template"].replace("{query}", urllib.parse.quote(query))
             raw = _http_get(url, timeout=SEARCH_TIMEOUT)
             if not raw:
@@ -554,7 +726,7 @@ def collect_search_engines() -> list[dict]:
 
             if new_count:
                 print(f"    {engine['name']} [{sector}]: +{new_count}", file=sys.stderr)
-            time.sleep(1.0)  # Polite delay between engine requests
+            _sleep(1.0)  # Polite delay between engine requests
 
     print(f"  Search engines: {len(all_results)} items", file=sys.stderr)
     return all_results
@@ -562,58 +734,129 @@ def collect_search_engines() -> list[dict]:
 
 # ── Optional: A/H Stock Data (requires akshare) ─────────────────────────────
 
+CHINA_MARKET_CHILD = r'''
+import datetime as _dt
+import json
+
+MARKER = "__INTEL_CHINA_MARKET_JSON__"
+
+result = {
+    "northbound": None, "southbound": None,
+    "sectors_top": [], "sectors_bot": [],
+    "ah_premium": None, "limit_up": 0, "limit_down": 0,
+    "error": [],
+}
+
+try:
+    import akshare as ak
+    today = _dt.datetime.now().strftime("%Y%m%d")
+
+    try:
+        flow = ak.stock_hsgt_fund_flow_summary_em()
+        north_rows = flow[flow["资金方向"] == "北向"]
+        south_rows = flow[flow["资金方向"] == "南向"]
+        def _sum_flow(rows):
+            val = rows["资金净流入"].sum()
+            return {"net_flow_m": round(float(val) / 1e8, 2)}
+        result["northbound"] = _sum_flow(north_rows)
+        result["southbound"] = _sum_flow(south_rows)
+    except Exception as e:
+        result["error"].append(f"northbound: {e}")
+
+    try:
+        sectors = ak.stock_board_industry_summary_ths()
+        sectors = sectors.sort_values("涨跌幅", ascending=False)
+        def _row(r):
+            return {"name": r["板块"], "change": round(float(r["涨跌幅"]), 2)}
+        result["sectors_top"] = [_row(r) for _, r in sectors.head(10).iterrows()]
+        result["sectors_bot"] = [_row(r) for _, r in sectors.tail(5).iterrows()]
+    except Exception as e:
+        result["error"].append(f"sectors: {e}")
+
+    try:
+        result["limit_up"] = len(ak.stock_zt_pool_em(date=today))
+    except Exception:
+        pass
+    try:
+        result["limit_down"] = len(ak.stock_zt_pool_dtgc_em(date=today))
+    except Exception:
+        pass
+except ImportError:
+    result["error"].append("akshare not installed, skipping A/H stock data")
+
+print(MARKER + json.dumps(result, ensure_ascii=False))
+'''
+
+
 def collect_china_market() -> dict:
     """Collect A/H stock data. Requires akshare (pip install akshare)."""
+    _begin_stage(CHINA_MARKET_STAGE_BUDGET_SECONDS)
     result = {
         "northbound": None, "southbound": None,
         "sectors_top": [], "sectors_bot": [],
         "ah_premium": None, "limit_up": 0, "limit_down": 0,
         "error": [],
     }
+    if not _source_enabled("china-market-akshare"):
+        result["skipped"] = "source disabled"
+        _skip_source("china-market-akshare", "A/H stock data")
+        return result
+
+    timeout = _budgeted_timeout(CHINA_MARKET_STAGE_BUDGET_SECONDS)
+    if timeout is None:
+        result["error"].append("budget exhausted before A/H stock data")
+        _warn("Budget exhausted before A/H stock data")
+        return result
+
     try:
-        import akshare as ak
-        import datetime as _dt
-        today = _dt.datetime.now().strftime("%Y%m%d")
+        completed = subprocess.run(
+            [sys.executable, "-c", CHINA_MARKET_CHILD],
+            capture_output=True,
+            env={**os.environ, "FORCE_COLOR": "0", "NO_COLOR": "1", "TERM": "dumb"},
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        result["error"].append(f"akshare timed out after {timeout:.1f}s")
+        return result
+    except Exception as e:
+        result["error"].append(f"akshare subprocess: {e}")
+        return result
 
-        # Northbound/Southbound capital flow
-        try:
-            flow = ak.stock_hsgt_fund_flow_summary_em()
-            north_rows = flow[flow["资金方向"] == "北向"]
-            south_rows = flow[flow["资金方向"] == "南向"]
-            def _sum_flow(rows):
-                val = rows["资金净流入"].sum()
-                return {"net_flow_m": round(float(val) / 1e8, 2)}
-            result["northbound"] = _sum_flow(north_rows)
-            result["southbound"] = _sum_flow(south_rows)
-        except Exception as e:
-            result["error"].append(f"northbound: {e}")
+    marker = "__INTEL_CHINA_MARKET_JSON__"
+    payload = ""
+    for line in completed.stdout.splitlines():
+        if line.startswith(marker):
+            payload = line[len(marker):]
 
-        # Sector performance
-        try:
-            sectors = ak.stock_board_industry_summary_ths()
-            sectors = sectors.sort_values("涨跌幅", ascending=False)
-            def _row(r):
-                return {"name": r["板块"], "change": round(float(r["涨跌幅"]), 2)}
-            result["sectors_top"] = [_row(r) for _, r in sectors.head(10).iterrows()]
-            result["sectors_bot"] = [_row(r) for _, r in sectors.tail(5).iterrows()]
-        except Exception as e:
-            result["error"].append(f"sectors: {e}")
+    if completed.returncode != 0:
+        stderr = completed.stderr.strip()[-500:]
+        result["error"].append(f"akshare subprocess exited {completed.returncode}: {stderr or 'no stderr'}")
+        return result
+    if not payload:
+        result["error"].append("akshare subprocess did not return JSON")
+        return result
 
-        # Limit up/down count
-        try:
-            result["limit_up"] = len(ak.stock_zt_pool_em(date=today))
-        except Exception:
-            pass
-        try:
-            result["limit_down"] = len(ak.stock_zt_pool_dtgc_em(date=today))
-        except Exception:
-            pass
+    try:
+        child_result = json.loads(payload)
+        if isinstance(child_result, dict):
+            result.update(child_result)
+    except Exception as e:
+        result["error"].append(f"akshare JSON parse: {e}")
 
-    except ImportError:
-        result["error"].append("akshare not installed, skipping A/H stock data")
+    if "akshare not installed, skipping A/H stock data" in result.get("error", []):
         print("  [INFO] akshare not installed, skipping A/H stock data", file=sys.stderr)
 
     return result
+
+
+def collect_tencent_news() -> list[dict]:
+    """Reserved Tencent News source slot; adapter is intentionally gated by the registry."""
+    if not _source_enabled("tencent-news"):
+        _skip_source("tencent-news", "Tencent News")
+        return []
+    _warn("Tencent News source is enabled, but the collector adapter is not implemented yet")
+    return []
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -638,7 +881,10 @@ def main():
     now_ts = datetime.now().isoformat(timespec="seconds")
     snapshot = load_snapshot()
     market_delta = compute_market_delta(market["signals"], snapshot)
-    save_snapshot(market["signals"], now_ts)
+    if market.get("snapshot_enabled") and market["signals"]:
+        save_snapshot(market["signals"], now_ts)
+    else:
+        market_delta["snapshot_skipped"] = True
     if market_delta["deltas"]:
         print(f"  {len(market_delta['deltas'])} significant changes, direction: {market_delta['risk_direction']}", file=sys.stderr)
     else:
@@ -668,6 +914,11 @@ def main():
         print(f"  Warnings: {'; '.join(errors)}", file=sys.stderr)
     print("", file=sys.stderr)
 
+    # Step 7: Tencent News reserved source
+    print("[Step 7] Tencent News (optional)", file=sys.stderr)
+    tencent_items = collect_tencent_news()
+    print(f"  Total: {len(tencent_items)}\n", file=sys.stderr)
+
     # Output JSON
     output = {
         "date": date_str,
@@ -681,6 +932,29 @@ def main():
         "hackernews":    {"total": len(hn_items),      "items": hn_items},
         "search_engines":{"total": len(search_items),  "items": search_items},
         "china_market":  china_market,
+        "tencent_news":  {"total": len(tencent_items), "items": tencent_items},
+        "diagnostics": {
+            "elapsed_seconds": round(time.monotonic() - STARTED_AT, 2),
+            "source_registry_enabled": SOURCE_REGISTRY_ENABLED,
+            "enabled_source_ids": sorted(ENABLED_SOURCE_IDS) if SOURCE_REGISTRY_ENABLED else None,
+            "skipped_source_ids": sorted(set(SKIPPED_SOURCE_IDS)),
+            "request_timeout_seconds": REQUEST_TIMEOUT,
+            "search_timeout_seconds": SEARCH_TIMEOUT,
+            "hn_index_timeout_seconds": HN_INDEX_TIMEOUT,
+            "hn_item_timeout_seconds": HN_ITEM_TIMEOUT,
+            "total_budget_seconds": TOTAL_BUDGET_SECONDS,
+            "stage_budget_seconds": {
+                "gnews": GNEWS_STAGE_BUDGET_SECONDS,
+                "market": MARKET_STAGE_BUDGET_SECONDS,
+                "rss": RSS_STAGE_BUDGET_SECONDS,
+                "hackernews": HN_STAGE_BUDGET_SECONDS,
+                "search_engines": SEARCH_STAGE_BUDGET_SECONDS,
+                "china_market": CHINA_MARKET_STAGE_BUDGET_SECONDS,
+            },
+            "certifi_fallback_available": CERTIFI_CONTEXT is not None,
+            "warning_count": len(WARNINGS),
+            "warnings": WARNINGS[-80:],
+        },
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
 

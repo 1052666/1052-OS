@@ -21,7 +21,7 @@ websearchRouter.get('/engines', async (_req, res, next) => {
 websearchRouter.patch('/sources/:family/:id', async (req, res, next) => {
   try {
     await setSearchSourceEnabled({
-      family: String(req.params.family) as 'web-search' | 'skill-marketplace' | 'uapis',
+      family: String(req.params.family) as 'web-search' | 'skill-marketplace' | 'uapis' | 'intel-source',
       id: String(req.params.id),
       enabled: req.body?.enabled as boolean,
     })

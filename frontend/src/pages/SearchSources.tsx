@@ -6,6 +6,7 @@ const FAMILY_LABELS: Record<SearchSourceInfo['family'], string> = {
   'web-search': '联网搜索',
   'skill-marketplace': 'Skill 市场',
   uapis: 'UAPIs',
+  'intel-source': 'Intel 情报源',
 }
 
 const KIND_LABELS: Record<SearchSourceInfo['kind'], string> = {
@@ -49,6 +50,12 @@ const INTENT_LABELS: Record<string, string> = {
   uapis: 'UAPIs',
   search: '搜索接口',
   aggregate: '聚合搜索',
+  intel: '情报采集',
+  rss: 'RSS',
+  market: '市场数据',
+  finance: '金融市场',
+  tech: '科技情报',
+  cn: '中文来源',
 }
 
 function buildTags(source: SearchSourceInfo) {
@@ -108,6 +115,7 @@ export default function SearchSources() {
     const webSources = allSources.filter((source) => source.family === 'web-search')
     const skillSources = allSources.filter((source) => source.family === 'skill-marketplace')
     const uapisSources = allSources.filter((source) => source.family === 'uapis')
+    const intelSources = allSources.filter((source) => source.family === 'intel-source')
     return {
       total: allSources.length,
       enabled: allSources.filter((source) => source.enabled).length,
@@ -115,6 +123,7 @@ export default function SearchSources() {
       cn: webSources.filter((source) => source.region === 'cn').length,
       marketplace: skillSources.length,
       uapis: uapisSources.length,
+      intel: intelSources.length,
     }
   }, [allSources])
 
@@ -124,7 +133,7 @@ export default function SearchSources() {
         <div>
           <h1>搜索源状态</h1>
           <div className="muted">
-            这里统一管理联网搜索源、Skill 市场来源和 UAPIs 搜索接口。禁用后，Agent 后续不会再调用对应来源。
+            这里统一管理联网搜索源、Skill 市场来源、UAPIs 搜索接口和 Intel Center 情报源。禁用后，Agent 后续不会再调用对应来源。
           </div>
         </div>
         <div className="toolbar">
@@ -151,8 +160,8 @@ export default function SearchSources() {
           <strong>{counts.web}</strong>
         </div>
         <div className="search-status-card neutral">
-          <span>Skill / UAPIs</span>
-          <strong>{counts.marketplace + counts.uapis}</strong>
+          <span>Intel 情报源</span>
+          <strong>{counts.intel}</strong>
         </div>
       </section>
 

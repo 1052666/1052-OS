@@ -19,6 +19,16 @@ A comprehensive global intelligence collection and analysis skill for 1052 OS.
 
 ## Quick Start
 
+In 1052 OS Agent mode, prefer the system tool:
+
+```text
+intel_center_collect
+```
+
+The tool runs this Skill's collector from the correct Skill directory and returns the collected JSON for analysis.
+
+Manual fallback:
+
 Run the collection script:
 
 ```bash
@@ -26,6 +36,9 @@ python3 scripts/intel.py 2>&1
 ```
 
 The script outputs JSON to stdout with all collected data. Progress goes to stderr.
+When running manually, set the current working directory to the directory containing this `SKILL.md`; `scripts/intel.py` is relative to that directory.
+The collector has a hard runtime budget and per-source stage budgets. In 1052 OS Agent mode the total budget is derived from the tool timeout; manual runs can override it with `INTEL_CENTER_TOTAL_BUDGET_SECONDS`.
+In 1052 OS Agent mode, available sources are controlled by the system Search Sources registry (`intel-source:*`). Disabled registry sources are skipped by the collector and reported in diagnostics.
 
 Then analyze the JSON output following the workflow below.
 
@@ -39,6 +52,7 @@ Then analyze the JSON output following the workflow below.
 | Hacker News | Top stories filtered by score >= 50 | ~20-30 items |
 | Search Engines | Bing CN/INT, DuckDuckGo, Sogou WeChat | ~10-30 results |
 | A/H Stocks | Northbound flow, sector rotation, limit up/down | Optional (needs akshare) |
+| Tencent News | Reserved Chinese news source slot | Registered, adapter pending |
 
 ## Market Assets Tracked
 
@@ -141,10 +155,11 @@ Structure your output as a brief with:
 
 | Package | Purpose | Install |
 |---------|---------|---------|
+| certifi | HTTPS CA fallback when the local Python CA store is incomplete | `pip install certifi` |
 | akshare | A/H stock data (northbound flow, sectors, limit up/down) | `pip install akshare` |
 | tencent-news-cli | Chinese news (Tencent hot topics, morning brief) | npm package |
 
-The script works without these — they provide additional Chinese market data.
+The script works without optional packages, but `certifi` improves reliability on Python installs whose default OpenSSL CA store is incomplete. `akshare` provides additional Chinese market data. Tencent News is registered in the system source registry, but its collector adapter is intentionally left pending until a stable source contract is available.
 
 ## Scheduling
 
@@ -172,6 +187,8 @@ Use 1052 OS's built-in calendar/scheduler to automate.
   "rss":            { "total": 52, "items": [...] },
   "hackernews":     { "total": 25, "items": [...] },
   "search_engines": { "total": 18, "items": [...] },
-  "china_market":   { "northbound": {...}, "sectors_top": [...], ... }
+  "china_market":   { "northbound": {...}, "sectors_top": [...], ... },
+  "tencent_news":   { "total": 0, "items": [] },
+  "diagnostics":    { "warning_count": 0, "warnings": [], "elapsed_seconds": 0.0, "skipped_source_ids": [] }
 }
 ```

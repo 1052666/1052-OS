@@ -4,6 +4,7 @@ import {
   getSettings,
   resolveLlmConfigForTask,
   updateLlmTaskRoutes,
+  updateSettings,
 } from '../../settings/settings.service.js'
 import { discoverLocalModels } from '../../settings/local-llm-discovery.service.js'
 import type { LLMTaskKind } from '../../settings/settings.types.js'
@@ -38,6 +39,10 @@ function readString(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function isTimeString(value: string) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value)
+}
+
 export const agentRuntimeTools: AgentTool[] = [
   {
     name: 'agent_runtime_status',
@@ -58,6 +63,7 @@ export const agentRuntimeTools: AgentTool[] = [
           checkpointEnabled: settings.agent.checkpointEnabled,
           seedOnResumeEnabled: settings.agent.seedOnResumeEnabled,
           upgradeDebugEventsEnabled: settings.agent.upgradeDebugEventsEnabled,
+          morningBrief: settings.agent.morningBrief,
         },
         llm: {
           activeProfileId: settings.llm.activeProfileId,
@@ -88,6 +94,47 @@ export const agentRuntimeTools: AgentTool[] = [
           passivePrefixCaching: usesPassivePrefixCaching(chatLlm),
         },
       }
+    },
+  },
+  {
+    name: 'agent_morning_brief_update',
+    description:
+      'Update the Agent morning brief preference and its managed daily scheduled task. Before calling, explain the enabled state and HH:MM Asia/Hong_Kong delivery time, then wait for explicit confirmation unless full-access mode is enabled. This does not send a brief immediately or enable external channel delivery.',
+    parameters: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean', description: 'Whether the daily morning brief is enabled.' },
+        time: {
+          type: 'string',
+          description: 'Preferred delivery time in 24-hour HH:MM format, Asia/Hong_Kong.',
+        },
+        confirmed: {
+          type: 'boolean',
+          description: 'Must be true after explicit user confirmation.',
+        },
+      },
+      required: ['confirmed'],
+      additionalProperties: false,
+    },
+    async execute(args) {
+      const input = (args ?? {}) as Record<string, unknown>
+      assertConfirmed(input.confirmed, 'Morning brief settings require explicit confirmation.')
+
+      const patch: { enabled?: boolean; time?: string } = {}
+      if (typeof input.enabled === 'boolean') patch.enabled = input.enabled
+      if (input.time !== undefined) {
+        const time = readString(input.time)
+        if (!isTimeString(time)) {
+          throw new HttpError(400, 'Morning brief time must use HH:MM format.')
+        }
+        patch.time = time
+      }
+      if (patch.enabled === undefined && patch.time === undefined) {
+        throw new HttpError(400, 'Nothing to update for morning brief settings.')
+      }
+
+      const settings = await updateSettings({ agent: { morningBrief: patch } })
+      return { morningBrief: settings.agent.morningBrief }
     },
   },
   {

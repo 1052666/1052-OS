@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
 import { httpError } from '../../http-error.js'
 import { readJson, writeJson } from '../../storage.js'
+import {
+  createScheduledTask,
+  listScheduledTasks,
+  updateScheduledTask,
+} from '../calendar/calendar.schedule.service.js'
 import type {
   AgentSettings,
   AppearanceSettings,
@@ -11,6 +16,7 @@ import type {
   LLMSettings,
   LLMTaskKind,
   LLMTaskRoute,
+  MorningBriefSettings,
   PublicLLMProfile,
   Settings,
   PublicSettings,
@@ -19,6 +25,8 @@ import type {
 } from './settings.types.js'
 
 const FILE = 'settings.json'
+const MORNING_BRIEF_TASK_MARKER = '[managed:agent-morning-brief]'
+const MORNING_BRIEF_TASK_TITLE = '每日 Intel Center 早报'
 
 const DEFAULT_SETTINGS: Settings = {
   llm: {
@@ -56,14 +64,19 @@ const DEFAULT_SETTINGS: Settings = {
     checkpointEnabled: true,
     seedOnResumeEnabled: true,
     upgradeDebugEventsEnabled: true,
+    morningBrief: {
+      enabled: false,
+      time: '09:30',
+    },
   },
   uapis: {
     apiKey: '',
   },
 }
 
-type LegacyAgentSettings = Partial<AgentSettings> & {
+type LegacyAgentSettings = Partial<Omit<AgentSettings, 'morningBrief'>> & {
   systemPrompt?: string
+  morningBrief?: Partial<MorningBriefSettings>
 }
 
 type LegacySettings = Omit<Partial<Settings>, 'agent'> & {
@@ -311,6 +324,77 @@ function mergeSettings(base: Settings, partial: Partial<Settings>): Settings {
   }
 }
 
+function isTimeString(value: unknown): value is string {
+  return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.trim())
+}
+
+function normalizeMorningBriefSettings(
+  input: unknown,
+  fallback: MorningBriefSettings = DEFAULT_SETTINGS.agent.morningBrief,
+): MorningBriefSettings {
+  if (!input || typeof input !== 'object') return fallback
+  const raw = input as Partial<MorningBriefSettings>
+
+  return {
+    enabled: typeof raw.enabled === 'boolean' ? raw.enabled : fallback.enabled,
+    time: isTimeString(raw.time) ? raw.time.trim() : fallback.time,
+  }
+}
+
+function todayInHongKong() {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Hong_Kong',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+function buildMorningBriefPrompt() {
+  return [
+    '请生成今天的 Intel Center 早报。',
+    '',
+    '执行要求：',
+    '- 优先读取并使用已安装的 intel-center Skill。',
+    '- 使用 intel_center_collect 采集原始情报；不要用终端手动猜测 Skill 脚本路径。',
+    '- 按 Skill 工作流采集新闻、行情与跨政治/金融/科技板块的联动信号。',
+    '- 如果需要把结果发往外部通道，必须遵守当前权限和投递配置；本托管任务默认只回写 1052 OS 聊天流与通知中心。',
+    '- 输出中文简报，包含核心摘要、分板块观察、市场异常、传导链、风险/机会和主要来源。',
+  ].join('\n')
+}
+
+async function syncMorningBriefScheduledTask(settings: MorningBriefSettings) {
+  const tasks = await listScheduledTasks({ target: 'agent', limit: 200 })
+  const existing = tasks.find(
+    (task) => task.notes.includes(MORNING_BRIEF_TASK_MARKER),
+  )
+  const input = {
+    title: MORNING_BRIEF_TASK_TITLE,
+    notes: `${MORNING_BRIEF_TASK_MARKER}\n由 Agent 行为设置管理。外部通道投递默认关闭；需要飞书/微信投递时，请在定时任务中显式配置目标。`,
+    target: 'agent' as const,
+    mode: 'ongoing' as const,
+    startDate: existing?.startDate ?? todayInHongKong(),
+    time: settings.time,
+    repeatUnit: 'day' as const,
+    repeatInterval: 1,
+    repeatWeekdays: [],
+    endDate: '',
+    prompt: buildMorningBriefPrompt(),
+    command: '',
+    enabled: settings.enabled,
+    delivery: existing?.delivery ?? {
+      wechat: { mode: 'off' as const, accountId: '', peerId: '' },
+      feishu: { mode: 'off' as const, receiveIdType: 'chat_id' as const, receiveId: '' },
+    },
+  }
+
+  if (existing) {
+    await updateScheduledTask(existing.id, input)
+  } else if (settings.enabled) {
+    await createScheduledTask(input)
+  }
+}
+
 function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSettings {
   if (!agent) return DEFAULT_SETTINGS.agent
 
@@ -362,6 +446,10 @@ function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSe
       'boolean'
         ? Boolean((agent as { upgradeDebugEventsEnabled?: unknown }).upgradeDebugEventsEnabled)
         : DEFAULT_SETTINGS.agent.upgradeDebugEventsEnabled,
+    morningBrief: normalizeMorningBriefSettings(
+      (agent as { morningBrief?: unknown }).morningBrief,
+      DEFAULT_SETTINGS.agent.morningBrief,
+    ),
   }
 }
 
@@ -569,6 +657,18 @@ export async function getPublicSettings(): Promise<PublicSettings> {
 
 export async function updateSettings(patch: SettingsPatch): Promise<PublicSettings> {
   const current = await getSettings()
+  const agentPatch = patch.agent ?? {}
+  const mergedMorningBrief = agentPatch.morningBrief
+    ? normalizeMorningBriefSettings(
+        { ...current.agent.morningBrief, ...agentPatch.morningBrief },
+        current.agent.morningBrief,
+      )
+    : current.agent.morningBrief
+  const mergedAgent: LegacyAgentSettings = {
+    ...current.agent,
+    ...agentPatch,
+    morningBrief: mergedMorningBrief,
+  }
   const next: Settings = {
     ...current,
     llm: applyLlmPatch(current.llm, patch.llm),
@@ -591,10 +691,7 @@ export async function updateSettings(patch: SettingsPatch): Promise<PublicSettin
       ...current.appearance,
       ...(patch.appearance ?? {}),
     }),
-    agent: normalizeAgentSettings({
-      ...current.agent,
-      ...(patch.agent ?? {}),
-    }),
+    agent: normalizeAgentSettings(mergedAgent),
     uapis: {
       ...current.uapis,
       apiKey:
@@ -605,7 +702,20 @@ export async function updateSettings(patch: SettingsPatch): Promise<PublicSettin
   }
 
   await writeJson(FILE, next)
+  if (patch.agent?.morningBrief !== undefined) {
+    await syncMorningBriefScheduledTask(next.agent.morningBrief)
+  }
   return toPublic(next)
+}
+
+export function formatMorningBriefRuntimeContext(agent: AgentSettings): string {
+  const { enabled, time } = agent.morningBrief
+  return [
+    'Morning brief settings:',
+    `- enabled: ${enabled ? 'true' : 'false'}`,
+    `- preferred delivery time: ${time} Asia/Hong_Kong`,
+    '- Treat this as the user preference for daily Intel Center briefs. Do not create, modify, or send scheduled external deliveries unless the user asked for that change or the relevant permission mode allows it.',
+  ].join('\n')
 }
 
 export async function upsertLlmProfile(

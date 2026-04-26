@@ -64,10 +64,14 @@ export type UpdateRestartResponse = {
   scriptPath: string
 }
 
+export type UpdateInstallOptions = {
+  force?: boolean
+}
+
 export const UpdatesApi = {
   status: () => api.get<UpdateStatus>('/updates/status'),
   check: () => api.post<UpdateStatus>('/updates/check', {}),
-  install: () => api.post<{ run: UpdateRun }>('/updates/install', {}),
+  install: (options: UpdateInstallOptions = {}) => api.post<{ run: UpdateRun }>('/updates/install', options),
   run: (id: string) => api.get<UpdateRun>(`/updates/runs/${encodeURIComponent(id)}`),
   restart: () => api.post<UpdateRestartResponse>('/updates/restart', {}),
 }
