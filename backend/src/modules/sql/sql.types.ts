@@ -57,6 +57,7 @@ export type SqlVariable = {
   id: string
   name: string
   valueType: 'static' | 'sql'
+  isList?: boolean
   value: string
   datasourceId: string
   createdAt: number
@@ -66,6 +67,7 @@ export type SqlVariable = {
 export type SqlVariableInput = {
   name?: unknown
   valueType?: unknown
+  isList?: boolean
   value?: unknown
   datasourceId?: unknown
 }

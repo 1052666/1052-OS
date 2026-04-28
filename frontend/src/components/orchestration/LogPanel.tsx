@@ -55,6 +55,11 @@ function LogEntryCard({ log }: { log: LogEntry }) {
               {log.expectedValue !== undefined && <><span className="orch-log-sep">|</span><span>{log.expectedValue}</span></>}
             </div>
           )}
+          {log.nodeType === 'load' && log.expectedValue !== undefined && (
+            <div className="orch-log-detail">
+              <label>进度:</label><span>{log.expectedValue}</span>
+            </div>
+          )}
           {log.error && <div className="orch-log-error"><label>错误:</label><span>{log.error}</span></div>}
         </div>
       )}

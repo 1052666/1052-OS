@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { OrchestrationApi, type Orchestration, type OrchestrationNode, type OrchestrationExecution } from '../api/orchestration'
-import { SqlApi, type DataSource, type SqlFile, type Server, type ShellFile } from '../api/sql'
+import { SqlApi, type DataSource, type SqlFile, type Server, type ShellFile, type SqlVariable } from '../api/sql'
 import { FlowEditor } from '../components/orchestration/FlowEditor'
 import { useOrchestrationEditor, type OrchNodeType } from '../components/orchestration/hooks/useOrchestrationEditor'
 import { useAutoLayout } from '../components/orchestration/hooks/useAutoLayout'
@@ -18,6 +18,7 @@ export default function SqlOrchestration() {
   const [sqlFiles, setSqlFiles] = useState<SqlFile[]>([])
   const [servers, setServers] = useState<Server[]>([])
   const [shellFileList, setShellFileList] = useState<ShellFile[]>([])
+  const [variableList, setVariableList] = useState<SqlVariable[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Orchestration | null>(null)
   const [saving, setSaving] = useState(false)
@@ -37,8 +38,8 @@ export default function SqlOrchestration() {
 
   const load = async () => {
     try {
-      const [orchs, ds, files, srvs, shFiles] = await Promise.all([OrchestrationApi.list(), SqlApi.listDataSources(), SqlApi.listSqlFiles(), SqlApi.listServers(), SqlApi.listShellFiles()])
-      setOrchestrations(orchs); setDatasources(ds); setSqlFiles(files); setServers(srvs); setShellFileList(shFiles)
+      const [orchs, ds, files, srvs, shFiles, vars] = await Promise.all([OrchestrationApi.list(), SqlApi.listDataSources(), SqlApi.listSqlFiles(), SqlApi.listServers(), SqlApi.listShellFiles(), SqlApi.listVariables()])
+      setOrchestrations(orchs); setDatasources(ds); setSqlFiles(files); setServers(srvs); setShellFileList(shFiles); setVariableList(vars)
     } catch { setError('加载数据失败') }
     finally { setLoading(false) }
   }
@@ -202,6 +203,7 @@ export default function SqlOrchestration() {
             sqlFiles={sqlFiles}
             servers={servers}
             shellFiles={shellFileList}
+            variables={variableList}
             onChange={(updates) => editorHook.updateNodeData(selectedNodeId!, updates)}
             onEnableToggle={() => editorHook.updateNodeData(selectedNodeId!, { enabled: !selectedNode.enabled })}
             onDelete={() => { editorHook.removeNode(selectedNodeId!); setSelectedNodeId(null) }}

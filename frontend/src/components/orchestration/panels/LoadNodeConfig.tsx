@@ -1,11 +1,11 @@
 import type { OrchestrationNode, ColumnMapping } from '../../../api/orchestration'
-import type { DataSource } from '../../../api/sql'
+import type { DataSource, SqlVariable } from '../../../api/sql'
 import { FormField } from './FormField'
 
 export function LoadNodeConfig({
-  node, datasources, onChange,
+  node, datasources, variables, onChange,
 }: {
-  node: OrchestrationNode; datasources: DataSource[]
+  node: OrchestrationNode; datasources: DataSource[]; variables: SqlVariable[]
   onChange: (updates: Partial<OrchestrationNode>) => void
 }) {
   const mappings = node.columnMappings ?? []
@@ -47,6 +47,17 @@ export function LoadNodeConfig({
       </FormField>
       <FormField label="分区字段">
         <input className="orch-drawer-input" placeholder="如: dt, region (逗号分隔)" value={node.partitionColumns ?? ''} onChange={(e) => onChange({ partitionColumns: e.target.value })} />
+      </FormField>
+      <FormField label="循环变量">
+        <select className="orch-drawer-select" value={node.loopVariableId ?? ''} onChange={(e) => onChange({ loopVariableId: e.target.value })}>
+          <option value="">无 (单次加载)</option>
+          {variables.filter(v => v.valueType === 'sql' && v.isList).map(v => (
+            <option key={v.id} value={v.id}>${'{'}{v.name}{'}'}</option>
+          ))}
+        </select>
+        <div style={{ color: 'var(--fg-4)', fontSize: 9, marginTop: 2 }}>
+          选择返回列表的 SQL 变量，Load 节点会按每个值循环执行源查询并加载
+        </div>
       </FormField>
       <FormField label="字段映射">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

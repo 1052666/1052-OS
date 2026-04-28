@@ -4,11 +4,12 @@ import { SqlApi, type SqlVariable, type DataSource } from '../api/sql'
 type FormData = {
   name: string
   valueType: 'static' | 'sql'
+  isList: boolean
   value: string
   datasourceId: string
 }
 
-const emptyForm: FormData = { name: '', valueType: 'static', value: '', datasourceId: '' }
+const emptyForm: FormData = { name: '', valueType: 'static', isList: false, value: '', datasourceId: '' }
 
 export default function SqlVariables() {
   const [variables, setVariables] = useState<SqlVariable[]>([])
@@ -62,7 +63,7 @@ export default function SqlVariables() {
   }
 
   const handleEdit = (v: SqlVariable) => {
-    setForm({ name: v.name, valueType: v.valueType, value: v.value, datasourceId: v.datasourceId })
+    setForm({ name: v.name, valueType: v.valueType, isList: v.isList ?? false, value: v.value, datasourceId: v.datasourceId })
     setEditingId(v.id)
     setShowForm(true)
     setError('')
@@ -127,7 +128,7 @@ export default function SqlVariables() {
               </select>
             </div>
             <div className="form-field form-field-full">
-              <label>值{form.valueType === 'sql' ? ' (SQL 查询语句，取第一行第一列)' : ''}</label>
+              <label>值{form.valueType === 'sql' ? (form.isList ? ' (SQL 查询语句，返回第一列所有行作为列表)' : ' (SQL 查询语句，取第一行第一列)') : ''}</label>
               {form.valueType === 'sql' ? (
                 <textarea
                   placeholder="SELECT column AS var_name FROM table WHERE ..."
@@ -145,18 +146,31 @@ export default function SqlVariables() {
               )}
             </div>
             {form.valueType === 'sql' && (
-              <div className="form-field">
-                <label>数据源</label>
-                <select
-                  value={form.datasourceId}
-                  onChange={(e) => setForm({ ...form, datasourceId: e.target.value })}
-                >
-                  <option value="">选择数据源</option>
-                  {datasources.map((ds) => (
-                    <option key={ds.id} value={ds.id}>{ds.name}</option>
-                  ))}
-                </select>
-              </div>
+              <>
+                <div className="form-field">
+                  <label>数据源</label>
+                  <select
+                    value={form.datasourceId}
+                    onChange={(e) => setForm({ ...form, datasourceId: e.target.value })}
+                  >
+                    <option value="">选择数据源</option>
+                    {datasources.map((ds) => (
+                      <option key={ds.id} value={ds.id}>{ds.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-field sql-var-islist-toggle">
+                  <label className="sql-var-islist-label" htmlFor="var-is-list">
+                    <span className="sql-var-toggle-track">
+                      <input type="checkbox" id="var-is-list" className="sql-var-toggle-input" checked={form.isList}
+                        onChange={(e) => setForm({ ...form, isList: e.target.checked })} />
+                      <span className="sql-var-toggle-thumb" />
+                    </span>
+                    <span className="sql-var-islist-text">返回列表</span>
+                    <span className="sql-var-islist-desc">开启后取第一列所有行作为列表，可在编排 Load 节点中循环加载每一项</span>
+                  </label>
+                </div>
+              </>
             )}
           </div>
           <div className="sql-var-form-actions">
@@ -183,7 +197,7 @@ export default function SqlVariables() {
                     {v.name}
                     {'}'}</span>
                   <span className={`sql-var-type-badge ${v.valueType}`}>
-                    {v.valueType === 'static' ? '静态值' : 'SQL 查询'}
+                    {v.valueType === 'static' ? '静态值' : v.isList ? 'SQL 列表' : 'SQL 查询'}
                   </span>
                 </div>
                 <div className="sql-var-card-body">

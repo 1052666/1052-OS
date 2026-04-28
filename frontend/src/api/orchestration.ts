@@ -19,6 +19,7 @@ export type OrchestrationNode = {
   mode?: 'insert' | 'replace' | 'truncate_insert'
   columnMappings?: ColumnMapping[]
   partitionColumns?: string
+  loopVariableId?: string
   waitIntervalSec?: number
   waitTimeoutSec?: number
   waitStableCount?: number

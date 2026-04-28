@@ -2,9 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { HttpError } from '../../http-error.js'
 import { config } from '../../config.js'
-import { getDataSource, getSqlFile, resolveVariables, getServer, getShellFile, executeShellOnServer, executeLocal } from '../sql/sql.service.js'
+import { getDataSource, getSqlFile, resolveVariables, getServer, getShellFile, executeShellOnServer, executeLocal, listVariables, resolveSqlVariableList } from '../sql/sql.service.js'
 import { executeDbQuery } from '../sql/sql.client.js'
 import type { Orchestration, OrchestrationInput, OrchestrationExecution, LogEntry, OrchestrationNode, OrchestrationEdge, ThresholdOperator, ColumnMapping } from './orchestration.types.js'
+import type { DataSource } from '../sql/sql.types.js'
 
 const ORCH_DIR = 'orchestrations'
 const LOG_DIR = 'orchestration-logs'
@@ -257,7 +258,7 @@ function escapeVal(v: unknown): string {
   return `'${String(v).replace(/'/g, "''")}'`
 }
 
-async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
+async function executeLoadNode(node: OrchestrationNode, pushLog?: (log: LogEntry) => void, signal?: AbortSignal): Promise<LogEntry> {
   const nodeStart = Date.now()
   try {
     if (!node.targetDatasourceId) throw new Error('未配置目标数据源')
@@ -265,17 +266,148 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
 
     const resolved = await resolveNodeSql(node)
     if (!resolved.sql?.trim()) throw new Error('未配置源查询 SQL')
-    const sql = await resolveVariables(resolved.sql)
-    const srcDs = await getDataSource(resolved.datasourceId)
-    const tgtDs = await getDataSource(node.targetDatasourceId)
+
+    // Resolve loop variable if configured
+    let loopValues: string[] | null = null
+    let varName = ''
+    if (node.loopVariableId) {
+      const vars = await listVariables()
+      const loopVar = vars.find(v => v.id === node.loopVariableId || v.name === node.loopVariableId)
+      if (!loopVar) throw new Error(`循环变量不存在: ${node.loopVariableId}`)
+      if (loopVar.valueType !== 'sql') throw new Error('循环变量必须是 SQL 查询类型')
+      varName = loopVar.name
+      loopValues = await resolveSqlVariableList(loopVar)
+      if (loopValues.length === 0) {
+        return {
+          nodeId: node.id, nodeName: node.name, nodeType: 'load', status: 'success',
+          sql: resolved.sql, affectedRows: 0,
+          actualValue: '0', expectedValue: '循环变量查询结果为空',
+          timestamp: Date.now(), duration: Date.now() - nodeStart,
+        }
+      }
+    }
+
+    const sqlTemplate = resolved.sql
+
+    if (loopValues) {
+      return await executeLoadLoop(node, sqlTemplate, varName, loopValues, nodeStart, pushLog, signal)
+    }
+
+    // Non-loop: resolve variables and execute once
+    const sql = await resolveVariables(sqlTemplate)
+    const srcDs = await getDataSource(node.datasourceId)
+    const tgtDs = await getDataSource(node.targetDatasourceId!)
+    return await executeSingleLoad(node, sql, nodeStart, srcDs, tgtDs)
+  } catch (err) {
+    return {
+      nodeId: node.id, nodeName: node.name, nodeType: 'load', status: 'failed',
+      sql: node.sql, error: err instanceof Error ? err.message : String(err),
+      timestamp: Date.now(), duration: Date.now() - nodeStart,
+    }
+  }
+}
+
+const VAR_INJECTION_RE = /\$\{[^}]*\}/g
+
+async function executeLoadLoop(
+  node: OrchestrationNode,
+  sqlTemplate: string,
+  varName: string,
+  values: string[],
+  nodeStart: number,
+  pushLog?: (log: LogEntry) => void,
+  signal?: AbortSignal,
+): Promise<LogEntry> {
+  let totalAffected = 0
+  let failedCount = 0
+  let lastError = ''
+  const loopLogId = `${node.id}-loop`
+
+  const updateLoopLog = (status: LogEntry['status'], msg: string) => {
+    pushLog?.({
+      nodeId: loopLogId, nodeName: `${node.name} (循环)`, nodeType: 'load',
+      status, sql: sqlTemplate, affectedRows: totalAffected,
+      actualValue: String(totalAffected), expectedValue: msg,
+      timestamp: Date.now(), duration: Date.now() - nodeStart,
+    })
+  }
+
+  // Resolve DataSource once outside the loop
+  const srcDs = await getDataSource(node.datasourceId)
+  const tgtDs = await getDataSource(node.targetDatasourceId!)
+
+  // For loop mode, use insert mode inside iterations
+  const loopNode = { ...node, mode: 'insert' as const }
+
+  // TRUNCATE once before loop if needed
+  if (node.mode === 'truncate_insert') {
+    const tableRef = escapeTableRef(node.targetTable!)
+    const isHive = tgtDs.type === 'hive'
+    const truncateSql = isHive ? `TRUNCATE TABLE ${tableRef}` : `DELETE FROM ${tableRef}`
+    const tgtConfig = { type: tgtDs.type, host: tgtDs.host, port: tgtDs.port, user: tgtDs.user, password: tgtDs.password, database: tgtDs.database, filePath: tgtDs.filePath } as const
+    await Promise.race([
+      executeDbQuery(tgtConfig, truncateSql, 1),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('清空目标表超时')), QUERY_TIMEOUT_MS)),
+    ])
+    updateLoopLog('running', '已清空目标表，开始循环加载')
+  }
+
+  for (let i = 0; i < values.length; i++) {
+    if (signal?.aborted) throw new Error('已停止')
+
+    const value = values[i].replace(VAR_INJECTION_RE, '') // prevent nested variable injection
+    const iterSql = sqlTemplate.replaceAll(`\${${varName}}`, value)
+    const sql = await resolveVariables(iterSql)
+
+    updateLoopLog('running', `正在加载 ${i + 1}/${values.length}: ${varName}=${value}`)
+
+    try {
+      const result = await executeSingleLoad(loopNode, sql, nodeStart, srcDs, tgtDs)
+      totalAffected += result.affectedRows ?? 0
+      if (result.status === 'failed') {
+        failedCount++
+        lastError = result.error ?? ''
+      }
+    } catch (err) {
+      failedCount++
+      lastError = err instanceof Error ? err.message : String(err)
+    }
+  }
+
+  const status = failedCount === values.length ? 'failed'
+    : failedCount > 0 ? 'warning' : 'success'
+  const msg = failedCount === 0
+    ? `${values.length} 个值全部加载成功，共 ${totalAffected} 行`
+    : `${values.length} 个值中 ${failedCount} 个失败，共 ${totalAffected} 行${lastError ? ` (最后错误: ${lastError})` : ''}`
+
+  updateLoopLog(status, msg)
+
+  return {
+    nodeId: node.id, nodeName: node.name, nodeType: 'load', status,
+    sql: sqlTemplate, affectedRows: totalAffected,
+    actualValue: String(totalAffected), expectedValue: msg,
+    timestamp: Date.now(), duration: Date.now() - nodeStart,
+  }
+}
+
+async function executeSingleLoad(
+  node: OrchestrationNode,
+  sql: string,
+  nodeStart: number,
+  srcDs?: DataSource,
+  tgtDs?: DataSource,
+): Promise<LogEntry> {
+  try {
+    const src = srcDs ?? await getDataSource(node.datasourceId)
+    const tgt = tgtDs ?? await getDataSource(node.targetDatasourceId!)
 
     const needsDb = (t: string) => t === 'mysql' || t === 'hive'
-    if (needsDb(srcDs.type) && !srcDs.database) throw new Error(`源数据源「${srcDs.name}」未配置数据库名`)
-    if (needsDb(tgtDs.type) && !tgtDs.database) throw new Error(`目标数据源「${tgtDs.name}」未配置数据库名`)
+    if (needsDb(src.type) && !src.database) throw new Error(`源数据源「${src.name}」未配置数据库名`)
+    if (needsDb(tgt.type) && !tgt.database) throw new Error(`目标数据源「${tgt.name}」未配置数据库名`)
 
-    const srcConfig = { type: srcDs.type, host: srcDs.host, port: srcDs.port, user: srcDs.user, password: srcDs.password, database: srcDs.database, filePath: srcDs.filePath }
-    const tgtConfig = { type: tgtDs.type, host: tgtDs.host, port: tgtDs.port, user: tgtDs.user, password: tgtDs.password, database: tgtDs.database, filePath: tgtDs.filePath }
-    const isHive = tgtDs.type === 'hive'
+    const srcConfig = { type: src.type, host: src.host, port: src.port, user: src.user, password: src.password, database: src.database, filePath: src.filePath } as const
+    const tgtConfig = { type: tgt.type, host: tgt.host, port: tgt.port, user: tgt.user, password: tgt.password, database: tgt.database, filePath: tgt.filePath } as const
+    const isHive = tgt.type === 'hive'
 
     // Query source data
     const srcResult = await Promise.race([
@@ -300,7 +432,6 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
     if (node.columnMappings?.length) {
       rawMappings = node.columnMappings.filter(m => m.source && m.target)
     } else {
-      // Auto same-name mapping
       rawMappings = srcResult.columns.map(c => ({
         source: c, target: c,
         isPartition: partitionSet.has(c),
@@ -309,15 +440,13 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
 
     if (rawMappings.length === 0) throw new Error('无有效字段映射')
 
-    // Partition columns go last (Hive requirement)
     const normalMappings = rawMappings.filter(m => !m.isPartition)
     const partitionMappings = rawMappings.filter(m => m.isPartition)
     const sortedMappings = [...normalMappings, ...partitionMappings]
 
-    const tableRef = escapeTableRef(node.targetTable)
+    const tableRef = escapeTableRef(node.targetTable!)
     const mode = node.mode || 'insert'
 
-    // TRUNCATE + INSERT mode
     if (mode === 'truncate_insert') {
       const truncateSql = isHive
         ? `TRUNCATE TABLE ${tableRef}`
@@ -328,7 +457,6 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
       ])
     }
 
-    // Build INSERT SQL for a batch
     const buildInsertSql = (batch: Record<string, unknown>[]): string => {
       const values = batch.map(row =>
         '(' + sortedMappings.map(m => escapeVal(row[m.source])).join(', ') + ')'
@@ -347,7 +475,6 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
       return `${prefix} INTO ${tableRef} (${colList}) VALUES\n${values}`
     }
 
-    // Batch insert
     const BATCH_SIZE = 100
     let totalAffected = 0
     for (let i = 0; i < srcResult.rows.length; i += BATCH_SIZE) {
@@ -371,7 +498,7 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
   } catch (err) {
     return {
       nodeId: node.id, nodeName: node.name, nodeType: 'load', status: 'failed',
-      sql: node.sql, error: err instanceof Error ? err.message : String(err),
+      sql, error: err instanceof Error ? err.message : String(err),
       timestamp: Date.now(), duration: Date.now() - nodeStart,
     }
   }
@@ -380,7 +507,7 @@ async function executeLoadNode(node: OrchestrationNode): Promise<LogEntry> {
 async function executeNode(node: OrchestrationNode, signal?: AbortSignal, pushLog?: (log: LogEntry) => void): Promise<LogEntry> {
   if (signal?.aborted) throw new Error('已停止')
   if (node.type === 'wait') return executeWaitNode(node, pushLog || (() => {}), signal)
-  if (node.type === 'load') return executeLoadNode(node)
+  if (node.type === 'load') return executeLoadNode(node, pushLog, signal)
   if (node.type === 'shell') {
     const nodeStart = Date.now()
     try {

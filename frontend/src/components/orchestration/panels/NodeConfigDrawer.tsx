@@ -1,5 +1,5 @@
 import type { OrchestrationNode } from '../../../api/orchestration'
-import type { DataSource, SqlFile, Server, ShellFile } from '../../../api/sql'
+import type { DataSource, SqlFile, Server, ShellFile, SqlVariable } from '../../../api/sql'
 import { SqlNodeConfig } from './SqlNodeConfig'
 import { DebugNodeConfig } from './DebugNodeConfig'
 import { LoadNodeConfig } from './LoadNodeConfig'
@@ -20,6 +20,7 @@ export function NodeConfigDrawer({
   sqlFiles,
   servers,
   shellFiles,
+  variables,
   onChange,
   onEnableToggle,
   onDelete,
@@ -30,6 +31,7 @@ export function NodeConfigDrawer({
   sqlFiles: SqlFile[]
   servers: Server[]
   shellFiles: ShellFile[]
+  variables: SqlVariable[]
   onChange: (updates: Partial<OrchestrationNode>) => void
   onEnableToggle: () => void
   onDelete: () => void
@@ -41,7 +43,7 @@ export function NodeConfigDrawer({
     const props = { node, datasources, sqlFiles, onChange }
     switch (node.type) {
       case 'debug': return <DebugNodeConfig {...props} />
-      case 'load':  return <LoadNodeConfig {...props} datasources={datasources} />
+      case 'load':  return <LoadNodeConfig {...props} datasources={datasources} variables={variables} />
       case 'wait':  return <WaitNodeConfig {...props} />
       case 'shell': return <ShellNodeConfig node={node} servers={servers} shellFiles={shellFiles} onChange={onChange} />
       default:      return <SqlNodeConfig {...props} />

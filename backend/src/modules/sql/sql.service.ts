@@ -477,6 +477,31 @@ async function resolveSqlVariable(variable: SqlVariable): Promise<string> {
   return String(firstRow[firstCol] ?? '')
 }
 
+export async function resolveSqlVariableList(variable: SqlVariable): Promise<string[]> {
+  const ds = await readDsFile(variable.datasourceId)
+  const result = await Promise.race([
+    executeDbQuery(
+      {
+        type: ds.type,
+        host: ds.host,
+        port: ds.port,
+        user: ds.user,
+        password: ds.password,
+        database: ds.database,
+        filePath: ds.filePath,
+      },
+      variable.value,
+      10000,
+    ),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new HttpError(504, '变量查询超时 (30s)')), QUERY_TIMEOUT_MS),
+    ),
+  ])
+  if (result.rows.length === 0) return []
+  const firstCol = result.columns[0]
+  return result.rows.map(row => String(row[firstCol] ?? ''))
+}
+
 // ─── Server CRUD ──────────────────────────────────────────
 
 function validateServerInput(input: ServerInput, requireAll: boolean): {
@@ -797,6 +822,7 @@ export async function executeShellFile(id: string): Promise<ShellResult> {
 function validateVarInput(input: SqlVariableInput, requireAll: boolean): {
   name: string
   valueType: 'static' | 'sql'
+  isList: boolean
   value: string
   datasourceId: string
 } {
@@ -804,6 +830,7 @@ function validateVarInput(input: SqlVariableInput, requireAll: boolean): {
   const rawType = normalizeString(input.valueType)
   const value = normalizeString(input.value)
   const datasourceId = normalizeString(input.datasourceId)
+  const isList = input.isList === true
 
   if (requireAll && !name) throw new HttpError(400, '变量名不能为空')
   if (rawType && rawType !== 'static' && rawType !== 'sql') {
@@ -814,6 +841,7 @@ function validateVarInput(input: SqlVariableInput, requireAll: boolean): {
   return {
     name,
     valueType: (rawType || 'static') as 'static' | 'sql',
+    isList,
     value,
     datasourceId,
   }
@@ -865,6 +893,7 @@ export async function createVariable(input: SqlVariableInput): Promise<SqlVariab
   const item: SqlVariable = {
     id: createId(),
     ...validated,
+    isList: validated.valueType === 'sql' ? validated.isList : false,
     createdAt: now,
     updatedAt: now,
   }
@@ -884,6 +913,7 @@ export async function updateVariable(id: string, input: SqlVariableInput): Promi
     ...current,
     name: validated.name || current.name,
     valueType: input.valueType !== undefined ? validated.valueType : current.valueType,
+    isList: input.isList !== undefined ? (validated.valueType === 'sql' ? validated.isList : false) : current.isList,
     value: input.value !== undefined ? validated.value : current.value,
     datasourceId: validated.datasourceId || current.datasourceId,
     updatedAt: Date.now(),
