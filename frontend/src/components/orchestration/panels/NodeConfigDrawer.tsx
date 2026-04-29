@@ -5,6 +5,7 @@ import { DebugNodeConfig } from './DebugNodeConfig'
 import { LoadNodeConfig } from './LoadNodeConfig'
 import { WaitNodeConfig } from './WaitNodeConfig'
 import { ShellNodeConfig } from './ShellNodeConfig'
+import { LoopNodeConfig } from './LoopNodeConfig'
 
 const TYPE_CONFIG: Record<string, { label: string; icon: string; iconBg: string }> = {
   sql:   { label: 'SQL',   icon: 'S', iconBg: '#6366f1' },
@@ -12,6 +13,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: string; iconBg: string 
   load:  { label: '加载',  icon: 'L', iconBg: '#10b981' },
   wait:  { label: 'Wait',  icon: 'W', iconBg: '#64748b' },
   shell: { label: 'Shell', icon: 'H', iconBg: '#e11d48' },
+  loop:  { label: '循环', icon: '⟳', iconBg: '#8b5cf6' },
 }
 
 export function NodeConfigDrawer({
@@ -43,9 +45,10 @@ export function NodeConfigDrawer({
     const props = { node, datasources, sqlFiles, onChange }
     switch (node.type) {
       case 'debug': return <DebugNodeConfig {...props} />
-      case 'load':  return <LoadNodeConfig {...props} datasources={datasources} variables={variables} />
+      case 'load':  return <LoadNodeConfig {...props} datasources={datasources} />
       case 'wait':  return <WaitNodeConfig {...props} />
       case 'shell': return <ShellNodeConfig node={node} servers={servers} shellFiles={shellFiles} onChange={onChange} />
+      case 'loop':  return <LoopNodeConfig node={node} datasources={datasources} sqlFiles={sqlFiles} servers={servers} shellFiles={shellFiles} variables={variables} onChange={onChange} />
       default:      return <SqlNodeConfig {...props} />
     }
   }

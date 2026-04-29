@@ -14,7 +14,6 @@ export function LoadNode({ data, selected }: NodeProps<LoadNodeData>) {
       <div style={{ color: 'var(--fg-4)', fontSize: 8 }}>
         {modeLabel[data.mode ?? 'insert'] ?? 'INSERT'}
         {data.columnMappings?.length ? ` · ${data.columnMappings.length}列` : ''}
-        {data.loopVariableId ? ' · 循环' : ''}
       </div>
     </BaseNode>
   )

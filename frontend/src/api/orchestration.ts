@@ -4,10 +4,28 @@ export type ThresholdOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte'
 
 export type ColumnMapping = { source: string; target: string; isPartition?: boolean }
 
+export type LoopSubTaskInline = {
+  mode: 'inline'
+  type: 'sql' | 'debug' | 'load' | 'wait' | 'shell'
+}
+
+export type LoopSubTaskReference = {
+  mode: 'reference'
+  refType: 'orchestration' | 'sqlFile' | 'shellFile'
+  refId: string
+  variableName?: string
+}
+
+export type LoopConfig = {
+  variableId: string
+  failureStrategy: 'stop' | 'continue'
+  subTask: LoopSubTaskInline | LoopSubTaskReference
+}
+
 export type OrchestrationNode = {
   id: string
   name: string
-  type: 'sql' | 'debug' | 'load' | 'wait' | 'shell'
+  type: 'sql' | 'debug' | 'load' | 'wait' | 'shell' | 'loop'
   datasourceId: string
   sql: string
   sqlFileId?: string
@@ -19,7 +37,7 @@ export type OrchestrationNode = {
   mode?: 'insert' | 'replace' | 'truncate_insert'
   columnMappings?: ColumnMapping[]
   partitionColumns?: string
-  loopVariableId?: string
+  loop?: LoopConfig
   waitIntervalSec?: number
   waitTimeoutSec?: number
   waitStableCount?: number
@@ -48,7 +66,7 @@ export type Orchestration = {
 export type LogEntry = {
   nodeId: string
   nodeName: string
-  nodeType: 'sql' | 'debug' | 'load' | 'wait' | 'shell'
+  nodeType: 'sql' | 'debug' | 'load' | 'wait' | 'shell' | 'loop'
   status: 'success' | 'failed' | 'warning' | 'skipped' | 'running'
   sql: string
   affectedRows?: number
@@ -94,6 +112,8 @@ export const OrchestrationApi = {
     api.get<ExecutionProgress>('/orchestration/' + encodeURIComponent(orchId) + '/progress/' + encodeURIComponent(execId)),
   stop: (id: string) =>
     api.post<{ ok: boolean; stopped: boolean }>('/orchestration/' + encodeURIComponent(id) + '/stop', {}),
+  active: (orchId: string) =>
+    api.get<(ExecutionProgress & { executionId: string }) | null>('/orchestration/' + encodeURIComponent(orchId) + '/active'),
   listLogs: (id: string) =>
     api.get<OrchestrationExecution[]>('/orchestration/' + encodeURIComponent(id) + '/logs'),
 }

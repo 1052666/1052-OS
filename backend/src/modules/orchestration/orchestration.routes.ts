@@ -9,6 +9,7 @@ import {
   getExecutionProgress,
   listExecutionLogs,
   getExecutionLog,
+  getActiveExecution,
 } from './orchestration.service.js'
 
 export const orchestrationRouter: Router = Router()
@@ -68,6 +69,14 @@ orchestrationRouter.post('/:id/stop', async (req, res, next) => {
   try {
     const stopped = stopOrchestration(req.params.id)
     res.json({ ok: true, stopped })
+  } catch (e) {
+    next(e)
+  }
+})
+
+orchestrationRouter.get('/:id/active', async (req, res, next) => {
+  try {
+    res.json(getActiveExecution(req.params.id))
   } catch (e) {
     next(e)
   }

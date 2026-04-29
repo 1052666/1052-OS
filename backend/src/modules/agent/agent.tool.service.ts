@@ -7,6 +7,7 @@ import type {
 import type { AgentTool } from './agent.tool.types.js'
 import { agentRuntimeTools } from './tools/agent-runtime.tools.js'
 import { calendarTools } from './tools/calendar.tools.js'
+import { claudeCodeTools } from './tools/claude-code.tools.js'
 import { filesystemTools } from './tools/filesystem.tools.js'
 import { feishuTools } from './tools/feishu.tools.js'
 import { imageTools } from './tools/image.tools.js'
@@ -30,6 +31,7 @@ import { getSettings } from '../settings/settings.service.js'
 const AGENT_TOOLS: AgentTool[] = [
   ...agentRuntimeTools,
   ...calendarTools,
+  ...claudeCodeTools,
   ...imageTools,
   ...memoryTools,
   ...outputProfileTools,

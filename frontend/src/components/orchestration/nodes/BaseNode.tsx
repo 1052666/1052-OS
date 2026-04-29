@@ -7,6 +7,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: string; bg: string; bor
   load:  { label: '加载',  icon: 'L', bg: 'var(--node-load-bg)',  border: 'var(--node-load-border)',  iconBg: '#10b981' },
   wait:  { label: 'Wait',  icon: 'W', bg: 'var(--node-wait-bg)',  border: 'var(--node-wait-border)',  iconBg: '#64748b' },
   shell: { label: 'Shell', icon: 'H', bg: 'var(--node-wait-bg)',  border: 'var(--node-wait-border)',  iconBg: '#e11d48' },
+  loop:  { label: '循环', icon: '⟳', bg: 'var(--node-load-bg)',  border: 'var(--node-load-border)',  iconBg: '#8b5cf6' },
 }
 
 export function BaseNode({ data, selected, children }: {

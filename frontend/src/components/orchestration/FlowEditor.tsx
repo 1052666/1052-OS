@@ -14,6 +14,7 @@ import { DebugNode } from './nodes/DebugNode'
 import { LoadNode } from './nodes/LoadNode'
 import { WaitNode } from './nodes/WaitNode'
 import { ShellNode } from './nodes/ShellNode'
+import { LoopNode } from './nodes/LoopNode'
 import { CustomEdge } from './edges/CustomEdge'
 import { CustomConnectionLine } from './edges/CustomConnectionLine'
 import { useOrchestrationEditor } from './hooks/useOrchestrationEditor'
@@ -25,6 +26,7 @@ const nodeTypes = {
   load: LoadNode,
   wait: WaitNode,
   shell: ShellNode,
+  loop: LoopNode,
 }
 
 const edgeTypes = { custom: CustomEdge }
