@@ -6,6 +6,7 @@ const NODE_TYPES: { type: OrchNodeType; label: string }[] = [
   { type: 'load', label: '+ 加载' },
   { type: 'wait', label: '+ Wait' },
   { type: 'shell', label: '+ Shell' },
+  { type: 'loop',  label: '+ 循环' },
 ]
 
 export function Toolbar({
