@@ -94,6 +94,8 @@ export const OrchestrationApi = {
     api.get<ExecutionProgress>('/orchestration/' + encodeURIComponent(orchId) + '/progress/' + encodeURIComponent(execId)),
   stop: (id: string) =>
     api.post<{ ok: boolean; stopped: boolean }>('/orchestration/' + encodeURIComponent(id) + '/stop', {}),
+  active: (orchId: string) =>
+    api.get<(ExecutionProgress & { executionId: string }) | null>('/orchestration/' + encodeURIComponent(orchId) + '/active'),
   listLogs: (id: string) =>
     api.get<OrchestrationExecution[]>('/orchestration/' + encodeURIComponent(id) + '/logs'),
 }

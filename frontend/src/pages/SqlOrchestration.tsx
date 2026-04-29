@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { OrchestrationApi, type Orchestration, type OrchestrationNode, type OrchestrationExecution } from '../api/orchestration'
 import { SqlApi, type DataSource, type SqlFile, type Server, type ShellFile, type SqlVariable } from '../api/sql'
 import { FlowEditor } from '../components/orchestration/FlowEditor'
@@ -30,6 +30,7 @@ export default function SqlOrchestration() {
 
   const editorHook = useOrchestrationEditor(editing ?? EMPTY_ORCH)
   const autoLayout = useAutoLayout()
+  const pollCancelledRef = useRef(false)
 
   // Context menu & add node dialog state
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; type: 'canvas' | 'node'; nodeId?: string } | null>(null)
@@ -50,6 +51,26 @@ export default function SqlOrchestration() {
     : null
 
   // ─── Actions ──────────────────────────────────────────
+
+  const pollExecution = async (orchId: string, orchName: string, executionId: string) => {
+    setExecuting(true); setExecution(null); setLogCollapsed(false)
+    pollCancelledRef.current = false
+    try {
+      while (!pollCancelledRef.current) {
+        const p = await OrchestrationApi.progress(orchId, executionId)
+        if (pollCancelledRef.current) break
+        const final = p.status !== 'running' ? p : undefined
+        setExecution({ id: executionId, orchestrationId: orchId, orchestrationName: orchName, status: p.status, logs: p.logs, startTime: p.startTime, endTime: p.endTime ?? (final ? Date.now() : null) })
+        if (final) {
+          if (final.status === 'failed') setError('编排执行失败')
+          else if (final.status === 'warning') setError('编排执行完成，但有阈值警告')
+          break
+        }
+        await new Promise((r) => setTimeout(r, 1000))
+      }
+    } catch (e) { if (!pollCancelledRef.current) setError(e instanceof Error ? e.message : '执行失败') }
+    finally { if (!pollCancelledRef.current) setExecuting(false) }
+  }
 
   const handleSave = async () => {
     if (!editing) return
@@ -74,21 +95,9 @@ export default function SqlOrchestration() {
   const handleExecute = async () => {
     if (!editing?.id) return
     try { await handleSave() } catch { /* auto-save */ }
-    setExecuting(true); setExecution(null); setError(''); setLogCollapsed(false)
-    try {
-      const { executionId } = await OrchestrationApi.execute(editing.id)
-      while (true) {
-        const p = await OrchestrationApi.progress(editing.id, executionId)
-        setExecution({ id: executionId, orchestrationId: editing.id, orchestrationName: editing.name, status: p.status, logs: p.logs, startTime: p.startTime, endTime: p.endTime })
-        if (p.status !== 'running') break
-        await new Promise((r) => setTimeout(r, 1000))
-      }
-      const final = await OrchestrationApi.progress(editing.id, executionId)
-      setExecution({ id: executionId, orchestrationId: editing.id, orchestrationName: editing.name, status: final.status, logs: final.logs, startTime: final.startTime, endTime: final.endTime ?? Date.now() })
-      if (final.status === 'failed') setError('编排执行失败')
-      else if (final.status === 'warning') setError('编排执行完成，但有阈值警告')
-    } catch (e) { setError(e instanceof Error ? e.message : '执行失败') }
-    finally { setExecuting(false) }
+    setError('')
+    const { executionId } = await OrchestrationApi.execute(editing.id)
+    pollExecution(editing.id, editing.name, executionId)
   }
 
   const handleStop = async () => {
@@ -180,7 +189,7 @@ export default function SqlOrchestration() {
         executing={executing}
         hasId={!!editing.id}
         onNameChange={(name) => setEditing({ ...editing, name })}
-        onBack={() => { setEditing(null); setExecution(null); setError(''); setSelectedNodeId(null) }}
+        onBack={() => { pollCancelledRef.current = true; setEditing(null); setExecution(null); setError(''); setSelectedNodeId(null) }}
         onSave={handleSave}
         onExecute={handleExecute}
         onStop={handleStop}
@@ -257,9 +266,18 @@ export default function SqlOrchestration() {
                 {orch.nodes.map((node) => <span key={node.id} className={`orch-mini-node ${node.type}`}>{node.name}</span>)}
               </div>
               <div className="orch-card-actions">
-                <button className="chip" onClick={() => {
+                <button className="chip" onClick={async () => {
+                  pollCancelledRef.current = true
                   setEditing(orch); setExecution(null); setError(''); setSelectedNodeId(null)
                   editorHook.resetFrom(orch)
+                  if (orch.id) {
+                    try {
+                      const active = await OrchestrationApi.active(orch.id)
+                      if (active && active.executionId && !pollCancelledRef.current) {
+                        pollExecution(orch.id, orch.name, active.executionId)
+                      }
+                    } catch { /* ignore */ }
+                  }
                 }}>编辑</button>
                 <button className="chip danger" onClick={() => handleDelete(orch.id)}>删除</button>
               </div>

@@ -151,6 +151,13 @@ export function getExecutionProgress(execId: string): ExecutionProgress | null {
   return activeProgress.get(execId) ?? null
 }
 
+export function getActiveExecution(orchId: string): (ExecutionProgress & { executionId: string }) | null {
+  for (const [execId, progress] of activeProgress.entries()) {
+    if (progress.orchestrationId === orchId && progress.status === 'running') return { executionId: execId, ...progress }
+  }
+  return null
+}
+
 async function executeWaitNode(node: OrchestrationNode, pushLog: (log: LogEntry) => void, signal?: AbortSignal): Promise<LogEntry> {
   const nodeStart = Date.now()
   const intervalMs = (node.waitIntervalSec || 60) * 1000
@@ -673,6 +680,9 @@ export async function startExecution(id: string): Promise<string> {
       await fs.mkdir(logSubDir, { recursive: true })
       await fs.writeFile(path.join(logSubDir, `${execId}.json`), JSON.stringify(execution, null, 2), 'utf-8')
     } catch { /* non-critical */ }
+
+    // Keep progress in memory for a short window so clients can still fetch the final state
+    setTimeout(() => activeProgress.delete(execId), 5_000)
   })()
 
   return execId
