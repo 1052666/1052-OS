@@ -2,10 +2,28 @@ export type ThresholdOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte'
 
 export type ColumnMapping = { source: string; target: string; isPartition?: boolean }
 
+export type LoopSubTaskInline = {
+  mode: 'inline'
+  type: 'sql' | 'debug' | 'load' | 'wait' | 'shell'
+}
+
+export type LoopSubTaskReference = {
+  mode: 'reference'
+  refType: 'orchestration' | 'sqlFile' | 'shellFile'
+  refId: string
+  variableName?: string
+}
+
+export type LoopConfig = {
+  variableId: string
+  failureStrategy: 'stop' | 'continue'
+  subTask: LoopSubTaskInline | LoopSubTaskReference
+}
+
 export type OrchestrationNode = {
   id: string
   name: string
-  type: 'sql' | 'debug' | 'load' | 'wait' | 'shell'
+  type: 'sql' | 'debug' | 'load' | 'wait' | 'shell' | 'loop'
   datasourceId: string
   sql: string
   sqlFileId?: string
@@ -18,6 +36,7 @@ export type OrchestrationNode = {
   columnMappings?: ColumnMapping[]
   partitionColumns?: string
   loopVariableId?: string
+  loop?: LoopConfig
   waitIntervalSec?: number
   waitTimeoutSec?: number
   waitStableCount?: number
@@ -53,7 +72,7 @@ export type OrchestrationInput = {
 export type LogEntry = {
   nodeId: string
   nodeName: string
-  nodeType: 'sql' | 'debug' | 'load' | 'wait' | 'shell'
+  nodeType: 'sql' | 'debug' | 'load' | 'wait' | 'shell' | 'loop'
   status: 'success' | 'failed' | 'warning' | 'skipped' | 'running'
   sql: string
   affectedRows?: number
@@ -64,14 +83,4 @@ export type LogEntry = {
   error?: string
   timestamp: number
   duration: number
-}
-
-export type OrchestrationExecution = {
-  id: string
-  orchestrationId: string
-  orchestrationName: string
-  status: 'success' | 'failed' | 'warning'
-  logs: LogEntry[]
-  startTime: number
-  endTime: number
 }
