@@ -187,7 +187,7 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'image-pack':
       return '内置图像生成能力。用户要求生成、绘制、设计、渲染图片/插画/海报/Logo/封面/壁纸/头像/视觉稿时优先申请本包并调用 image_generate；不要为了找图像生成 API、模型、在线工具、素材图或提示词示例而先走搜索。'
     case 'search-pack':
-      return '联网搜索、网页阅读、UAPIs 工具箱。使用 UAPIs 时必须按 uapis_list_apis -> uapis_read_api -> uapis_call 三步走。Intel Center 不挂载在本包：需要采集时申请 skill-pack 调用 intel_center_collect，需要格式化 Intel Brief 时申请 channel-pack 调用 intel_brief_format。'
+      return '联网搜索、网页阅读、UAPIs 工具箱。使用 UAPIs 时必须按 uapis_list_apis -> uapis_read_api -> uapis_call 三步走。'
     case 'memory-pack':
       return '长期记忆、敏感长期记忆和输出配方的读取、建议、写入、更新与删除。普通写入需用户明确要求记住或确认；敏感信息用 secure memory；输出配方用于组合认知模型、写作风格和素材范围。'
     case 'skill-pack':

@@ -66,9 +66,8 @@ describe('agent progressive disclosure helpers', () => {
 
   it('exposes UAPIs and Intel Center as discoverable toolbox capabilities in P0', async () => {
     expect(describePackForRouting('search-pack')).toContain('UAPIs')
-    expect(describePackForRouting('search-pack')).toContain('Intel Center')
-    expect(describePackForRouting('search-pack')).toContain('intel_center_collect')
-    expect(describePackForRouting('search-pack')).toContain('intel_brief_format')
+    expect(describePackForRouting('search-pack')).not.toContain('intel_center_collect')
+    expect(describePackForRouting('search-pack')).not.toContain('intel_brief_format')
     const searchPackTools = getToolNamesForMountedPacks(expandMountedPacks(['search-pack']))
     expect(searchPackTools).toContain('uapis_call')
     expect(searchPackTools).not.toContain('intel_center_collect')
