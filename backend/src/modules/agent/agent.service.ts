@@ -17,7 +17,7 @@ import {
 import { getAgentSystemPrompt } from './agent.prompt.service.js'
 import { formatAgentWorkspaceContext } from './agent.workspace.service.js'
 import {
-  executeToolCalls,
+  executeToolCall,
   getAgentToolDefinitions,
   getAgentToolDefinitionsForNames,
   type AgentToolRuntimeContext,
@@ -296,6 +296,31 @@ function extractToolFailure(toolMessages: LLMConversationMessage[]) {
   return ''
 }
 
+async function* executeToolCallsWithEvents(
+  toolCalls: readonly import('./llm.client.js').LLMToolCall[],
+  runtimeContext?: AgentToolRuntimeContext,
+): AsyncGenerator<AgentStreamEvent, LLMConversationMessage[], void> {
+  const toolMessages: LLMConversationMessage[] = []
+
+  for (const toolCall of toolCalls) {
+    const name = toolCall.function.name
+    yield { type: 'tool-started', name }
+
+    const toolMessage = await executeToolCall(toolCall, runtimeContext)
+    toolMessages.push(toolMessage)
+
+    const parsed = parseToolResult(toolMessage.content)
+    yield {
+      type: 'tool-finished',
+      name,
+      ok: parsed?.ok === true,
+      error: parsed?.ok === false ? parsed.error : undefined,
+    }
+  }
+
+  return toolMessages
+}
+
 function stripThink(content: string) {
   return content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
 }
@@ -445,7 +470,10 @@ async function* runLegacyStream(
     }
 
     response.toolCalls.forEach((toolCall) => usedToolNames.add(toolCall.function.name))
-    const toolMessages = await executeToolCalls(response.toolCalls, options.runtimeContext)
+    const toolMessages = yield* executeToolCallsWithEvents(
+      response.toolCalls,
+      options.runtimeContext,
+    )
     messages.push(...toolMessages)
   }
 
@@ -718,7 +746,10 @@ async function* runProgressiveStream(
 
     conversation.push(toAssistantHistoryMessage(response))
     response.toolCalls.forEach((toolCall) => usedToolNames.add(toolCall.function.name))
-    const toolMessages = await executeToolCalls(response.toolCalls, options.runtimeContext)
+    const toolMessages = yield* executeToolCallsWithEvents(
+      response.toolCalls,
+      options.runtimeContext,
+    )
     conversation.push(...toolMessages)
 
     const toolFailure = extractToolFailure(toolMessages)

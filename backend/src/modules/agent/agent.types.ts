@@ -28,14 +28,14 @@ export type StoredChatMessage = ChatMessage & {
   compactBackupPath?: string
   compactOriginalCount?: number
   meta?: {
-    source?: 'web' | 'wechat' | 'feishu' | 'scheduled-task'
-    channel?: 'web' | 'wechat' | 'feishu'
+    source?: 'web' | 'wechat' | 'wechat_desktop' | 'feishu' | 'scheduled-task'
+    channel?: 'web' | 'wechat' | 'wechat_desktop' | 'feishu'
     accountId?: string
     peerId?: string
     externalMessageId?: string
     delivery?: {
       status?: 'pending' | 'sent' | 'failed'
-      targetChannel?: 'wechat' | 'feishu'
+      targetChannel?: 'wechat' | 'wechat_desktop' | 'feishu'
       targetPeerId?: string
       error?: string
     }

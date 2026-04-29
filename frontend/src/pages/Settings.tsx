@@ -65,6 +65,7 @@ const ZHIPU_PRESETS: LlmPresetGroup = {
 }
 
 const LLM_ENDPOINT_PRESETS: readonly LlmPreset[] = [
+  { name: '1052 API', baseUrl: 'https://api.lxj.asia/v1', modelId: 'deepseek-v4-flash-search' },
   { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', modelId: 'gpt-4.1-mini' },
   { name: 'MiniMax Global', baseUrl: 'https://api.minimax.io/v1', modelId: 'MiniMax-M2.7' },
   { name: 'MiniMax 中国区', baseUrl: 'https://api.minimaxi.com/v1', modelId: 'MiniMax-M2.7' },
@@ -133,6 +134,7 @@ type AppearanceConfirmation =
   | null
 
 type LlmProviderKey =
+  | '1052-api'
   | 'openai'
   | 'minimax'
   | 'gemini'
@@ -143,6 +145,7 @@ type LlmProviderKey =
   | 'zhipu'
 
 const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }> = {
+  '1052-api': { name: '1052 API', url: 'https://api.lxj.asia/register?aff=UOBG' },
   openai: { name: 'OpenAI', url: 'https://platform.openai.com/api-keys' },
   minimax: { name: 'MiniMax', url: 'https://platform.minimaxi.com/' },
   gemini: { name: 'Gemini', url: 'https://aistudio.google.com/app/apikey' },
@@ -155,6 +158,7 @@ const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }>
 
 function detectLlmProvider(baseUrl: string, modelId: string): LlmProviderKey {
   const value = `${baseUrl} ${modelId}`.toLowerCase()
+  if (value.includes('api.lxj.asia') || value.includes('deepseek-v4-flash-search')) return '1052-api'
   if (value.includes('openrouter')) return 'openrouter'
   if (value.includes('bigmodel.cn')) return 'zhipu'
   if (value.includes('minimax') || value.includes('minimaxi')) return 'minimax'

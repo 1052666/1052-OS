@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatSafeCallerSystemInstructions,
   isRequestFailureContent,
   sanitizeCheckpointTextForModel,
 } from '../agent.context-sanitizer.service.js'
@@ -22,5 +23,25 @@ describe('agent context sanitizer', () => {
     expect(sanitizeCheckpointTextForModel('请求失败: HTTP 500 from provider')).toContain(
       '之前有一次请求或工具调用失败',
     )
+  })
+
+  it('keeps safe WeChat Desktop inbound routing instructions', () => {
+    const result = formatSafeCallerSystemInstructions([
+      {
+        role: 'system',
+        content: [
+          'WeChat Desktop group inbound runtime:',
+          '- source: WeChat Desktop group mention',
+        ].join('\n'),
+      },
+      {
+        role: 'user',
+        content: '[WeChat Desktop group mention]\nhello',
+      },
+    ])
+
+    expect(result).toContain('real inbound WeChat Desktop group mention')
+    expect(result).toContain('automatically deliver your final assistant text')
+    expect(result).toContain('Do not request channel-pack')
   })
 })

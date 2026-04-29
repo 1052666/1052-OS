@@ -42,6 +42,8 @@ export type AgentCheckpoint = {
 export type AgentStreamEvent =
   | { type: 'delta'; content: string }
   | { type: 'usage'; usage: TokenUsage }
+  | { type: 'tool-started'; name: string }
+  | { type: 'tool-finished'; name: string; ok: boolean; error?: string }
   | { type: 'context-upgrade-requested'; packs: string[]; reason: string }
   | { type: 'context-upgrade-applying'; packs: string[] }
   | { type: 'context-upgrade-applied'; packs: string[] }

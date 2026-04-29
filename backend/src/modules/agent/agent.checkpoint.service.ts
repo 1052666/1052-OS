@@ -254,12 +254,25 @@ export function deriveSessionId(
           chatType: 'p2p' | 'group'
           senderOpenId?: string
         }
+      | {
+          channel: 'wechat_desktop'
+          sessionId: string
+          sessionName: string
+          sessionType: 'direct' | 'group'
+          groupId?: string
+          senderName?: string
+          mentionedBot?: boolean
+          allowTools?: boolean
+        }
   },
 ) {
   const source = runtimeContext?.source
   if (!source) return normalizeSessionId('web:default')
   if (source.channel === 'wechat') {
     return normalizeSessionId(`wechat:${source.accountId}:${source.peerId}`)
+  }
+  if (source.channel === 'wechat_desktop') {
+    return normalizeSessionId(`wechat-desktop:${source.sessionId}`)
   }
   return normalizeSessionId(`feishu:${source.receiveId}`)
 }

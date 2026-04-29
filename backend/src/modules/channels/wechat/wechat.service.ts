@@ -246,7 +246,10 @@ async function sendWechatRichMessage(params: {
     ? `\n\n媒体处理提示：${outbound.warnings.join('；')}`
     : ''
   const text = filterWechatMarkdown(`${outbound.text}${warningText}`)
-  const chunks = splitWechatText(text || (outbound.files.length ? '' : '已完成。'))
+  const chunks = splitWechatText(text)
+  if (chunks.length === 0 && outbound.files.length === 0) {
+    throw new HttpError(502, 'Agent response did not contain any deliverable WeChat content.')
+  }
 
   for (const chunk of chunks) {
     await sendWechatText({
@@ -781,7 +784,7 @@ async function handleInboundWechatMessage(
     await sendWechatRichMessage({
       account,
       peerId,
-      text: finalText || '已完成。',
+      text: finalText,
       contextToken,
     })
 

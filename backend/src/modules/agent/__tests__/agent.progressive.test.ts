@@ -201,9 +201,12 @@ describe('agent progressive disclosure helpers', () => {
   it('mounts Intel Brief formatting through channel-pack', () => {
     const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['channel-pack']))
     expect(toolNames).toContain('intel_brief_format')
+    expect(toolNames).toContain('wechat_desktop_send_message')
+    expect(toolNames).toContain('wechat_group_memory_write')
     expect(hasAgentTool('intel_brief_format')).toBe(true)
+    expect(hasAgentTool('wechat_desktop_send_message')).toBe(true)
     expect(describePackForRouting('channel-pack')).toContain('Intel Brief')
-    expect(describePackForRouting('channel-pack')).toContain('Intel Center')
+    expect(describePackForRouting('channel-pack')).toContain('桌面微信')
   })
 
   it('advertises Intel Center as the preferred news and brief route in P0', async () => {

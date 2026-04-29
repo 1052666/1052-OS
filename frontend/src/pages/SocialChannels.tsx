@@ -17,11 +17,13 @@ import {
   type WechatDeliveryTarget,
   type WechatLoginStart,
   type WechatStatus,
+  type WechatUiBridgeStatus,
   type WecomStatus,
   type WecomWebhookSummary,
 } from '../api/social-channels'
 import { FeishuWorkspacePanel } from '../components/FeishuWorkspacePanel'
 import { IconChevron, IconRefresh, IconSocial, IconTrash } from '../components/Icons'
+import { WechatDesktopChannelPanel } from '../components/WechatDesktopChannelPanel'
 
 type Notice = {
   type: 'success' | 'error' | 'info'
@@ -100,6 +102,7 @@ export default function SocialChannels() {
   const [wechatSendFileKey, setWechatSendFileKey] = useState(0)
 
   const [feishuStatus, setFeishuStatus] = useState<FeishuStatus | null>(null)
+  const [wechatDesktopStatus, setWechatDesktopStatus] = useState<WechatUiBridgeStatus | null>(null)
   const [feishuTargets, setFeishuTargets] = useState<FeishuDeliveryTarget[]>([])
   const [feishuForm, setFeishuForm] = useState<FeishuFormState>(toFeishuForm())
   const [feishuSaving, setFeishuSaving] = useState(false)
@@ -134,7 +137,12 @@ export default function SocialChannels() {
   const pollingCancelled = useRef(false)
 
   const activeChannel =
-    channel === 'wechat' || channel === 'feishu' || channel === 'wecom' ? channel : null
+    channel === 'wechat' ||
+    channel === 'wechat-desktop' ||
+    channel === 'feishu' ||
+    channel === 'wecom'
+      ? channel
+      : null
   const isUnknownChannel = Boolean(channel && !activeChannel)
 
   const wechatAccounts = wechatStatus?.accounts ?? []
@@ -157,6 +165,22 @@ export default function SocialChannels() {
     feishuStatus?.running === true ? ' running' : feishuStatus?.configured ? ' connected' : ''
   const wecomState = wecomWebhooks.length > 0 ? '已接入' : '未接入'
   const wecomStateClass = wecomWebhooks.length > 0 ? ' connected' : ''
+  const wechatDesktopState =
+    wechatDesktopStatus?.listener?.running === true
+      ? '监听中'
+      : wechatDesktopStatus?.running === true
+        ? '微信已运行'
+        : wechatDesktopStatus?.config?.listenerEnabled === true ||
+            (wechatDesktopStatus?.config?.chatNames?.length ?? 0) > 0
+        ? '已配置'
+        : '未启用'
+  const wechatDesktopStateClass =
+    wechatDesktopStatus?.listener?.running === true
+      ? ' running'
+      : wechatDesktopStatus?.config?.listenerEnabled === true ||
+          (wechatDesktopStatus?.config?.chatNames?.length ?? 0) > 0
+        ? ' connected'
+        : ''
 
   const showNotice = (message: string, type: Notice['type'] = 'info') => {
     setNotice({ message, type })
@@ -178,12 +202,14 @@ export default function SocialChannels() {
       const [
         wechatStatusResult,
         wechatTargetsResult,
+        wechatDesktopStatusResult,
         feishuStatusResult,
         feishuTargetsResult,
         wecomStatusResult,
       ] = await Promise.allSettled([
         SocialChannelsApi.wechatStatus(),
         SocialChannelsApi.wechatDeliveryTargets(),
+        SocialChannelsApi.wechatUiBridgeStatus(),
         SocialChannelsApi.feishuStatus(),
         SocialChannelsApi.feishuDeliveryTargets(),
         SocialChannelsApi.wecomStatus(),
@@ -205,6 +231,9 @@ export default function SocialChannels() {
       if (feishuStatusResult.status === 'fulfilled') {
         syncFeishuStatus(feishuStatusResult.value)
       }
+      if (wechatDesktopStatusResult.status === 'fulfilled') {
+        setWechatDesktopStatus(wechatDesktopStatusResult.value)
+      }
       if (feishuTargetsResult.status === 'fulfilled') {
         setFeishuTargets(feishuTargetsResult.value)
         if (!feishuSendReceiveId && feishuTargetsResult.value.length > 0) {
@@ -221,7 +250,9 @@ export default function SocialChannels() {
           ? wechatStatusResult.reason
           : wechatTargetsResult.status === 'rejected'
             ? wechatTargetsResult.reason
-            : feishuStatusResult.status === 'rejected'
+            : wechatDesktopStatusResult.status === 'rejected'
+              ? wechatDesktopStatusResult.reason
+              : feishuStatusResult.status === 'rejected'
               ? feishuStatusResult.reason
               : feishuTargetsResult.status === 'rejected'
                 ? feishuTargetsResult.reason
@@ -717,6 +748,8 @@ export default function SocialChannels() {
           <h1>
             {activeChannel === 'wechat'
               ? '微信通道'
+              : activeChannel === 'wechat-desktop'
+                ? '微信桌面通道'
               : activeChannel === 'feishu'
                 ? '飞书通道'
                 : activeChannel === 'wecom'
@@ -726,6 +759,8 @@ export default function SocialChannels() {
           <p>
             {activeChannel === 'wechat'
               ? '管理微信扫码接入、账号启停、媒体收发和定时任务推送目标。'
+              : activeChannel === 'wechat-desktop'
+                ? '管理 Windows 微信桌面自动化监听、群聊权限、群专属提示词和群聊记忆。'
               : activeChannel === 'feishu'
                 ? '管理飞书应用配置、长连接收消息、卡片回调地址和最近会话投递目标。'
                 : activeChannel === 'wecom'
@@ -766,6 +801,32 @@ export default function SocialChannels() {
               <span>
                 {wechatAccounts.length} 个账号 / {wechatRunningCount} 个接收中
               </span>
+              <IconChevron size={16} />
+            </div>
+          </button>
+
+          <button
+            className="social-platform-card"
+            type="button"
+            onClick={() => navigate('/social-channels/wechat-desktop')}
+          >
+            <div className="social-platform-main">
+              <div className="social-platform-mark">
+                <IconSocial size={22} />
+              </div>
+              <div>
+                <span className="social-platform-kicker">WeChat Desktop</span>
+                <strong>微信桌面</strong>
+                <small>
+                  独立于扫码微信通道，接入 Windows 微信桌面自动化监听、群聊权限、群聊记忆与主动发信能力。
+                </small>
+              </div>
+            </div>
+            <div className="social-platform-foot">
+              <span className={'social-platform-status' + wechatDesktopStateClass}>
+                {wechatDesktopState}
+              </span>
+              <span>{wechatDesktopStatus?.config?.chatNames?.length ?? 0} 个监听群聊</span>
               <IconChevron size={16} />
             </div>
           </button>
@@ -1115,6 +1176,10 @@ export default function SocialChannels() {
 
           </section>
         </section>
+      ) : null}
+
+      {activeChannel === 'wechat-desktop' ? (
+        <WechatDesktopChannelPanel onNotice={showNotice} />
       ) : null}
 
       {activeChannel === 'feishu' ? (

@@ -23,10 +23,13 @@ import { skillsTools } from './tools/skills.tools.js'
 import { sqlTools } from './tools/sql.tools.js'
 import { terminalTools } from './tools/terminal.tools.js'
 import { uapisTools } from './tools/uapis.tools.js'
+import { wechatDesktopTools } from './tools/wechat-desktop.tools.js'
 import { websearchTools } from './tools/websearch.tools.js'
 import { wikiTools } from './tools/wiki.tools.js'
 import { pkmTools } from './tools/pkm.tools.js'
 import { getSettings } from '../settings/settings.service.js'
+
+const TOOL_EXECUTION_TIMEOUT_MS = 120_000
 
 const AGENT_TOOLS: AgentTool[] = [
   ...agentRuntimeTools,
@@ -47,6 +50,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...filesystemTools,
   ...feishuTools,
   ...intelTools,
+  ...wechatDesktopTools,
   ...sqlTools,
   ...orchestrationTools,
   ...terminalTools,
@@ -67,6 +71,16 @@ export type AgentToolRuntimeContext = {
         chatType: 'p2p' | 'group'
         senderOpenId?: string
       }
+    | {
+        channel: 'wechat_desktop'
+        sessionId: string
+        sessionName: string
+        sessionType: 'direct' | 'group'
+        groupId?: string
+        senderName?: string
+        mentionedBot?: boolean
+        allowTools?: boolean
+      }
 }
 
 function stringifyResult(result: unknown) {
@@ -86,6 +100,47 @@ function buildToolDefinition(tool: AgentTool): LLMToolDefinition {
       description: tool.description,
       parameters: tool.parameters,
     },
+  }
+}
+
+function buildToolFailureMessage(
+  toolCall: Pick<LLMToolCall, 'id' | 'function'>,
+  toolName: string,
+  error: string,
+): LLMConversationMessage {
+  return {
+    role: 'tool',
+    toolCallId: toolCall.id,
+    name: toolName,
+    content: stringifyResult({
+      ok: false,
+      error,
+    }),
+  }
+}
+
+function toolTimeoutMessage(name: string, ms: number) {
+  return `Tool timed out: ${name} exceeded ${Math.floor(ms / 1000)}s`
+}
+
+async function withToolTimeout<T>(
+  promise: Promise<T>,
+  name: string,
+  ms = TOOL_EXECUTION_TIMEOUT_MS,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new HttpError(504, toolTimeoutMessage(name, ms)))
+        }, ms)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 
@@ -112,68 +167,64 @@ export function getAgentToolDefinitionsForNames(names: readonly string[]): LLMTo
   return tools
 }
 
+export async function executeToolCall(
+  toolCall: LLMToolCall,
+  runtimeContext?: AgentToolRuntimeContext,
+): Promise<LLMConversationMessage> {
+  const settings = await getSettings()
+  const fullAccess = settings.agent.fullAccess === true
+  const tool = TOOL_MAP.get(toolCall.function.name)
+
+  if (!tool) {
+    return buildToolFailureMessage(
+      toolCall,
+      toolCall.function.name,
+      `未找到工具: ${toolCall.function.name}`,
+    )
+  }
+
+  try {
+    const parsedArgs = parseArguments(toolCall.function.arguments)
+    const confirmedArgs =
+      fullAccess && parsedArgs && typeof parsedArgs === 'object' && !Array.isArray(parsedArgs)
+        ? { ...(parsedArgs as Record<string, unknown>), confirmed: true }
+        : parsedArgs
+    const args =
+      runtimeContext &&
+      confirmedArgs &&
+      typeof confirmedArgs === 'object' &&
+      !Array.isArray(confirmedArgs)
+        ? { ...(confirmedArgs as Record<string, unknown>), __runtimeContext: runtimeContext }
+        : confirmedArgs
+    const result = await withToolTimeout(tool.execute(args), tool.name)
+
+    return {
+      role: 'tool',
+      toolCallId: toolCall.id,
+      name: tool.name,
+      content: stringifyResult({
+        ok: true,
+        data: result,
+      }),
+    }
+  } catch (error) {
+    const message =
+      error instanceof HttpError || error instanceof Error
+        ? error.message
+        : '工具调用失败'
+
+    return buildToolFailureMessage(toolCall, tool.name, message)
+  }
+}
+
 export async function executeToolCalls(
   toolCalls: LLMToolCall[],
   runtimeContext?: AgentToolRuntimeContext,
 ): Promise<LLMConversationMessage[]> {
   const messages: LLMConversationMessage[] = []
-  const settings = await getSettings()
-  const fullAccess = settings.agent.fullAccess === true
 
   for (const toolCall of toolCalls) {
-    const tool = TOOL_MAP.get(toolCall.function.name)
-    if (!tool) {
-      messages.push({
-        role: 'tool',
-        toolCallId: toolCall.id,
-        name: toolCall.function.name,
-        content: stringifyResult({
-          ok: false,
-          error: `未找到工具: ${toolCall.function.name}`,
-        }),
-      })
-      continue
-    }
-
-    try {
-      const parsedArgs = parseArguments(toolCall.function.arguments)
-      const confirmedArgs =
-        fullAccess && parsedArgs && typeof parsedArgs === 'object' && !Array.isArray(parsedArgs)
-          ? { ...(parsedArgs as Record<string, unknown>), confirmed: true }
-          : parsedArgs
-      const args =
-        runtimeContext &&
-        confirmedArgs &&
-        typeof confirmedArgs === 'object' &&
-        !Array.isArray(confirmedArgs)
-          ? { ...(confirmedArgs as Record<string, unknown>), __runtimeContext: runtimeContext }
-          : confirmedArgs
-      const result = await tool.execute(args)
-      messages.push({
-        role: 'tool',
-        toolCallId: toolCall.id,
-        name: tool.name,
-        content: stringifyResult({
-          ok: true,
-          data: result,
-        }),
-      })
-    } catch (error) {
-      const message =
-        error instanceof HttpError || error instanceof Error
-          ? error.message
-          : '工具调用失败'
-
-      messages.push({
-        role: 'tool',
-        toolCallId: toolCall.id,
-        name: tool.name,
-        content: stringifyResult({
-          ok: false,
-          error: message,
-        }),
-      })
-    }
+    messages.push(await executeToolCall(toolCall, runtimeContext))
   }
 
   return messages
