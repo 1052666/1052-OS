@@ -50,11 +50,25 @@ function classifyDbError(dbErr: string): string {
   return dbErr
 }
 
+function isTransientMySqlError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const anyErr = err as { code?: string; errno?: number }
+  const transientCodes = [
+    'PROTOCOL_CONNECTION_LOST', 'ECONNRESET', 'ECONNREFUSED',
+    'ETIMEDOUT', 'ENOTFOUND', 'ER_CON_COUNT_ERROR',
+    'ER_TOO_MANY_USER_CONNECTIONS', 'ER_HOST_IS_BLOCKED',
+  ]
+  if (transientCodes.includes(anyErr.code ?? '')) return true
+  const msg = err.message ?? ''
+  return msg.includes('Connection lost') || msg.includes('server closed the connection')
+}
+
 function classifyNodeDbError(err: unknown, dbType: DatabaseType): string {
   const msg = err instanceof Error ? err.message : String(err)
   if (dbType === 'mysql') {
     if (msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') ||
-        msg.includes('ENOTFOUND') || msg.includes('PROTOCOL_CONNECTION_LOST')) {
+        msg.includes('ENOTFOUND') || msg.includes('PROTOCOL_CONNECTION_LOST') ||
+        msg.includes('Connection lost') || msg.includes('server closed the connection')) {
       return '数据库连接失败，请检查网络和数据库配置。\n' + msg
     }
     if (msg.includes('ACCESS_DENIED') || msg.includes('ER_ACCESS_DENIED_ERROR')) {
@@ -70,6 +84,31 @@ function classifyNodeDbError(err: unknown, dbType: DatabaseType): string {
     }
   }
   return msg
+}
+
+// ─── MySQL Connection Pool ────────────────────────────────────
+
+const poolCache = new Map<string, mysql.Pool>()
+
+function getPool(config: DbConfig): mysql.Pool {
+  const key = `${config.host}:${config.port}:${config.user}:${config.password}:${config.database}`
+  const existing = poolCache.get(key)
+  if (existing) return existing
+  const pool = mysql.createPool({
+    host: config.host || '127.0.0.1',
+    port: config.port || 3306,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    connectionLimit: 5,
+    connectTimeout: 10_000,
+    waitForConnections: true,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10_000,
+  })
+  poolCache.set(key, pool)
+  return pool
 }
 
 // ─── Node.js Native Connectors (MySQL & SQLite) ────────────────
@@ -114,44 +153,51 @@ async function executeNodeQuery(
   throw new Error(`Unsupported Node.js db type: ${config.type}`)
 }
 
+const MAX_RETRIES = 3
+const RETRY_BASE_DELAY = 1000
+
 async function executeMySqlQuery(
   config: DbConfig,
   sql: string,
   limit: number,
 ): Promise<QueryResult> {
-  const conn = await mysql.createConnection({
-    host: config.host || '127.0.0.1',
-    port: config.port || 3306,
-    user: config.user,
-    password: config.password,
-    database: config.database,
-    connectTimeout: 10_000,
-  })
-  try {
-    const [result] = await conn.execute(sql)
-    // DML statements return ResultSetHeader
-    if (result && typeof result === 'object' && 'affectedRows' in result) {
-      const header = result as mysql.ResultSetHeader
-      return {
-        columns: ['affectedRows'],
-        rows: [{ affectedRows: header.affectedRows }],
-        rowCount: 1,
-        truncated: false,
+  const pool = getPool(config)
+  let lastError: unknown
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const conn = await pool.getConnection()
+    try {
+      const [result] = await conn.execute(sql)
+      if (result && typeof result === 'object' && 'affectedRows' in result) {
+        const header = result as mysql.ResultSetHeader
+        return {
+          columns: ['affectedRows'],
+          rows: [{ affectedRows: header.affectedRows }],
+          rowCount: 1,
+          truncated: false,
+        }
       }
+      const rows = result as Record<string, unknown>[]
+      const columns = rows.length > 0 ? Object.keys(rows[0]) : []
+      const truncated = rows.length > limit
+      const trimmedRows = truncated ? rows.slice(0, limit) : rows
+      return {
+        columns,
+        rows: trimmedRows,
+        rowCount: trimmedRows.length,
+        truncated,
+      }
+    } catch (err) {
+      lastError = err
+      if (isTransientMySqlError(err) && attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RETRY_BASE_DELAY * (attempt + 1)))
+        continue
+      }
+      throw err
+    } finally {
+      conn.release()
     }
-    const rows = result as Record<string, unknown>[]
-    const columns = rows.length > 0 ? Object.keys(rows[0]) : []
-    const truncated = rows.length > limit
-    const trimmedRows = truncated ? rows.slice(0, limit) : rows
-    return {
-      columns,
-      rows: trimmedRows,
-      rowCount: trimmedRows.length,
-      truncated,
-    }
-  } finally {
-    await conn.end()
   }
+  throw lastError
 }
 
 function executeSqliteQuery(

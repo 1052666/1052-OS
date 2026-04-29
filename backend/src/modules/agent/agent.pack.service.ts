@@ -20,6 +20,7 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'terminal_run_readonly',
     'terminal_run',
     'terminal_interrupt',
+    'claude_code',
   ],
   'image-pack': [
     'image_generate',
@@ -183,7 +184,7 @@ export function getToolNamesForMountedPacks(packs: readonly AgentPackName[]): st
 export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-pack'>) {
   switch (pack) {
     case 'repo-pack':
-      return '本地仓库、项目文件读取、终端检查和本地执行。适合读代码、看目录、查 git diff/log/status，也适合在权限允许时创建/修改文件、运行脚本、执行构建或测试。'
+      return '本地仓库、项目文件读取、终端检查和本地执行。适合读代码、看目录、查 git diff/log/status，也适合在权限允许时创建/修改文件、运行脚本、执行构建或测试。包含 claude_code 工具，可调用 Claude Code CLI 进行复杂编程任务，支持多轮会话。'
     case 'image-pack':
       return '内置图像生成能力。用户要求生成、绘制、设计、渲染图片/插画/海报/Logo/封面/壁纸/头像/视觉稿时优先申请本包并调用 image_generate；不要为了找图像生成 API、模型、在线工具、素材图或提示词示例而先走搜索。'
     case 'search-pack':

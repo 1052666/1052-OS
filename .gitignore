@@ -19,3 +19,6 @@ frontend/dist/
 
 AGENTS.md
 CHANGELOG.md
+
+.claude/
+*.egg-info/
