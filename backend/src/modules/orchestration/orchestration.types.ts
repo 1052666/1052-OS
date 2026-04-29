@@ -84,3 +84,13 @@ export type LogEntry = {
   timestamp: number
   duration: number
 }
+
+export type OrchestrationExecution = {
+  id: string
+  orchestrationId: string
+  orchestrationName: string
+  status: 'success' | 'failed' | 'warning'
+  logs: LogEntry[]
+  startTime: number
+  endTime: number
+}
