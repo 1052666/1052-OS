@@ -92,6 +92,7 @@ export function getContextUpgradeToolDefinition(): LLMToolDefinition {
 function getRoutingPrompt() {
   return [
     'Capability routing:',
+    '- Toolbox capability map: UAPIs is mounted through search-pack; Intel Center is split by workflow, with intel-center Skill and intel_center_collect in skill-pack, and intel_brief_format in channel-pack.',
     ...REQUESTABLE_PACKS.map((pack) => `- ${pack}: ${describePackForRouting(pack)}`),
     '- Start in P0 with no business tools.',
     '- If the user asks to generate, draw, design, render, create an image, illustration, poster, logo concept, cover, visual, wallpaper, avatar, or similar visual output, request image-pack and use image_generate. This route has priority over search-pack and UAPIs for image creation.',

@@ -206,6 +206,8 @@ describe('appearance theme profiles', () => {
 
   it('keeps route-level apply and reset confirmation gates fail-closed', async () => {
     const service = await import('../appearance.service.js')
+    await fs.mkdir(path.join(tempDir, 'pkm'), { recursive: true })
+    await fs.writeFile(path.join(tempDir, 'pkm', 'index.json'), '[]', 'utf-8')
     const { createApp } = await import('../../../app.js')
     const created = await service.createAppearanceTheme(validTheme())
     const profile = created.profiles[0]

@@ -64,8 +64,15 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('priority over search-pack')
   })
 
-  it('exposes UAPIs as discoverable search-pack capability in P0', async () => {
+  it('exposes UAPIs and Intel Center as discoverable toolbox capabilities in P0', async () => {
     expect(describePackForRouting('search-pack')).toContain('UAPIs')
+    expect(describePackForRouting('search-pack')).toContain('Intel Center')
+    expect(describePackForRouting('search-pack')).toContain('intel_center_collect')
+    expect(describePackForRouting('search-pack')).toContain('intel_brief_format')
+    const searchPackTools = getToolNamesForMountedPacks(expandMountedPacks(['search-pack']))
+    expect(searchPackTools).toContain('uapis_call')
+    expect(searchPackTools).not.toContain('intel_center_collect')
+    expect(searchPackTools).not.toContain('intel_brief_format')
     const sourceToggleSchema = getAgentToolDefinitionsForNames(['websearch_set_source_enabled'])
       .at(0)
       ?.function.parameters as {
@@ -82,6 +89,8 @@ describe('agent progressive disclosure helpers', () => {
     })
     const system = built.messages[0]?.content ?? ''
     expect(system).toContain('UAPIs directory summary')
+    expect(system).toContain('Toolbox capability map')
+    expect(system).toContain('Intel Center')
     expect(system).toContain('search-pack')
     expect(system).toContain('uapis_list_apis')
     expect(system).toContain('uapis_read_api')
@@ -195,10 +204,12 @@ describe('agent progressive disclosure helpers', () => {
     expect(toolNames).toContain('intel_brief_format')
     expect(hasAgentTool('intel_brief_format')).toBe(true)
     expect(describePackForRouting('channel-pack')).toContain('Intel Brief')
+    expect(describePackForRouting('channel-pack')).toContain('Intel Center')
   })
 
   it('advertises Intel Center as the preferred news and brief route in P0', async () => {
     expect(describePackForRouting('skill-pack')).toContain('intel-center')
+    expect(describePackForRouting('skill-pack')).toContain('Intel Center 工具箱')
     const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['skill-pack']))
     expect(toolNames).toContain('intel_center_collect')
     expect(hasAgentTool('intel_center_collect')).toBe(true)
