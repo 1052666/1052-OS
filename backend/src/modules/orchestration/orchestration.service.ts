@@ -439,7 +439,7 @@ function escapeVal(v: unknown): string {
 
 type LoopContext = { varName: string; value: string }
 
-async function executeLoadNode(node: OrchestrationNode, pushLog?: (log: LogEntry) => void, signal?: AbortSignal, loopContext?: LoopContext): Promise<LogEntry> {
+async function executeLoadNode(node: OrchestrationNode, _pushLog?: (log: LogEntry) => void, _signal?: AbortSignal, loopContext?: LoopContext): Promise<LogEntry> {
   const nodeStart = Date.now()
   try {
     if (!node.targetDatasourceId) throw new Error('未配置目标数据源')

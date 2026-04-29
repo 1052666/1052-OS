@@ -1012,6 +1012,11 @@ export default function Chat() {
           {
             onDelta: (chunk) => appendDelta(assistantId, chunk),
             onUsage: (usage) => patchMsg(assistantId, { usage }, true),
+            onToolStarted: (name) => setUpgradeState('工具执行中: ' + name),
+            onToolFinished: (name, ok, error) =>
+              setUpgradeState(
+                ok ? '工具已完成: ' + name : '工具失败: ' + name + (error ? ' / ' + error : ''),
+              ),
             onUpgradeRequested: (packs, reason) =>
               setUpgradeState('申请加载工具包: ' + packs.join(', ') + (reason ? ' / ' + reason : '')),
             onUpgradeApplying: (packs) => setUpgradeState('正在加载工具包: ' + packs.join(', ')),
@@ -1250,12 +1255,20 @@ export default function Chat() {
                     )}
                     {message.meta?.delivery?.status === 'pending' && (
                       <span className="msg-badge">
-                        {message.meta.delivery.targetChannel === 'feishu' ? '发送到飞书中' : '发送到微信中'}
+                        {message.meta.delivery.targetChannel === 'feishu'
+                          ? '发送到飞书中'
+                          : message.meta.delivery.targetChannel === 'wechat_desktop'
+                            ? '发送到微信桌面中'
+                            : '发送到微信中'}
                       </span>
                     )}
                     {message.meta?.delivery?.status === 'failed' && (
                       <span className="msg-badge error">
-                        {message.meta.delivery.targetChannel === 'feishu' ? '飞书发送失败' : '微信发送失败'}
+                        {message.meta.delivery.targetChannel === 'feishu'
+                          ? '飞书发送失败'
+                          : message.meta.delivery.targetChannel === 'wechat_desktop'
+                            ? '微信桌面发送失败'
+                            : '微信发送失败'}
                       </span>
                     )}
                     <span className="msg-time">

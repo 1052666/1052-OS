@@ -553,6 +553,7 @@ export async function* chatCompletionStream(
   let done = false
   let reasoningOpen = false
   let usage: LLMTokenUsage | undefined
+  const suppressReasoning = tools.length > 0
 
   const emitContent = function* (chunk: string): Generator<string, void, void> {
     if (!chunk) return
@@ -568,6 +569,7 @@ export async function* chatCompletionStream(
 
   const emitReasoning = function* (chunk: string): Generator<string, void, void> {
     if (!chunk) return
+    if (suppressReasoning) return
     if (!reasoningOpen) {
       const open = '<think>\n'
       reasoningOpen = true

@@ -111,6 +111,16 @@ function normalizeKnownSystemInstruction(content: string) {
     ].join('\n')
   }
 
+  if (/WeChat (?:Desktop )?group .*runtime|WeChat Desktop group bridge|source:\s*WeChat Desktop group mention/i.test(normalized)) {
+    return [
+      '- Current request is a real inbound WeChat Desktop group mention, not a simulated transcript.',
+      '- The WeChat Desktop channel service will automatically deliver your final assistant text back to the current group after generation.',
+      '- Do not request channel-pack and do not call wechat_desktop_send_message just to reply to the current inbound group message.',
+      '- If the inbound content contains a 5 second batch with multiple independent mentions, answer each sender/request explicitly in one combined group reply.',
+      '- Only request channel-pack for desktop WeChat when the user asks you to send a separate proactive message to another WeChat chat, inspect desktop WeChat sessions/groups, or explicitly manage WeChat group memory.',
+    ].join('\n')
+  }
+
   return ''
 }
 

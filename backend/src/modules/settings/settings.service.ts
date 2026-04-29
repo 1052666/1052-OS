@@ -27,16 +27,30 @@ import type {
 const FILE = 'settings.json'
 const MORNING_BRIEF_TASK_MARKER = '[managed:agent-morning-brief]'
 const MORNING_BRIEF_TASK_TITLE = '每日 Intel Center 早报'
+const DEFAULT_1052_LLM_PROFILE_ID = 'llm_1052_api_default'
+const DEFAULT_1052_LLM_BASE_URL = 'https://api.lxj.asia/v1'
+const DEFAULT_1052_LLM_MODEL_ID = 'deepseek-v4-flash-search'
 
 const DEFAULT_SETTINGS: Settings = {
   llm: {
-    baseUrl: '',
-    modelId: '',
+    baseUrl: DEFAULT_1052_LLM_BASE_URL,
+    modelId: DEFAULT_1052_LLM_MODEL_ID,
     apiKey: '',
     kind: 'cloud',
     provider: 'openai-compatible',
-    activeProfileId: '',
-    profiles: [],
+    activeProfileId: DEFAULT_1052_LLM_PROFILE_ID,
+    profiles: [
+      {
+        id: DEFAULT_1052_LLM_PROFILE_ID,
+        name: '1052 API',
+        kind: 'cloud',
+        provider: 'openai-compatible',
+        baseUrl: DEFAULT_1052_LLM_BASE_URL,
+        modelId: DEFAULT_1052_LLM_MODEL_ID,
+        apiKey: '',
+        enabled: true,
+      },
+    ],
     taskRoutes: [],
   },
   imageGeneration: {
@@ -237,12 +251,17 @@ function normalizeLlmSettings(llm: Partial<LLMSettings> | undefined): LLMSetting
         .filter((profile): profile is LLMProfile => profile !== null)
     : []
   const legacyProfile = createLegacyLlmProfile(current)
-  const normalizedProfiles = profiles.length > 0 ? profiles : legacyProfile ? [legacyProfile] : []
+  const normalizedProfiles =
+    profiles.length > 0
+      ? profiles
+      : legacyProfile
+        ? [legacyProfile]
+        : DEFAULT_SETTINGS.llm.profiles.map((profile) => ({ ...profile }))
   const activeProfileId =
     typeof current.activeProfileId === 'string' &&
     normalizedProfiles.some((profile) => profile.id === current.activeProfileId)
       ? current.activeProfileId
-      : legacyProfile?.id ?? normalizedProfiles[0]?.id ?? ''
+      : legacyProfile?.id ?? normalizedProfiles[0]?.id ?? DEFAULT_SETTINGS.llm.activeProfileId
 
   return mirrorActiveLlmProfile({
     kind: VALID_LLM_KINDS.has(current.kind as LLMProfileKind)

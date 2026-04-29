@@ -62,6 +62,94 @@ export type WechatMediaSendInput = {
   file: File
 }
 
+export type WechatUiBridgeStatus = {
+  enabled: boolean
+  running: boolean
+  probed?: boolean
+  message?: string
+  root?: string
+  config?: WechatUiBridgeConfig
+  listener?: WechatUiBridgeListenerStatus
+  profile?: Record<string, unknown>
+  profileError?: string
+}
+
+export type WechatUiBridgeConfig = {
+  pywechatRoot?: string
+  botNames?: string[]
+  chatNames?: string[]
+  searchPages?: number
+  listenerEnabled?: boolean
+  savedAt?: string
+}
+
+export type WechatUiBridgeListenerStatus = {
+  running: boolean
+  startedAt?: string
+  stoppedAt?: string
+  lastCheckAt?: string
+  lastMentionAt?: string
+  lastError?: string
+  processedCount: number
+  processedKeys: number
+  missingWindows: string[]
+}
+
+export type WechatUiBridgeSendResult = {
+  ok: true
+  sent: true
+  friend: string
+}
+
+export type WechatUiBridgeMessagesResult = {
+  ok: true
+  messages: Record<string, unknown>
+  structured?: Array<{
+    chat: string
+    rawMessages: string[]
+    messages: Array<{
+      raw: string
+      sender?: string | null
+      text: string
+      mentioned: boolean
+      mentions: string[]
+    }>
+  }>
+}
+
+export type WechatUiBridgeMentionsResult = {
+  ok: true
+  botNames?: string[]
+  chatNames?: string[]
+  missingWindows?: string[]
+  mentions?: Array<{
+    chat: string
+    raw: string
+    sender?: string | null
+    text: string
+    mentioned: boolean
+    mentions: string[]
+  }>
+  structured?: WechatUiBridgeMessagesResult['structured']
+}
+
+export type WechatUiBridgeGroupsResult = {
+  ok: true
+  groups: Array<{
+    name: string
+    members?: string | null
+  }>
+}
+
+export type WechatUiBridgeProcessResult = {
+  ok: true
+  chat: string
+  sender: string
+  reply: string
+  userMessageId: number
+  assistantMessageId: number
+}
+
 export type FeishuStatus = {
   available: true
   configured: boolean
@@ -180,6 +268,78 @@ export type FeishuWorkspaceStatus = {
   recentEvents: FeishuEventLog[]
 }
 
+export type WechatDesktopConfig = {
+  enabled: boolean
+  autoStart: boolean
+  pythonCommand?: string
+  scriptPath?: string
+  pywechatRoot?: string
+  botNames: string[]
+  chatNames: string[]
+  searchPages?: number
+  listenerEnabled?: boolean
+  savedAt?: string
+}
+
+export type WechatDesktopSessionType = 'direct' | 'group'
+export type WechatDesktopGroupMode = 'chat' | 'full'
+
+export type WechatDesktopSession = {
+  sessionId: string
+  sessionName: string
+  sessionType: WechatDesktopSessionType
+  enabled: boolean
+  listening: boolean
+  source: 'configured' | 'discovered'
+  lastMessageAt?: number
+  lastSenderName?: string
+  lastMessagePreview?: string
+  updatedAt: string
+}
+
+export type WechatDesktopGroup = {
+  groupId: string
+  groupName: string
+  enabled: boolean
+  mode: WechatDesktopGroupMode
+  promptAppend: string
+  allowTools: boolean
+  allowMemoryWrite: boolean
+  allowAutoReply: boolean
+  mentionOnly: boolean
+  lastMessageAt?: number
+  lastSenderName?: string
+  updatedAt: string
+}
+
+export type WechatDesktopGroupMemory = {
+  id: string
+  groupId: string
+  groupName: string
+  title: string
+  content: string
+  source: 'agent_inferred' | 'user_explicit' | 'tool_write'
+  createdAt: number
+  updatedAt: number
+  active: boolean
+}
+
+export type WechatDesktopStatus = {
+  available: true
+  config: WechatDesktopConfig
+  runtime: {
+    running: boolean
+    pid?: number
+    startedAt?: number
+    lastEventAt?: number
+    lastMessageAt?: number
+    selfName?: string
+    lastError?: string
+  }
+  sessions: WechatDesktopSession[]
+  groups: WechatDesktopGroup[]
+}
+
 export type FeishuDocImportResult = {
   ticket?: string
   token?: string
@@ -212,6 +372,93 @@ export const SocialChannelsApi = {
   wechatStatus: () => api.get<WechatStatus>('/channels/wechat/status'),
   wechatDeliveryTargets: () =>
     api.get<WechatDeliveryTarget[]>('/channels/wechat/delivery-targets'),
+  wechatUiBridgeStatus: (input: {
+    includeProfile?: boolean
+    probeDesktop?: boolean
+    pywechatRoot?: string
+  } = {}) => {
+    const params = new URLSearchParams()
+    if (input.includeProfile) params.set('includeProfile', 'true')
+    if (input.probeDesktop) params.set('probeDesktop', 'true')
+    if (input.pywechatRoot?.trim()) params.set('pywechatRoot', input.pywechatRoot.trim())
+    const query = params.toString()
+    return api.get<WechatUiBridgeStatus>(
+      `/channels/wechat/ui/status${query ? `?${query}` : ''}`,
+    )
+  },
+  saveWechatUiBridgeConfig: (input: {
+    pywechatRoot?: string
+    botNames?: string[]
+    chatNames?: string[]
+    searchPages?: number
+    listenerEnabled?: boolean
+  }) => api.post<WechatUiBridgeConfig>('/channels/wechat/ui/config', input),
+  wechatUiBridgeSendText: (input: {
+    friend: string
+    text: string
+    confirmed: boolean
+    pywechatRoot?: string
+  }) =>
+    api.post<WechatUiBridgeSendResult>('/channels/wechat/ui/send-text', input),
+  wechatUiBridgeGroups: (input: {
+    confirmed: boolean
+    recent?: boolean
+    pywechatRoot?: string
+  }) => api.post<WechatUiBridgeGroupsResult>('/channels/wechat/ui/groups', input),
+  wechatUiBridgeBindChatWindows: (input: {
+    confirmed: boolean
+    chatNames: string[]
+    minimize?: boolean
+    pywechatRoot?: string
+  }) =>
+    api.post<{
+      ok: true
+      chatNames: string[]
+      windows: Array<{ chat: string; bound: boolean; reused?: boolean; error?: string }>
+      allBound: boolean
+    }>('/channels/wechat/ui/bind-chat-windows', input),
+  wechatUiBridgeListenerStatus: () =>
+    api.get<{ ok: true; listener: WechatUiBridgeListenerStatus }>('/channels/wechat/ui/listener'),
+  wechatUiBridgeStartListener: (input: {
+    confirmed: boolean
+    pywechatRoot?: string
+    botNames?: string[]
+    chatNames?: string[]
+    searchPages?: number
+  }) =>
+    api.post<{
+      ok: true
+      listener: WechatUiBridgeListenerStatus
+      bindResult?: unknown
+    }>('/channels/wechat/ui/listener/start', input),
+  wechatUiBridgeStopListener: (input: { confirmed: boolean }) =>
+    api.post<{ ok: true; listener: WechatUiBridgeListenerStatus }>(
+      '/channels/wechat/ui/listener/stop',
+      input,
+    ),
+  wechatUiBridgeCheckNewMessages: (input: {
+    confirmed: boolean
+    searchPages?: number
+    botNames?: string[]
+    chatNames?: string[]
+    pywechatRoot?: string
+  }) => api.post<WechatUiBridgeMessagesResult>('/channels/wechat/ui/check-new-messages', input),
+  wechatUiBridgeCheckMentions: (input: {
+    confirmed: boolean
+    searchPages?: number
+    botNames?: string[]
+    chatNames?: string[]
+    resetPosition?: boolean
+    pywechatRoot?: string
+  }) => api.post<WechatUiBridgeMentionsResult>('/channels/wechat/ui/check-mentions', input),
+  wechatUiBridgeProcessMention: (input: {
+    confirmed: boolean
+    chat: string
+    sender?: string
+    text: string
+    raw?: string
+    pywechatRoot?: string
+  }) => api.post<WechatUiBridgeProcessResult>('/channels/wechat/ui/process-mention', input),
   startWechatLogin: () => api.post<WechatLoginStart>('/channels/wechat/login/start', {}),
   waitWechatLogin: (sessionKey: string, timeoutMs = 10_000) =>
     api.post<WechatLoginWait>('/channels/wechat/login/wait', { sessionKey, timeoutMs }),
@@ -260,6 +507,45 @@ export const SocialChannelsApi = {
     ),
   deleteWechatAccount: (accountId: string) =>
     api.delete<{ ok: true }>('/channels/wechat/accounts/' + encodeURIComponent(accountId)),
+
+  wechatDesktopStatus: () => api.get<WechatDesktopStatus>('/channels/wechat-desktop/status'),
+  saveWechatDesktopConfig: (input: Partial<WechatDesktopConfig>) =>
+    api.post<WechatDesktopStatus>('/channels/wechat-desktop/config', input),
+  startWechatDesktop: () => api.post<WechatDesktopStatus>('/channels/wechat-desktop/start', {}),
+  stopWechatDesktop: () => api.post<WechatDesktopStatus>('/channels/wechat-desktop/stop', {}),
+  listWechatDesktopSessions: () =>
+    api.get<WechatDesktopSession[]>('/channels/wechat-desktop/sessions'),
+  refreshWechatDesktopSessions: () =>
+    api.post<WechatDesktopSession[]>('/channels/wechat-desktop/sessions/refresh', {}),
+  updateWechatDesktopSession: (
+    sessionId: string,
+    input: Partial<WechatDesktopSession>,
+  ) =>
+    api.patch<WechatDesktopSession>(
+      '/channels/wechat-desktop/sessions/' + encodeURIComponent(sessionId),
+      input,
+    ),
+  listWechatDesktopGroups: () =>
+    api.get<WechatDesktopGroup[]>('/channels/wechat-desktop/groups'),
+  updateWechatDesktopGroup: (groupId: string, input: Partial<WechatDesktopGroup>) =>
+    api.patch<WechatDesktopGroup>(
+      '/channels/wechat-desktop/groups/' + encodeURIComponent(groupId),
+      input,
+    ),
+  sendWechatDesktopMessage: (input: { sessionName: string; text: string }) =>
+    api.post<{ ok?: boolean; sessionName?: string }>('/channels/wechat-desktop/send', input),
+  listWechatDesktopGroupMemories: (groupId?: string) =>
+    api.get<WechatDesktopGroupMemory[]>(
+      '/channels/wechat-desktop/group-memory' +
+        (groupId ? '?groupId=' + encodeURIComponent(groupId) : ''),
+    ),
+  createWechatDesktopGroupMemory: (input: {
+    groupId: string
+    title: string
+    content: string
+    source?: WechatDesktopGroupMemory['source']
+  }) =>
+    api.post<WechatDesktopGroupMemory>('/channels/wechat-desktop/group-memory', input),
 
   feishuStatus: () => api.get<FeishuStatus>('/channels/feishu/status'),
   feishuDeliveryTargets: () =>

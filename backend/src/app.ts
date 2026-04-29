@@ -14,6 +14,7 @@ import { notificationsRouter } from './modules/notifications/notifications.route
 import { skillsRouter } from './modules/skills/skills.routes.js'
 import { memoryRouter } from './modules/memory/memory.routes.js'
 import { wechatRouter } from './modules/channels/wechat/wechat.routes.js'
+import { wechatDesktopRouter } from './modules/channels/wechat-desktop/wechat-desktop.routes.js'
 import { sqlRouter } from './modules/sql/sql.routes.js'
 import { orchestrationRouter } from './modules/orchestration/orchestration.routes.js'
 import { wecomRouter } from './modules/channels/wecom/wecom.routes.js'
@@ -74,6 +75,7 @@ export function createApp(): Express {
   app.use('/api/skills', skillsRouter)
   app.use('/api/memory', memoryRouter)
   app.use('/api/channels/wechat', wechatRouter)
+  app.use('/api/channels/wechat-desktop', wechatDesktopRouter)
   app.use('/api/sql', sqlRouter)
   app.use('/api/orchestration', orchestrationRouter)
   app.use('/api/uapis', uapisRouter)

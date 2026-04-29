@@ -137,6 +137,7 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
               source:
                 (item as any).meta.source === 'web' ||
                 (item as any).meta.source === 'wechat' ||
+                (item as any).meta.source === 'wechat_desktop' ||
                 (item as any).meta.source === 'feishu' ||
                 (item as any).meta.source === 'scheduled-task'
                   ? (item as any).meta.source
@@ -144,6 +145,7 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
               channel:
                 (item as any).meta.channel === 'web' ||
                 (item as any).meta.channel === 'wechat' ||
+                (item as any).meta.channel === 'wechat_desktop' ||
                 (item as any).meta.channel === 'feishu'
                   ? (item as any).meta.channel
                   : undefined,
@@ -170,6 +172,7 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
                           : undefined,
                       targetChannel:
                         (item as any).meta.delivery.targetChannel === 'wechat' ||
+                        (item as any).meta.delivery.targetChannel === 'wechat_desktop' ||
                         (item as any).meta.delivery.targetChannel === 'feishu'
                           ? (item as any).meta.delivery.targetChannel
                           : undefined,

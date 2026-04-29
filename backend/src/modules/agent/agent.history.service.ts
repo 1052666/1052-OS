@@ -28,12 +28,16 @@ function normalizeMeta(meta: Record<string, unknown>): StoredChatMessage['meta']
     source:
       meta.source === 'web' ||
       meta.source === 'wechat' ||
+      meta.source === 'wechat_desktop' ||
       meta.source === 'feishu' ||
       meta.source === 'scheduled-task'
         ? meta.source
         : undefined,
     channel:
-      meta.channel === 'web' || meta.channel === 'wechat' || meta.channel === 'feishu'
+      meta.channel === 'web' ||
+      meta.channel === 'wechat' ||
+      meta.channel === 'wechat_desktop' ||
+      meta.channel === 'feishu'
         ? meta.channel
         : undefined,
     accountId: typeof meta.accountId === 'string' ? meta.accountId : undefined,
@@ -49,7 +53,9 @@ function normalizeMeta(meta: Record<string, unknown>): StoredChatMessage['meta']
               ? delivery.status
               : undefined,
           targetChannel:
-            delivery.targetChannel === 'wechat' || delivery.targetChannel === 'feishu'
+            delivery.targetChannel === 'wechat' ||
+            delivery.targetChannel === 'wechat_desktop' ||
+            delivery.targetChannel === 'feishu'
               ? delivery.targetChannel
               : undefined,
           targetPeerId:

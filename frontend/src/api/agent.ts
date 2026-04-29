@@ -23,14 +23,14 @@ export type StoredChatMessage = ChatMessage & {
   compactBackupPath?: string
   compactOriginalCount?: number
   meta?: {
-    source?: 'web' | 'wechat' | 'feishu' | 'scheduled-task'
-    channel?: 'web' | 'wechat' | 'feishu'
+    source?: 'web' | 'wechat' | 'wechat_desktop' | 'feishu' | 'scheduled-task'
+    channel?: 'web' | 'wechat' | 'wechat_desktop' | 'feishu'
     accountId?: string
     peerId?: string
     externalMessageId?: string
     delivery?: {
       status?: 'pending' | 'sent' | 'failed'
-      targetChannel?: 'wechat' | 'feishu'
+      targetChannel?: 'wechat' | 'wechat_desktop' | 'feishu'
       targetPeerId?: string
       error?: string
     }
@@ -127,6 +127,8 @@ export type TokenUsageStats = {
 export type StreamHandlers = {
   onDelta: (chunk: string) => void
   onUsage: (usage: TokenUsage) => void
+  onToolStarted?: (name: string) => void
+  onToolFinished?: (name: string, ok: boolean, error?: string) => void
   onUpgradeRequested?: (packs: string[], reason: string) => void
   onUpgradeApplying?: (packs: string[]) => void
   onUpgradeApplied?: (packs: string[]) => void
@@ -141,6 +143,8 @@ type StreamEvent = {
     | 'usage'
     | 'done'
     | 'error'
+    | 'tool-started'
+    | 'tool-finished'
     | 'context-upgrade-requested'
     | 'context-upgrade-applying'
     | 'context-upgrade-applied'
@@ -148,9 +152,12 @@ type StreamEvent = {
   content?: string
   usage?: TokenUsage
   message?: string
+  name?: string
+  ok?: boolean
   packs?: string[]
   reason?: string
   stage?: string
+  error?: string
 }
 
 export type HistorySaveReason = 'sync' | 'clear' | 'replace' | 'compact' | 'repair'
@@ -251,6 +258,10 @@ export const AgentApi = {
             handlers.onDelta(obj.content)
           } else if (obj.type === 'usage' && obj.usage) {
             handlers.onUsage(obj.usage)
+          } else if (obj.type === 'tool-started' && typeof obj.name === 'string') {
+            handlers.onToolStarted?.(obj.name)
+          } else if (obj.type === 'tool-finished' && typeof obj.name === 'string') {
+            handlers.onToolFinished?.(obj.name, obj.ok === true, obj.error)
           } else if (obj.type === 'context-upgrade-requested' && Array.isArray(obj.packs)) {
             handlers.onUpgradeRequested?.(obj.packs, obj.reason ?? '')
           } else if (obj.type === 'context-upgrade-applying' && Array.isArray(obj.packs)) {
