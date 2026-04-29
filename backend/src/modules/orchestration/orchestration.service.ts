@@ -233,20 +233,51 @@ async function executeLoopNode(node: OrchestrationNode, pushLog: (log: LogEntry)
           const subOrch = await readOrchFile(subTask.refId)
           const passVarName = subTask.variableName || varName
           const subLogs: LogEntry[] = []
-          const subPushLog = (log: LogEntry) => { subLogs.push(log) }
-          const subEnabled = subOrch.nodes.filter(n => n.enabled)
-          for (const subNode of subEnabled) {
-            if (signal?.aborted) throw new Error('已停止')
-            const injectedNode: OrchestrationNode = {
-              ...subNode,
-              sql: subNode.sql?.replaceAll(`\${${passVarName}}`, value) ?? subNode.sql,
-              shellContent: subNode.shellContent?.replaceAll(`\${${passVarName}}`, value) ?? subNode.shellContent,
-            }
-            const log = await executeNode(injectedNode, signal, subPushLog, { varName: passVarName, value })
-            subPushLog(log)
-            if (log.status === 'failed') break
+          const subPushLog = (log: LogEntry) => {
+            const idx = subLogs.findIndex(l => l.nodeId === log.nodeId)
+            if (idx >= 0) subLogs[idx] = log
+            else subLogs.push(log)
           }
-          const subFailed = subLogs.some(l => l.status === 'failed')
+          const subEnabled = subOrch.nodes.filter(n => n.enabled)
+          const subEdges = subOrch.edges || []
+
+          const injectNode = (n: OrchestrationNode): OrchestrationNode => ({
+            ...n,
+            sql: n.sql?.replaceAll(`\${${passVarName}}`, value) ?? n.sql,
+            shellContent: n.shellContent?.replaceAll(`\${${passVarName}}`, value) ?? n.shellContent,
+          })
+
+          let subFailed = false
+          if (subEdges.length === 0) {
+            for (const subNode of subEnabled) {
+              if (signal?.aborted) { subFailed = true; break }
+              const log = await executeNode(injectNode(subNode), signal, subPushLog, { varName: passVarName, value })
+              subPushLog(log)
+              if (log.status === 'failed') { subFailed = true; break }
+            }
+          } else {
+            const incomingMap = new Map<string, Set<string>>()
+            for (const n of subEnabled) incomingMap.set(n.id, new Set())
+            for (const e of subEdges) {
+              if (incomingMap.has(e.target)) incomingMap.get(e.target)!.add(e.source)
+            }
+            const subCompleted = new Set<string>()
+            const subFailedNodes = new Set<string>()
+            while (subCompleted.size + subFailedNodes.size < subEnabled.length) {
+              const ready = subEnabled.filter(n =>
+                !subCompleted.has(n.id) && !subFailedNodes.has(n.id) &&
+                [...(incomingMap.get(n.id) || [])].every(src => subCompleted.has(src))
+              )
+              if (ready.length === 0) break
+              const results = await Promise.all(ready.map(n => executeNode(injectNode(n), signal, subPushLog, { varName: passVarName, value })))
+              for (const log of results) {
+                subPushLog(log)
+                if (log.status === 'failed') { subFailedNodes.add(log.nodeId); subFailed = true }
+                else { subCompleted.add(log.nodeId) }
+              }
+            }
+          }
+
           const subAffected = subLogs.reduce((s, l) => s + (l.affectedRows ?? 0), 0)
           iterLog = {
             nodeId: iterLogId, nodeName: `${node.name} (循环 ${i + 1}/${values.length})`, nodeType: 'loop',
