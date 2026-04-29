@@ -10,6 +10,7 @@ import type { DataSource } from '../sql/sql.types.js'
 const ORCH_DIR = 'orchestrations'
 const LOG_DIR = 'orchestration-logs'
 const QUERY_TIMEOUT_MS = 30_000
+const LOAD_QUERY_TIMEOUT_MS = 120_000
 
 function orchDirPath() { return path.join(config.dataDir, ORCH_DIR) }
 function logDirPath() { return path.join(config.dataDir, LOG_DIR) }
@@ -158,6 +159,146 @@ export function getActiveExecution(orchId: string): (ExecutionProgress & { execu
   return null
 }
 
+async function executeLoopNode(node: OrchestrationNode, pushLog: (log: LogEntry) => void, signal?: AbortSignal): Promise<LogEntry> {
+  const nodeStart = Date.now()
+  try {
+    if (!node.loop) throw new Error('未配置循环参数')
+    const { variableId, failureStrategy, subTask } = node.loop
+
+    const vars = await listVariables()
+    const loopVar = vars.find(v => v.id === variableId || v.name === variableId)
+    if (!loopVar) throw new Error(`循环变量不存在: ${variableId}`)
+    const varName = loopVar.name
+    const values = await resolveSqlVariableList(loopVar)
+
+    if (values.length === 0) {
+      return {
+        nodeId: node.id, nodeName: node.name, nodeType: 'loop', status: 'success',
+        sql: '', affectedRows: 0, actualValue: '0',
+        expectedValue: '循环变量查询结果为空',
+        timestamp: Date.now(), duration: Date.now() - nodeStart,
+      }
+    }
+
+    let totalAffected = 0
+    let failedCount = 0
+    let lastError = ''
+
+    for (let i = 0; i < values.length; i++) {
+      if (signal?.aborted) throw new Error('已停止')
+      const value = values[i].replace(VAR_INJECTION_RE, '')
+
+      const iterLogId = `${node.id}-loop-${i}`
+
+      let iterLog: LogEntry
+      try {
+        if (subTask.mode === 'inline') {
+          const tempNode: OrchestrationNode = {
+            ...node,
+            id: `${node.id}-inline`,
+            type: subTask.type,
+            name: node.name,
+          }
+          iterLog = await executeNode(tempNode, signal, pushLog, { varName, value })
+        } else if (subTask.refType === 'sqlFile') {
+          const file = await getSqlFile(subTask.refId)
+          let sql = file.content.replaceAll(`\${${varName}}`, value)
+          sql = await resolveVariables(sql)
+          const ds = await getDataSource(node.datasourceId || file.datasourceId)
+          const dsConfig = { type: ds.type, host: ds.host, port: ds.port, user: ds.user, password: ds.password, database: ds.database, filePath: ds.filePath }
+          const result = await Promise.race([
+            executeDbQuery(dsConfig, sql, 1),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('查询超时 (30s)')), QUERY_TIMEOUT_MS)),
+          ])
+          iterLog = {
+            nodeId: iterLogId, nodeName: `${node.name} (循环 ${i + 1}/${values.length})`, nodeType: 'loop',
+            status: 'success', sql, affectedRows: result.rowCount,
+            result: { columns: result.columns, rows: result.rows.slice(0, 5) },
+            timestamp: Date.now(), duration: Date.now() - nodeStart,
+          }
+        } else if (subTask.refType === 'shellFile') {
+          const file = await getShellFile(subTask.refId)
+          let script = file.content.replaceAll(`\${${varName}}`, value)
+          const result = node.serverId
+            ? await executeShellOnServer(await getServer(node.serverId), script)
+            : await executeLocal(script)
+          iterLog = {
+            nodeId: iterLogId, nodeName: `${node.name} (循环 ${i + 1}/${values.length})`, nodeType: 'loop',
+            status: result.exitCode === 0 ? 'success' : 'failed', sql: script.slice(0, 500),
+            error: result.exitCode !== 0 ? result.stderr.slice(0, 500) : undefined,
+            result: { columns: ['stdout', 'stderr', 'exitCode'], rows: [{ stdout: result.stdout.slice(0, 500), stderr: result.stderr.slice(0, 200), exitCode: result.exitCode }] },
+            timestamp: Date.now(), duration: result.duration,
+          }
+        } else if (subTask.refType === 'orchestration') {
+          const subOrch = await readOrchFile(subTask.refId)
+          const passVarName = subTask.variableName || varName
+          const subLogs: LogEntry[] = []
+          const subPushLog = (log: LogEntry) => { subLogs.push(log) }
+          const subEnabled = subOrch.nodes.filter(n => n.enabled)
+          for (const subNode of subEnabled) {
+            if (signal?.aborted) throw new Error('已停止')
+            const injectedNode: OrchestrationNode = {
+              ...subNode,
+              sql: subNode.sql?.replaceAll(`\${${passVarName}}`, value) ?? subNode.sql,
+              shellContent: subNode.shellContent?.replaceAll(`\${${passVarName}}`, value) ?? subNode.shellContent,
+            }
+            const log = await executeNode(injectedNode, signal, subPushLog, { varName: passVarName, value })
+            subPushLog(log)
+            if (log.status === 'failed') break
+          }
+          const subFailed = subLogs.some(l => l.status === 'failed')
+          const subAffected = subLogs.reduce((s, l) => s + (l.affectedRows ?? 0), 0)
+          iterLog = {
+            nodeId: iterLogId, nodeName: `${node.name} (循环 ${i + 1}/${values.length})`, nodeType: 'loop',
+            status: subFailed ? 'failed' : 'success', sql: `子编排: ${subOrch.name}`,
+            affectedRows: subAffected,
+            error: subFailed ? '子编排执行失败' : undefined,
+            timestamp: Date.now(), duration: Date.now() - nodeStart,
+          }
+          for (const sl of subLogs) {
+            pushLog({ ...sl, nodeId: `${iterLogId}-${sl.nodeId}`, nodeName: `  └ ${sl.nodeName}` })
+          }
+        } else {
+          throw new Error('未知的子任务模式')
+        }
+      } catch (err) {
+        iterLog = {
+          nodeId: iterLogId, nodeName: `${node.name} (循环 ${i + 1}/${values.length})`, nodeType: 'loop',
+          status: 'failed', sql: '', error: err instanceof Error ? err.message : String(err),
+          timestamp: Date.now(), duration: Date.now() - nodeStart,
+        }
+      }
+
+      pushLog(iterLog)
+      totalAffected += iterLog.affectedRows ?? 0
+      if (iterLog.status === 'failed') {
+        failedCount++
+        lastError = iterLog.error ?? ''
+        if (failureStrategy === 'stop') break
+      }
+    }
+
+    const status = failedCount === values.length ? 'failed'
+      : failedCount > 0 ? 'warning' : 'success'
+    const msg = failedCount === 0
+      ? `${values.length} 次循环全部成功，共 ${totalAffected} 行`
+      : `${values.length} 次循环中 ${failedCount} 次失败，共 ${totalAffected} 行${lastError ? ` (最后错误: ${lastError})` : ''}`
+
+    return {
+      nodeId: node.id, nodeName: node.name, nodeType: 'loop', status,
+      sql: '', affectedRows: totalAffected,
+      actualValue: String(totalAffected), expectedValue: msg,
+      timestamp: Date.now(), duration: Date.now() - nodeStart,
+    }
+  } catch (err) {
+    return {
+      nodeId: node.id, nodeName: node.name, nodeType: 'loop', status: 'failed',
+      sql: '', error: err instanceof Error ? err.message : String(err),
+      timestamp: Date.now(), duration: Date.now() - nodeStart,
+    }
+  }
+}
+
 async function executeWaitNode(node: OrchestrationNode, pushLog: (log: LogEntry) => void, signal?: AbortSignal): Promise<LogEntry> {
   const nodeStart = Date.now()
   const intervalMs = (node.waitIntervalSec || 60) * 1000
@@ -265,7 +406,9 @@ function escapeVal(v: unknown): string {
   return `'${String(v).replace(/'/g, "''")}'`
 }
 
-async function executeLoadNode(node: OrchestrationNode, pushLog?: (log: LogEntry) => void, signal?: AbortSignal): Promise<LogEntry> {
+type LoopContext = { varName: string; value: string }
+
+async function executeLoadNode(node: OrchestrationNode, pushLog?: (log: LogEntry) => void, signal?: AbortSignal, loopContext?: LoopContext): Promise<LogEntry> {
   const nodeStart = Date.now()
   try {
     if (!node.targetDatasourceId) throw new Error('未配置目标数据源')
@@ -273,6 +416,16 @@ async function executeLoadNode(node: OrchestrationNode, pushLog?: (log: LogEntry
 
     const resolved = await resolveNodeSql(node)
     if (!resolved.sql?.trim()) throw new Error('未配置源查询 SQL')
+
+    // DAG-level loop: single iteration with injected value
+    if (loopContext) {
+      const sql = await resolveVariables(
+        resolved.sql.replaceAll(`\${${loopContext.varName}}`, loopContext.value)
+      )
+      const srcDs = await getDataSource(node.datasourceId)
+      const tgtDs = await getDataSource(node.targetDatasourceId!)
+      return await executeSingleLoad(node, sql, nodeStart, srcDs, tgtDs)
+    }
 
     // Resolve loop variable if configured
     let loopValues: string[] | null = null
@@ -419,7 +572,7 @@ async function executeSingleLoad(
     // Query source data
     const srcResult = await Promise.race([
       executeDbQuery(srcConfig, sql, 10000),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('源查询超时 (30s)')), QUERY_TIMEOUT_MS)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`源查询超时 (${LOAD_QUERY_TIMEOUT_MS / 1000}s)`)), LOAD_QUERY_TIMEOUT_MS)),
     ])
 
     if (srcResult.rows.length === 0) {
@@ -511,10 +664,11 @@ async function executeSingleLoad(
   }
 }
 
-async function executeNode(node: OrchestrationNode, signal?: AbortSignal, pushLog?: (log: LogEntry) => void): Promise<LogEntry> {
+async function executeNode(node: OrchestrationNode, signal?: AbortSignal, pushLog?: (log: LogEntry) => void, loopContext?: LoopContext): Promise<LogEntry> {
   if (signal?.aborted) throw new Error('已停止')
+  if (node.type === 'loop') return executeLoopNode(node, pushLog || (() => {}), signal)
   if (node.type === 'wait') return executeWaitNode(node, pushLog || (() => {}), signal)
-  if (node.type === 'load') return executeLoadNode(node, pushLog, signal)
+  if (node.type === 'load') return executeLoadNode(node, pushLog, signal, loopContext)
   if (node.type === 'shell') {
     const nodeStart = Date.now()
     try {
@@ -550,7 +704,11 @@ async function executeNode(node: OrchestrationNode, signal?: AbortSignal, pushLo
   const nodeStart = Date.now()
   try {
     const resolved = await resolveNodeSql(node)
-    const sql = await resolveVariables(resolved.sql)
+    let sql = resolved.sql
+    if (loopContext) {
+      sql = sql.replaceAll(`\${${loopContext.varName}}`, loopContext.value)
+    }
+    sql = await resolveVariables(sql)
     const ds = await getDataSource(resolved.datasourceId)
 
     const result = await Promise.race([
@@ -636,21 +794,130 @@ export async function startExecution(id: string): Promise<string> {
           if (incomingMap.has(edge.target)) incomingMap.get(edge.target)!.add(edge.source)
         }
 
+        // ── Detect loop chains: nodes sharing loopVariableId and connected by edges ──
+        type LoopGroup = { varName: string; nodeIds: Set<string>; orderedNodes: OrchestrationNode[]; values: string[] }
+        const loopGroups: LoopGroup[] = []
+        const lvGroupMap = new Map<string, OrchestrationNode[]>()
+        for (const node of enabledNodes) {
+          if (node.loopVariableId) {
+            if (!lvGroupMap.has(node.loopVariableId)) lvGroupMap.set(node.loopVariableId, [])
+            lvGroupMap.get(node.loopVariableId)!.push(node)
+          }
+        }
+        for (const [varId, nodes] of lvGroupMap) {
+          if (nodes.length < 2) continue
+          const nodeIds = new Set(nodes.map(n => n.id))
+          if (!edges.some(e => nodeIds.has(e.source) && nodeIds.has(e.target))) continue
+          // Topological sort within group (BFS)
+          const inDeg = new Map<string, number>()
+          for (const n of nodes) inDeg.set(n.id, 0)
+          for (const e of edges) {
+            if (nodeIds.has(e.source) && nodeIds.has(e.target)) inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1)
+          }
+          const queue = nodes.filter(n => (inDeg.get(n.id) ?? 0) === 0)
+          const sorted: OrchestrationNode[] = []
+          while (queue.length > 0) {
+            const cur = queue.shift()!
+            sorted.push(cur)
+            for (const e of edges) {
+              if (e.source === cur.id && nodeIds.has(e.target)) {
+                const d = (inDeg.get(e.target) ?? 1) - 1
+                inDeg.set(e.target, d)
+                if (d === 0) { const t = nodes.find(n => n.id === e.target); if (t) queue.push(t) }
+              }
+            }
+          }
+          // Resolve variable
+          const vars = await listVariables()
+          const loopVar = vars.find(v => v.id === varId || v.name === varId)
+          if (!loopVar || loopVar.valueType !== 'sql') continue
+          const values = await resolveSqlVariableList(loopVar)
+          loopGroups.push({ varName: loopVar.name, nodeIds, orderedNodes: sorted, values })
+        }
+        const loopNodeIds = new Set<string>()
+        for (const g of loopGroups) for (const id of g.nodeIds) loopNodeIds.add(id)
+
         const completed = new Set<string>()
         const failedNodes = new Set<string>()
 
         while (completed.size + failedNodes.size < enabledNodes.length) {
           const ready = enabledNodes.filter(n =>
-            !completed.has(n.id) && !failedNodes.has(n.id) &&
+            !completed.has(n.id) && !failedNodes.has(n.id) && !loopNodeIds.has(n.id) &&
             [...(incomingMap.get(n.id) || [])].every(src => completed.has(src))
           )
-          if (ready.length === 0) break
 
-          const results = await Promise.all(ready.map(n => executeNode(n, signal, pushLog)))
-          for (const log of results) {
-            pushLog(log)
-            if (log.status === 'failed') { failedNodes.add(log.nodeId); hasFailed = true }
-            else { completed.add(log.nodeId); if (log.status === 'warning') hasWarning = true }
+          const readyGroups = loopGroups.filter(g =>
+            ![...g.nodeIds].every(id => completed.has(id) || failedNodes.has(id)) &&
+            [...g.nodeIds].every(nid =>
+              [...(incomingMap.get(nid) || [])].every(src => completed.has(src) || g.nodeIds.has(src))
+            )
+          )
+
+          if (ready.length === 0 && readyGroups.length === 0) break
+
+          // Execute ready non-loop nodes
+          if (ready.length > 0) {
+            const results = await Promise.all(ready.map(n => executeNode(n, signal, pushLog)))
+            for (const log of results) {
+              pushLog(log)
+              if (log.status === 'failed') { failedNodes.add(log.nodeId); hasFailed = true }
+              else { completed.add(log.nodeId); if (log.status === 'warning') hasWarning = true }
+            }
+          }
+
+          // Execute ready loop groups
+          for (const group of readyGroups) {
+            if (signal?.aborted) break
+
+            // Empty variable result → mark all nodes as success with 0 rows
+            if (group.values.length === 0) {
+              for (const gn of group.orderedNodes) {
+                pushLog({
+                  nodeId: gn.id, nodeName: gn.name, nodeType: gn.type, status: 'success',
+                  sql: '', affectedRows: 0, actualValue: '0', expectedValue: '循环变量查询结果为空',
+                  timestamp: Date.now(), duration: 0,
+                })
+                completed.add(gn.id)
+              }
+              continue
+            }
+
+            // Pre-loop: truncate target tables for truncate_insert mode
+            for (const gn of group.orderedNodes) {
+              if (gn.type === 'load' && gn.mode === 'truncate_insert' && gn.targetDatasourceId && gn.targetTable) {
+                const tgtDs = await getDataSource(gn.targetDatasourceId)
+                const tableRef = escapeTableRef(gn.targetTable)
+                const isHive = tgtDs.type === 'hive'
+                const truncateSql = isHive ? `TRUNCATE TABLE ${tableRef}` : `DELETE FROM ${tableRef}`
+                const tgtConfig = { type: tgtDs.type, host: tgtDs.host, port: tgtDs.port, user: tgtDs.user, password: tgtDs.password, database: tgtDs.database, filePath: tgtDs.filePath } as const
+                await Promise.race([
+                  executeDbQuery(tgtConfig, truncateSql, 1),
+                  new Promise<never>((_, reject) => setTimeout(() => reject(new Error('清空目标表超时')), QUERY_TIMEOUT_MS)),
+                ])
+              }
+            }
+
+            let groupFailed = false
+            let groupWarning = false
+            for (let i = 0; i < group.values.length; i++) {
+              if (signal?.aborted || groupFailed) break
+              const value = group.values[i].replace(VAR_INJECTION_RE, '')
+              for (const gn of group.orderedNodes) {
+                if (signal?.aborted || groupFailed) break
+                const effectiveNode = gn.type === 'load' && gn.mode === 'truncate_insert' ? { ...gn, mode: 'insert' as const } : gn
+                const log = await executeNode(effectiveNode, signal, pushLog, { varName: group.varName, value })
+                log.nodeId = `${gn.id}-loop-${i}`
+                log.nodeName = `${gn.name} (循环 ${i + 1}/${group.values.length})`
+                pushLog(log)
+                if (log.status === 'failed') groupFailed = true
+                if (log.status === 'warning') groupWarning = true
+              }
+            }
+
+            for (const nid of group.nodeIds) {
+              if (groupFailed) { failedNodes.add(nid); hasFailed = true }
+              else { completed.add(nid); if (groupWarning) hasWarning = true }
+            }
           }
         }
 
