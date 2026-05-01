@@ -218,13 +218,23 @@ class Contacts():
         rec=moments_list.children()[0].rectangle()
         coords=(rec.right-60,rec.bottom-35)
         mouse.click(coords=coords)
-        profile_pane=Desktop(backend='uia').window(**Windows.PopUpProfileWindow)
-        group=profile_pane.child_window(control_type='Group',found_index=3).children()[1]
-        texts=group.descendants(control_type='Text')
-        texts=[item.window_text() for item in texts]
-        myinfo={'昵称':texts[0],'微信号':texts[2],'wxid':wxid}
-        if len(texts)==5:
-            myinfo['地区']=texts[4]
+        profile_pane=moments_window.child_window(class_name='mmui::ProfileUniquePop')
+        text_items=profile_pane.descendants(control_type='Text')
+        texts=[item.window_text() for item in text_items]
+        nickname=''
+        wx_number=''
+        region=''
+        for i,t in enumerate(texts):
+            if t=='微信号：' and i+1<len(texts):
+                wx_number=texts[i+1]
+            elif t=='地区：' and i+1<len(texts):
+                region=texts[i+1]
+            elif t and '：' not in t and t not in ('朋友圈','发消息'):
+                if not nickname:
+                    nickname=t
+        myinfo={'昵称':nickname,'微信号':wx_number,'wxid':wxid}
+        if region:
+            myinfo['地区']=region
         profile_pane.close()
         moments_window.close()
         return myinfo

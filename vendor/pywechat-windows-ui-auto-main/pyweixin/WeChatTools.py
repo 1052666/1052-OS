@@ -377,7 +377,7 @@ class Tools():
         '''查看顶部搜索列表里有没有名为friend的listitem,只能用来查找联系人,群聊,服务号,公众号'''
         texts=[listitem.window_text() for listitem in search_result.children(control_type="ListItem")]
         listitems=search_result.children(control_type='ListItem')
-        if '联系人' in texts or '群聊' in texts or '服务号' in texts or '公众号' in texts:
+        if '联系人' in texts or '群聊' in texts or '服务号' in texts or '公众号' in texts or '最常使用' in texts:
             listitems=[listitem for listitem in listitems if listitem.class_name()=="mmui::SearchContentCellView"]
             listitems=[listitem for listitem in listitems if listitem.window_text()==friend]
             if listitems:
@@ -387,6 +387,11 @@ class Tools():
             listitems=[listitem for listitem in listitems if listitem.window_text()==friend]
             if listitems:
                 return listitems[0]
+        # 兜底: 直接匹配 SearchContentCellView 类型的项
+        cell_items=search_result.children(control_type='ListItem',class_name="mmui::SearchContentCellView")
+        matched=[item for item in cell_items if item.window_text()==friend]
+        if matched:
+            return matched[0]
         return None
     
     @staticmethod
@@ -609,12 +614,14 @@ class Navigator():
                 if name==friend:
                     friend_button=listItems[i]
                     break
-            if i==len(listItems)-1:
+            if not listItems or i==len(listItems)-1:
                 is_last=True
             return friend_button,is_last
 
         if is_maximize is None:
             is_maximize=GlobalConfig.is_maximize
+        if search_pages is None:
+            search_pages=GlobalConfig.search_pages
         is_find=False
         main_window=Navigator.open_weixin(is_maximize=is_maximize)
         #先看看当前微信右侧界面是不是聊天界面可能存在不是聊天界面的情况比如是纯白色的微信的icon
@@ -1056,7 +1063,7 @@ class Navigator():
             is_contact=True
             texts=[listitem.window_text() for listitem in search_result.children(control_type="ListItem")]
             listitems=search_result.children(control_type='ListItem')
-            if '联系人' in texts or '群聊' in texts :
+            if '联系人' in texts or '群聊' in texts or '最常使用' in texts:
                 listitems=[listitem for listitem in listitems if listitem.class_name()=="mmui::SearchContentCellView"]
                 listitems=[listitem for listitem in listitems if listitem.window_text()==friend]
                 if listitems:
@@ -1072,6 +1079,11 @@ class Navigator():
                 listitems=[listitem for listitem in listitems if listitem.window_text()==friend]
                 if listitems:
                     return listitems[0],is_contact
+            # 兜底: 直接匹配 SearchContentCellView 类型的项
+            cell_items=search_result.children(control_type='ListItem',class_name="mmui::SearchContentCellView")
+            matched=[item for item in cell_items if item.window_text()==friend]
+            if matched:
+                return matched[0],is_contact
             return None,is_contact
     
         if is_maximize is None:

@@ -101,6 +101,7 @@ wechatRouter.post('/ui/send-text', async (req, res, next) => {
         text: req.body?.text,
         confirmed: req.body?.confirmed,
         pywechatRoot: req.body?.pywechatRoot,
+        requireBoundWindow: req.body?.requireBoundWindow,
       }),
     )
   } catch (error) {

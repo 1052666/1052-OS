@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
+import * as fsSync from 'node:fs'
 import path from 'node:path'
 import { HttpError } from '../../../http-error.js'
 import {
@@ -262,8 +263,9 @@ async function syncWechatDesktopTargets(config: WechatUiBridgeConfig) {
 
 function extractBotNamesFromProfile(profile: unknown) {
   if (!profile || typeof profile !== 'object') return []
-  const values = Object.values(profile as Record<string, unknown>)
-  return [...new Set(values.map((value) => optionalText(value)).filter((value): value is string => Boolean(value)))]
+  const dict = profile as Record<string, unknown>
+  const nickname = optionalText(dict['昵称'])
+  return nickname ? [nickname] : []
 }
 
 async function ensureWechatUiBridgeBotNames(config: WechatUiBridgeConfig) {
@@ -349,7 +351,11 @@ async function runBridge(
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ) {
   assertEnabled()
-  const python = process.env.WECHAT_UI_AUTO_PYTHON || 'python'
+  const python = process.env.WECHAT_UI_AUTO_PYTHON
+    || (() => {
+      const venvPython = path.resolve(VENDORED_PYWECHAT_ROOT, '.venv', 'Scripts', 'python.exe')
+      try { fsSync.accessSync(venvPython); return venvPython } catch { return 'python' }
+    })()
   const pywechatRoot = await resolvePywechatRoot(args.pywechatRoot)
   const payload = JSON.stringify({ ...args, pywechatRoot })
 
@@ -477,6 +483,7 @@ export async function sendWechatUiBridgeText(input: {
   text?: unknown
   confirmed?: unknown
   pywechatRoot?: unknown
+  requireBoundWindow?: unknown
 }) {
   assertConfirmed(input.confirmed)
   const friend = normalizeText(input.friend, 'friend')
@@ -486,7 +493,7 @@ export async function sendWechatUiBridgeText(input: {
     {
       friend,
       text,
-      requireBoundWindow: true,
+      requireBoundWindow: input.requireBoundWindow === true,
       pywechatRoot: optionalText(input.pywechatRoot),
     },
     SEND_TIMEOUT_MS,
