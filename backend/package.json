@@ -18,7 +18,8 @@
     "multer": "^2.0.2",
     "mysql2": "^3.22.2",
     "ssh2": "^1.17.0",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

@@ -20,8 +20,11 @@ import {
   executeToolCall,
   getAgentToolDefinitions,
   getAgentToolDefinitionsForNames,
+  buildArgsPreview,
+  buildResultPreview,
   type AgentToolRuntimeContext,
 } from './agent.tool.service.js'
+import { isWriteOperation } from './agent.tool.safety.js'
 import {
   chatCompletionStream,
   estimateTokenCount,
@@ -300,22 +303,77 @@ async function* executeToolCallsWithEvents(
   toolCalls: readonly import('./llm.client.js').LLMToolCall[],
   runtimeContext?: AgentToolRuntimeContext,
 ): AsyncGenerator<AgentStreamEvent, LLMConversationMessage[], void> {
-  const toolMessages: LLMConversationMessage[] = []
+  if (toolCalls.length === 0) return []
 
+  // Emit every `tool-started` event upfront so the UI surfaces the full set
+  // of pending calls immediately, before any of them actually start running.
   for (const toolCall of toolCalls) {
-    const name = toolCall.function.name
-    yield { type: 'tool-started', name }
-
-    const toolMessage = await executeToolCall(toolCall, runtimeContext)
-    toolMessages.push(toolMessage)
-
-    const parsed = parseToolResult(toolMessage.content)
     yield {
+      type: 'tool-started',
+      name: toolCall.function.name,
+      callId: toolCall.id,
+      argsPreview: buildArgsPreview(toolCall.function.arguments),
+      dangerous: isWriteOperation(toolCall.function.name),
+    }
+  }
+
+  // Helper: build an enriched tool-finished event from a completed tool message.
+  function buildFinishedEvent(
+    tc: import('./llm.client.js').LLMToolCall,
+    msg: LLMConversationMessage,
+    elapsedMs: number,
+  ): AgentStreamEvent {
+    const parsed = parseToolResult(msg.content)
+    return {
       type: 'tool-finished',
-      name,
+      name: tc.function.name,
       ok: parsed?.ok === true,
       error: parsed?.ok === false ? parsed.error : undefined,
+      callId: tc.id,
+      resultPreview: buildResultPreview(msg.content ?? ''),
+      durationMs: elapsedMs,
     }
+  }
+
+  // Single-call fast path: skip the Promise.race scheduling overhead and
+  // keep behaviour byte-identical to the legacy serial implementation.
+  if (toolCalls.length === 1) {
+    const only = toolCalls[0]
+    const t0 = Date.now()
+    const toolMessage = await executeToolCall(only, runtimeContext)
+    yield buildFinishedEvent(only, toolMessage, Date.now() - t0)
+    return [toolMessage]
+  }
+
+  // Parallel path: when the model emits multiple tool_calls in one assistant
+  // turn it is explicitly signalling that they are independent and can run
+  // concurrently. We dispatch them all together and yield each
+  // `tool-finished` event in completion order (so users see fast tools come
+  // back first), but the returned messages keep INPUT order — required by
+  // OpenAI's tool_call_id ordering contract on the next request.
+  type Settled = {
+    index: number
+    message: LLMConversationMessage
+    elapsedMs: number
+  }
+  const toolMessages: LLMConversationMessage[] = new Array(toolCalls.length)
+  const startTimes: number[] = toolCalls.map(() => Date.now())
+  const tracked: Promise<Settled>[] = toolCalls.map((toolCall, index) =>
+    executeToolCall(toolCall, runtimeContext).then(
+      (message): Settled => ({
+        index,
+        message,
+        elapsedMs: Date.now() - startTimes[index],
+      }),
+    ),
+  )
+  const remaining = new Set<Promise<Settled>>(tracked)
+
+  while (remaining.size > 0) {
+    const settled = await Promise.race(remaining)
+    remaining.delete(tracked[settled.index])
+    toolMessages[settled.index] = settled.message
+    yield buildFinishedEvent(toolCalls[settled.index], settled.message, settled.elapsedMs)
   }
 
   return toolMessages

@@ -12,6 +12,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconClose, IconPlus, IconSend, IconSparkle, IconStop } from '../components/Icons'
 import Markdown from '../components/Markdown'
+import ToolCallPanel, { type ToolCallEntry } from '../components/ToolCallPanel'
 import {
   AgentApi,
   type AgentUploadItem,
@@ -449,6 +450,7 @@ export default function Chat() {
   const [notificationContext, setNotificationContext] =
     useState<NotificationContext | null>(null)
   const [upgradeState, setUpgradeState] = useState('')
+  const [toolCalls, setToolCalls] = useState<ToolCallEntry[]>([])
   const [pendingUploads, setPendingUploads] = useState<AgentUploadItem[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadState, setUploadState] = useState('')
@@ -614,6 +616,7 @@ export default function Chat() {
     abortRef.current?.abort()
     abortRef.current = null
     setUpgradeState('')
+    setToolCalls([])
     const streaming = messagesRef.current.find((message) => message.streaming)
     if (streaming) {
       patchMsg(
@@ -995,6 +998,7 @@ export default function Chat() {
     setPendingUploads([])
     setUploadState('')
     setUpgradeState('')
+    setToolCalls([])
     setLoading(true)
     requestAnimationFrame(() => {
       autosize()
@@ -1012,11 +1016,44 @@ export default function Chat() {
           {
             onDelta: (chunk) => appendDelta(assistantId, chunk),
             onUsage: (usage) => patchMsg(assistantId, { usage }, true),
-            onToolStarted: (name) => setUpgradeState('工具执行中: ' + name),
-            onToolFinished: (name, ok, error) =>
-              setUpgradeState(
-                ok ? '工具已完成: ' + name : '工具失败: ' + name + (error ? ' / ' + error : ''),
-              ),
+            onToolStarted: (info) => {
+              setToolCalls((prev) => [
+                ...prev,
+                {
+                  callId: info.callId || `${Date.now()}-${info.name}`,
+                  name: info.name,
+                  argsPreview: info.argsPreview,
+                  dangerous: info.dangerous,
+                  status: 'running',
+                },
+              ])
+            },
+            onToolFinished: (info) => {
+              setToolCalls((prev) =>
+                prev.map((entry) => {
+                  if (info.callId && entry.callId === info.callId) {
+                    return {
+                      ...entry,
+                      status: info.ok ? 'ok' : 'error',
+                      resultPreview: info.resultPreview,
+                      error: info.error,
+                      durationMs: info.durationMs,
+                    }
+                  }
+                  // Fallback: match by name if callId is missing (legacy)
+                  if (!info.callId && entry.name === info.name && entry.status === 'running') {
+                    return {
+                      ...entry,
+                      status: info.ok ? 'ok' : 'error',
+                      resultPreview: info.resultPreview,
+                      error: info.error,
+                      durationMs: info.durationMs,
+                    }
+                  }
+                  return entry
+                }),
+              )
+            },
             onUpgradeRequested: (packs, reason) =>
               setUpgradeState('申请加载工具包: ' + packs.join(', ') + (reason ? ' / ' + reason : '')),
             onUpgradeApplying: (packs) => setUpgradeState('正在加载工具包: ' + packs.join(', ')),
@@ -1024,6 +1061,9 @@ export default function Chat() {
             onUpgradeAborted: (stage) => setUpgradeState('工具包加载中止: ' + stage),
             onDone: () => {
               setUpgradeState('')
+              // Keep tool call panel visible briefly so user can see final results,
+              // then clear it after 3 seconds.
+              setTimeout(() => setToolCalls([]), 3000)
               patchMsg(assistantId, { streaming: false }, true)
             },
             onError: (message) =>
@@ -1040,6 +1080,7 @@ export default function Chat() {
           controller.signal,
         )
         setUpgradeState('')
+        setToolCalls([])
       } else {
         const { message } = await AgentApi.chat(history)
         patchMsg(
@@ -1402,8 +1443,9 @@ export default function Chat() {
             </button>
           )}
         </div>
+        {toolCalls.length > 0 && <ToolCallPanel entries={toolCalls} />}
         {upgradeState ? <div className="composer-hint">{upgradeState}</div> : null}
-        {!upgradeState && uploadState ? <div className="composer-hint">{uploadState}</div> : null}
+        {!upgradeState && !toolCalls.length && uploadState ? <div className="composer-hint">{uploadState}</div> : null}
         <div className="composer-hint">
           {historyLoaded
             ? (useStream ? '流式响应' : '普通响应') + ' / Enter 发送 / Shift+Enter 换行'

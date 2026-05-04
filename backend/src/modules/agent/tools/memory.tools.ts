@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { HttpError } from '../../../http-error.js'
 import {
   confirmMemorySuggestion,
@@ -18,6 +19,7 @@ import {
   updateSecureMemory,
 } from '../../memory/memory.service.js'
 import type { AgentTool } from '../agent.tool.types.js'
+import { defineAgentTool } from '../agent.tool.define.js'
 
 function assertConfirmed(value: unknown, message: string) {
   if (value !== true) throw new HttpError(400, message)
@@ -46,29 +48,21 @@ export const memoryTools: AgentTool[] = [
       return listMemories(input)
     },
   },
-  {
+  // ── Zod-migrated tools (Phase 3 demonstration) ──────────────────────
+  defineAgentTool({
     name: 'memory_read',
     description: 'Read one confirmed long-term memory by ID. Read-only.',
-    parameters: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Memory ID.' },
-      },
-      required: ['id'],
-      additionalProperties: false,
-    },
-    execute: async (args) => getMemory((args as Record<string, unknown> | undefined)?.id),
-  },
-  {
+    schema: z.object({
+      id: z.string().describe('Memory ID.'),
+    }),
+    execute: async ({ id }) => getMemory(id),
+  }),
+  defineAgentTool({
     name: 'memory_summary',
     description: 'Get long-term memory summary counts and recent confirmed/secure items. Read-only.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      additionalProperties: false,
-    },
+    schema: z.object({}),
     execute: async () => getMemorySummary(),
-  },
+  }),
   {
     name: 'memory_runtime_preview',
     description:

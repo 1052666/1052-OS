@@ -124,11 +124,27 @@ export type TokenUsageStats = {
   peakDay?: TokenUsageBucket
 }
 
+export type ToolStartedInfo = {
+  name: string
+  callId?: string
+  argsPreview?: string
+  dangerous?: boolean
+}
+
+export type ToolFinishedInfo = {
+  name: string
+  ok: boolean
+  error?: string
+  callId?: string
+  resultPreview?: string
+  durationMs?: number
+}
+
 export type StreamHandlers = {
   onDelta: (chunk: string) => void
   onUsage: (usage: TokenUsage) => void
-  onToolStarted?: (name: string) => void
-  onToolFinished?: (name: string, ok: boolean, error?: string) => void
+  onToolStarted?: (info: ToolStartedInfo) => void
+  onToolFinished?: (info: ToolFinishedInfo) => void
   onUpgradeRequested?: (packs: string[], reason: string) => void
   onUpgradeApplying?: (packs: string[]) => void
   onUpgradeApplied?: (packs: string[]) => void
@@ -158,6 +174,11 @@ type StreamEvent = {
   reason?: string
   stage?: string
   error?: string
+  callId?: string
+  argsPreview?: string
+  dangerous?: boolean
+  resultPreview?: string
+  durationMs?: number
 }
 
 export type HistorySaveReason = 'sync' | 'clear' | 'replace' | 'compact' | 'repair'
@@ -259,9 +280,21 @@ export const AgentApi = {
           } else if (obj.type === 'usage' && obj.usage) {
             handlers.onUsage(obj.usage)
           } else if (obj.type === 'tool-started' && typeof obj.name === 'string') {
-            handlers.onToolStarted?.(obj.name)
+            handlers.onToolStarted?.({
+              name: obj.name,
+              callId: obj.callId,
+              argsPreview: obj.argsPreview,
+              dangerous: obj.dangerous,
+            })
           } else if (obj.type === 'tool-finished' && typeof obj.name === 'string') {
-            handlers.onToolFinished?.(obj.name, obj.ok === true, obj.error)
+            handlers.onToolFinished?.({
+              name: obj.name,
+              ok: obj.ok === true,
+              error: obj.error,
+              callId: obj.callId,
+              resultPreview: obj.resultPreview,
+              durationMs: obj.durationMs,
+            })
           } else if (obj.type === 'context-upgrade-requested' && Array.isArray(obj.packs)) {
             handlers.onUpgradeRequested?.(obj.packs, obj.reason ?? '')
           } else if (obj.type === 'context-upgrade-applying' && Array.isArray(obj.packs)) {

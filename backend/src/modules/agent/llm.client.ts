@@ -49,13 +49,6 @@ export type LLMConversationMessage =
       name: string
     }
 
-export type LLMAssistantMessage = {
-  role: 'assistant'
-  content: string
-  toolCalls: LLMToolCall[]
-  usage?: LLMTokenUsage
-}
-
 export type LLMTokenUsage = {
   inputTokens?: number
   outputTokens?: number
@@ -65,18 +58,37 @@ export type LLMTokenUsage = {
   estimated?: boolean
 }
 
-type ToolCallAccumulator = {
-  id?: string
-  type?: string
-  function?: {
-    name?: string
-    arguments?: string
-  }
+export type LLMAssistantMessage = {
+  role: 'assistant'
+  content: string
+  toolCalls: LLMToolCall[]
+  usage?: LLMTokenUsage
+  finishReason?: string
 }
+
+/**
+ * Tool selection strategy. Mirrors OpenAI / Anthropic / Gemini conventions:
+ * - 'auto':     model decides freely (default)
+ * - 'none':     forbid tool use this turn
+ * - 'required': force at least one tool call
+ * - { type: 'function', function: { name } }: force a specific tool
+ */
+export type LLMToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'function'; function: { name: string } }
 
 export type LLMRequestOptions = {
   abortSignal?: AbortSignal
   providerCachingEnabled?: boolean
+  toolChoice?: LLMToolChoice
+  /**
+   * Abort the streaming response if no chunk arrives for this duration (ms).
+   * Set to 0 or omit to disable. Disabled by default to support long-thinking
+   * reasoning models (DeepSeek-R1, MiniMax M2 etc.).
+   */
+  streamIdleTimeoutMs?: number
 }
 
 function normalizeRequestOptions(input?: AbortSignal | LLMRequestOptions): LLMRequestOptions {
@@ -206,6 +218,11 @@ function normalizeToolCalls(value: unknown): LLMToolCall[] {
     .filter((toolCall): toolCall is LLMToolCall => toolCall !== null)
 }
 
+function toApiToolChoice(choice: LLMToolChoice | undefined): unknown {
+  if (!choice) return 'auto'
+  return choice
+}
+
 function buildPayload(
   cfg: LLMConfig,
   messages: LLMConversationMessage[],
@@ -236,9 +253,7 @@ function buildPayload(
 
   if (tools.length > 0) {
     payload.tools = tools
-    if (!miniMaxCompatible) {
-      payload.tool_choice = 'auto'
-    }
+    payload.tool_choice = toApiToolChoice(options.toolChoice)
   }
 
   if (miniMaxCompatible) {
@@ -247,6 +262,15 @@ function buildPayload(
 
   return payload
 }
+
+const REMOVABLE_PARAMS_ON_400: { key: string; pattern: RegExp }[] = [
+  { key: 'stream_options', pattern: /stream_options|include_usage/i },
+  { key: 'prompt_cache_key', pattern: /prompt_cache_key|cache/i },
+  { key: 'reasoning_split', pattern: /reasoning_split/i },
+]
+
+const PARAM_REJECT_PATTERN =
+  /unsupported|invalid|unknown|not support|extra|unrecognized|unexpected/i
 
 async function postChatCompletion(
   cfg: LLMConfig,
@@ -282,111 +306,143 @@ async function postChatCompletion(
     throw httpError(502, `无法连接 LLM: ${(error as Error).message}`)
   }
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
+  if (res.ok) return res
 
+  const body = await res.text().catch(() => '')
+
+  // Drop unsupported optional params and retry — covers OpenAI-compatible
+  // gateways that reject newer fields (prompt_cache_key, stream_options,
+  // reasoning_split) without surfacing a hard error to the caller.
+  for (const { key, pattern } of REMOVABLE_PARAMS_ON_400) {
     if (
-      payload.stream_options &&
-      /stream_options|include_usage/i.test(body) &&
-      /unsupported|invalid|unknown|not support|extra/i.test(body)
+      Object.prototype.hasOwnProperty.call(payload, key) &&
+      pattern.test(body) &&
+      PARAM_REJECT_PATTERN.test(body)
     ) {
       const retryPayload = { ...payload }
-      delete retryPayload.stream_options
+      delete retryPayload[key]
       return postChatCompletion(cfg, retryPayload, tools, abortSignal)
     }
-
-    if (
-      Object.prototype.hasOwnProperty.call(payload, 'prompt_cache_key') &&
-      /prompt_cache_key|cache/i.test(body) &&
-      /unsupported|invalid|unknown|not support|extra|unrecognized|unexpected/i.test(body)
-    ) {
-      const retryPayload = { ...payload }
-      delete retryPayload.prompt_cache_key
-      return postChatCompletion(cfg, retryPayload, tools, abortSignal)
-    }
-
-    if (
-      Object.prototype.hasOwnProperty.call(payload, 'reasoning_split') &&
-      /reasoning_split/i.test(body) &&
-      /unsupported|invalid|unknown|not support|extra/i.test(body)
-    ) {
-      const retryPayload = { ...payload }
-      delete retryPayload.reasoning_split
-      return postChatCompletion(cfg, retryPayload, tools, abortSignal)
-    }
-
-    const maybeToolError =
-      tools.length > 0 &&
-      /tool|function/i.test(body) &&
-      /unsupported|invalid|unknown|not support/i.test(body)
-
-    throw httpError(
-      res.status,
-      maybeToolError
-        ? '当前模型或网关不支持 Agent 工具调用，请切换到支持 function calling 的模型或兼容网关。'
-        : `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`,
-    )
   }
 
-  return res
+  const isToolError =
+    tools.length > 0 && /tool|function/i.test(body) && PARAM_REJECT_PATTERN.test(body)
+
+  throw httpError(
+    res.status,
+    isToolError
+      ? '当前模型或网关不支持 Agent 工具调用，请切换到支持 function calling 的模型或兼容网关。'
+      : `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`,
+  )
 }
 
-function mergeToolCallDelta(toolCalls: Map<number, ToolCallAccumulator>, value: unknown) {
-  if (!Array.isArray(value)) return
+// Streaming tool_calls deltas come in three shapes across providers:
+//
+// 1. OpenAI / Anthropic compatible: every delta carries `index`.
+// 2. Some MiniMax / DeepSeek modes: name + id only on first chunk; subsequent
+//    arguments chunks omit `index` and `id`.
+// 3. Multi tool_calls in a single delta array: positional within the array.
+//
+// The previous implementation used `toolCalls.size` as fallback index, which
+// split a single tool call across many entries and dropped its arguments.
+// ToolCallBuffer below resolves the bucket via, in order:
+//   a) explicit `index`;
+//   b) recognised `id` mapped to a previously created bucket;
+//   c) array position within the same delta event (when multiple items);
+//   d) the most recently touched bucket (continuation of a single call).
 
-  for (const item of value) {
-    if (!item || typeof item !== 'object') continue
-    const delta = item as {
-      index?: unknown
-      id?: unknown
-      type?: unknown
-      function?: {
-        name?: unknown
-        arguments?: unknown
+type ToolCallBucket = {
+  id?: string
+  type?: string
+  name: string
+  arguments: string
+}
+
+class ToolCallBuffer {
+  private byIndex = new Map<number, ToolCallBucket>()
+  private indexById = new Map<string, number>()
+  private lastIndex: number | null = null
+  private orderCounter = 0
+
+  ingest(deltaCalls: unknown): void {
+    if (!Array.isArray(deltaCalls)) return
+
+    for (let arrayPos = 0; arrayPos < deltaCalls.length; arrayPos += 1) {
+      const item = deltaCalls[arrayPos]
+      if (!item || typeof item !== 'object') continue
+      const delta = item as {
+        index?: unknown
+        id?: unknown
+        type?: unknown
+        function?: { name?: unknown; arguments?: unknown }
+      }
+
+      const id = typeof delta.id === 'string' && delta.id.length > 0 ? delta.id : null
+      let resolvedIndex: number | null =
+        typeof delta.index === 'number' && Number.isFinite(delta.index)
+          ? Math.floor(delta.index)
+          : null
+
+      if (resolvedIndex === null && id !== null && this.indexById.has(id)) {
+        resolvedIndex = this.indexById.get(id)!
+      }
+
+      if (resolvedIndex === null) {
+        if (deltaCalls.length > 1) {
+          resolvedIndex = arrayPos
+        } else if (this.lastIndex !== null) {
+          resolvedIndex = this.lastIndex
+        } else {
+          resolvedIndex = this.orderCounter
+        }
+      }
+
+      let bucket = this.byIndex.get(resolvedIndex)
+      if (!bucket) {
+        bucket = { name: '', arguments: '' }
+        this.byIndex.set(resolvedIndex, bucket)
+      }
+
+      this.lastIndex = resolvedIndex
+      if (resolvedIndex >= this.orderCounter) {
+        this.orderCounter = resolvedIndex + 1
+      }
+
+      if (id) {
+        bucket.id = id
+        this.indexById.set(id, resolvedIndex)
+      }
+      if (typeof delta.type === 'string') bucket.type = delta.type
+
+      const fn = delta.function && typeof delta.function === 'object' ? delta.function : null
+      if (fn) {
+        if (typeof fn.name === 'string' && fn.name.length > 0) {
+          bucket.name = bucket.name + fn.name
+        }
+        if (typeof fn.arguments === 'string') {
+          bucket.arguments = bucket.arguments + fn.arguments
+        }
       }
     }
-    const index =
-      typeof delta.index === 'number' && Number.isFinite(delta.index)
-        ? delta.index
-        : toolCalls.size
-    const current = toolCalls.get(index) ?? {}
-
-    if (typeof delta.id === 'string') current.id = delta.id
-    if (typeof delta.type === 'string') current.type = delta.type
-    if (delta.function && typeof delta.function === 'object') {
-      current.function = current.function ?? {}
-      if (typeof delta.function.name === 'string') {
-        current.function.name = delta.function.name
-      }
-      if (typeof delta.function.arguments === 'string') {
-        current.function.arguments = (current.function.arguments ?? '') + delta.function.arguments
-      }
-    }
-
-    toolCalls.set(index, current)
   }
-}
 
-function normalizeAccumulatedToolCalls(toolCalls: Map<number, ToolCallAccumulator>): LLMToolCall[] {
-  return [...toolCalls.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([index, toolCall]) => {
-      if (toolCall.type && toolCall.type !== 'function') return null
-      if (!toolCall.function?.name) return null
-
-      return {
-        id:
-          typeof toolCall.id === 'string' && toolCall.id.length > 0
-            ? toolCall.id
-            : `tool_call_${index + 1}`,
-        type: 'function',
-        function: {
-          name: toolCall.function.name,
-          arguments: toolCall.function.arguments ?? '{}',
-        },
-      }
-    })
-    .filter((toolCall): toolCall is LLMToolCall => toolCall !== null)
+  finalize(): LLMToolCall[] {
+    return [...this.byIndex.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([index, bucket]) => {
+        if (!bucket.name) return null
+        if (bucket.type && bucket.type !== 'function') return null
+        return {
+          id: bucket.id && bucket.id.length > 0 ? bucket.id : `tool_call_${index + 1}`,
+          type: 'function' as const,
+          function: {
+            name: bucket.name,
+            arguments: bucket.arguments || '{}',
+          },
+        }
+      })
+      .filter((toolCall): toolCall is LLMToolCall => toolCall !== null)
+  }
 }
 
 function getStringField(value: Record<string, unknown>, keys: string[]): string {
@@ -502,16 +558,18 @@ export async function chatCompletion(
 
   const data = (await res.json().catch(() => null)) as {
     usage?: unknown
-    choices?: {
+    choices?: Array<{
       message?: {
         role?: string
         content?: string | null
         tool_calls?: unknown
       }
-    }[]
+      finish_reason?: string
+    }>
   } | null
 
-  const message = data?.choices?.[0]?.message
+  const choice = data?.choices?.[0]
+  const message = choice?.message
   const toolCalls = normalizeToolCalls(message?.tool_calls)
   const content = typeof message?.content === 'string' ? message.content : ''
 
@@ -524,6 +582,10 @@ export async function chatCompletion(
     content,
     toolCalls,
     usage: normalizeUsage(data?.usage) ?? fallbackUsage(messages, content),
+    finishReason:
+      typeof choice?.finish_reason === 'string' && choice.finish_reason.length > 0
+        ? choice.finish_reason
+        : undefined,
   }
 }
 
@@ -534,27 +596,80 @@ export async function* chatCompletionStream(
   requestOptions?: AbortSignal | LLMRequestOptions,
 ): AsyncGenerator<string, LLMAssistantMessage, void> {
   const options = normalizeRequestOptions(requestOptions)
-  const abortSignal = options.abortSignal
-  const res = await postChatCompletion(
-    cfg,
-    buildPayload(cfg, messages, tools, true, options),
-    tools,
-    abortSignal,
-  )
+  const externalSignal = options.abortSignal
+  const idleTimeoutMs =
+    typeof options.streamIdleTimeoutMs === 'number' && options.streamIdleTimeoutMs > 0
+      ? options.streamIdleTimeoutMs
+      : 0
+
+  // Compose external abort signal with optional idle-timeout abort.
+  const composite = new AbortController()
+  let idleAborted = false
+  const onExternalAbort = () => composite.abort(externalSignal?.reason)
+  if (externalSignal) {
+    if (externalSignal.aborted) composite.abort(externalSignal.reason)
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+  }
+
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  const armIdleTimer = () => {
+    if (idleTimeoutMs <= 0) return
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      idleAborted = true
+      composite.abort(new Error('idle timeout'))
+    }, idleTimeoutMs)
+  }
+  const clearIdleTimer = () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer)
+      idleTimer = null
+    }
+  }
+  const detachExternal = () => {
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)
+  }
+
+  let res: Response
+  try {
+    armIdleTimer()
+    res = await postChatCompletion(
+      cfg,
+      buildPayload(cfg, messages, tools, true, options),
+      tools,
+      composite.signal,
+    )
+  } catch (error) {
+    clearIdleTimer()
+    detachExternal()
+    if (idleAborted) {
+      throw httpError(504, `LLM 流式响应空闲超时（${Math.floor(idleTimeoutMs / 1000)}s）`)
+    }
+    throw error
+  }
+
   if (!res.body) {
+    clearIdleTimer()
+    detachExternal()
     throw httpError(502, 'LLM 流式响应格式异常：缺少 body')
   }
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder('utf-8')
-  const toolCalls = new Map<number, ToolCallAccumulator>()
+  const toolCallBuffer = new ToolCallBuffer()
   let buffer = ''
   let content = ''
-  let done = false
   let reasoningOpen = false
+  let done = false
   let usage: LLMTokenUsage | undefined
-  const suppressReasoning = tools.length > 0
+  let finishReason: string | undefined
 
+  // Reasoning chunks are now ALWAYS streamed wrapped in <think>...</think>
+  // blocks. Frontend Chat.tsx renders them as collapsible "思考过程" panels;
+  // feishu/wechat/wechat-desktop services strip them before delivery. The
+  // previous suppressReasoning=true (when tools were present) caused
+  // reasoning-only model turns to be reported as empty and surfaced as red
+  // "未找到有效的回复内容或工具调用" errors in the UI.
   const emitContent = function* (chunk: string): Generator<string, void, void> {
     if (!chunk) return
     if (reasoningOpen) {
@@ -569,7 +684,6 @@ export async function* chatCompletionStream(
 
   const emitReasoning = function* (chunk: string): Generator<string, void, void> {
     if (!chunk) return
-    if (suppressReasoning) return
     if (!reasoningOpen) {
       const open = '<think>\n'
       reasoningOpen = true
@@ -590,18 +704,31 @@ export async function* chatCompletionStream(
         continue
       }
 
-      const obj = JSON.parse(data) as {
+      let obj: {
         usage?: unknown
-        choices?: {
+        choices?: Array<{
           delta?: Record<string, unknown> & {
             content?: unknown
             tool_calls?: unknown
           }
-        }[]
+          finish_reason?: string
+        }>
+      }
+      try {
+        obj = JSON.parse(data)
+      } catch {
+        // Tolerate malformed fragments emitted by some gateways.
+        continue
       }
 
       usage = normalizeUsage(obj.usage) ?? usage
-      const delta = obj.choices?.[0]?.delta
+      const choice = obj.choices?.[0]
+      if (!choice) continue
+      if (typeof choice.finish_reason === 'string' && choice.finish_reason.length > 0) {
+        finishReason = choice.finish_reason
+      }
+
+      const delta = choice.delta
       if (!delta) continue
 
       const reasoning = getStringField(delta, ['reasoning_content', 'reasoning', 'thinking'])
@@ -611,13 +738,14 @@ export async function* chatCompletionStream(
         yield* emitContent(delta.content)
       }
 
-      mergeToolCallDelta(toolCalls, delta.tool_calls)
+      toolCallBuffer.ingest(delta.tool_calls)
     }
   }
 
   try {
     while (!done) {
       const { value, done: readDone } = await reader.read()
+      armIdleTimer()
       if (readDone) break
 
       buffer += decoder.decode(value, { stream: true })
@@ -636,15 +764,22 @@ export async function* chatCompletionStream(
       yield* handleEvent(buffer)
     }
   } catch (error) {
-    if (abortSignal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+    if (externalSignal?.aborted) {
       throw httpError(499, 'LLM stream aborted')
+    }
+    if (idleAborted) {
+      throw httpError(
+        504,
+        `LLM 流式响应空闲超时（${Math.floor(idleTimeoutMs / 1000)}s 内未收到任何数据）`,
+      )
     }
     throw httpError(502, `LLM 流式响应解析失败: ${(error as Error).message}`)
   } finally {
+    clearIdleTimer()
+    detachExternal()
     reader.releaseLock()
   }
 
-  const normalizedToolCalls = normalizeAccumulatedToolCalls(toolCalls)
   if (reasoningOpen) {
     const close = '\n</think>\n\n'
     reasoningOpen = false
@@ -652,6 +787,10 @@ export async function* chatCompletionStream(
     yield close
   }
 
+  const normalizedToolCalls = toolCallBuffer.finalize()
+
+  // Reasoning is now part of `content` (wrapped in <think>...</think>), so
+  // a reasoning-only turn no longer trips this check.
   if (content.length === 0 && normalizedToolCalls.length === 0) {
     throw httpError(502, 'LLM 响应格式异常：未找到有效的回复内容或工具调用')
   }
@@ -661,5 +800,6 @@ export async function* chatCompletionStream(
     content,
     toolCalls: normalizedToolCalls,
     usage: usage ?? fallbackUsage(messages, content),
+    finishReason,
   }
 }
