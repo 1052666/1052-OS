@@ -1,6 +1,7 @@
 ﻿import { useEffect, useState, type ReactNode } from 'react'
 import {
   SettingsApi,
+  type LlmApiFormat,
   type LlmTaskKind,
   type LlmTaskRoute,
   type LocalModelDiscoveryResult,
@@ -65,7 +66,6 @@ const ZHIPU_PRESETS: LlmPresetGroup = {
 }
 
 const LLM_ENDPOINT_PRESETS: readonly LlmPreset[] = [
-  { name: '1052 API', baseUrl: 'https://api.lxj.asia/v1', modelId: 'deepseek-v4-flash-search' },
   { name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', modelId: 'gpt-4.1-mini' },
   { name: 'MiniMax Global', baseUrl: 'https://api.minimax.io/v1', modelId: 'MiniMax-M2.7' },
   { name: 'MiniMax 中国区', baseUrl: 'https://api.minimaxi.com/v1', modelId: 'MiniMax-M2.7' },
@@ -134,7 +134,6 @@ type AppearanceConfirmation =
   | null
 
 type LlmProviderKey =
-  | '1052-api'
   | 'openai'
   | 'minimax'
   | 'gemini'
@@ -145,7 +144,6 @@ type LlmProviderKey =
   | 'zhipu'
 
 const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }> = {
-  '1052-api': { name: '1052 API', url: 'https://api.lxj.asia/register?aff=UOBG' },
   openai: { name: 'OpenAI', url: 'https://platform.openai.com/api-keys' },
   minimax: { name: 'MiniMax', url: 'https://platform.minimaxi.com/' },
   gemini: { name: 'Gemini', url: 'https://aistudio.google.com/app/apikey' },
@@ -158,7 +156,6 @@ const LLM_API_KEY_PORTALS: Record<LlmProviderKey, { name: string; url: string }>
 
 function detectLlmProvider(baseUrl: string, modelId: string): LlmProviderKey {
   const value = `${baseUrl} ${modelId}`.toLowerCase()
-  if (value.includes('api.lxj.asia') || value.includes('deepseek-v4-flash-search')) return '1052-api'
   if (value.includes('openrouter')) return 'openrouter'
   if (value.includes('bigmodel.cn')) return 'zhipu'
   if (value.includes('minimax') || value.includes('minimaxi')) return 'minimax'
@@ -215,6 +212,7 @@ export default function Settings() {
   const [appearanceExperimentalConfirmed, setAppearanceExperimentalConfirmed] = useState(false)
   const [baseUrl, setBaseUrl] = useState('')
   const [modelId, setModelId] = useState('')
+  const [llmApiFormat, setLlmApiFormat] = useState<LlmApiFormat>('openai-compatible')
   const [apiKey, setApiKey] = useState('')
   const [llmTaskRoutes, setLlmTaskRoutes] = useState<LlmTaskRoute[]>([])
   const [localDiscovery, setLocalDiscovery] = useState<LocalModelDiscoveryResult | null>(null)
@@ -282,6 +280,7 @@ export default function Settings() {
         setLoaded(settings)
         setBaseUrl(settings.llm.baseUrl)
         setModelId(settings.llm.modelId)
+        setLlmApiFormat(settings.llm.apiFormat)
         setLlmTaskRoutes(settings.llm.taskRoutes)
         setImageApiFormat(settings.imageGeneration.apiFormat)
         setImageBaseUrl(settings.imageGeneration.baseUrl)
@@ -373,6 +372,7 @@ export default function Settings() {
     setLoaded(settings)
     setBaseUrl(settings.llm.baseUrl)
     setModelId(settings.llm.modelId)
+    setLlmApiFormat(settings.llm.apiFormat)
     setApiKey('')
     setLlmTaskRoutes(settings.llm.taskRoutes)
   }
@@ -435,6 +435,7 @@ export default function Settings() {
       llm: {
         baseUrl: baseUrl.trim(),
         modelId: modelId.trim(),
+        apiFormat: llmApiFormat,
         taskRoutes: llmTaskRoutes,
         ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
       },
@@ -783,7 +784,7 @@ export default function Settings() {
                             <strong>{profile.name}</strong>
                             <span>{profile.kind === 'local' ? 'Local' : 'Cloud'}</span>
                           </div>
-                          <div className="settings-model-card-meta">{profile.provider} · {profile.modelId}</div>
+                          <div className="settings-model-card-meta">{profile.provider} · {profile.apiFormat} · {profile.modelId}</div>
                           <div className="settings-model-card-url">{profile.baseUrl}</div>
                           <button
                             className="chip"
@@ -883,16 +884,42 @@ export default function Settings() {
 
               <div className="settings-row">
                 <div className="settings-row-label">
+                  <div className="settings-row-title">API 格式</div>
+                  <div className="settings-row-desc">
+                    选择 LLM 接口协议。OpenAI 兼容适用于大多数服务；Anthropic 适用于 Claude；Gemini 适用于 Google AI Studio / Vertex AI。
+                  </div>
+                </div>
+                <select
+                  className="settings-input"
+                  value={llmApiFormat}
+                  onChange={(event) => setLlmApiFormat(event.target.value as LlmApiFormat)}
+                >
+                  <option value="openai-compatible">OpenAI 兼容</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="gemini">Google Gemini</option>
+                </select>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
                   <div className="settings-row-title">Base URL</div>
                   <div className="settings-row-desc">
-                    OpenAI 兼容聊天接口的基础地址，后端会自动拼接 `/chat/completions`。
+                    {llmApiFormat === 'openai-compatible'
+                      ? 'OpenAI 兼容接口基础地址，后端自动拼接 /chat/completions。'
+                      : llmApiFormat === 'anthropic'
+                        ? 'Anthropic API 基础地址，例如 https://api.anthropic.com。'
+                        : 'Gemini API 基础地址，例如 https://generativelanguage.googleapis.com。'}
                   </div>
                 </div>
                 <input
                   className="settings-input"
                   value={baseUrl}
                   onChange={(event) => setBaseUrl(event.target.value)}
-                  placeholder="https://api.openai.com/v1"
+                  placeholder={
+                    llmApiFormat === 'anthropic' ? 'https://api.anthropic.com'
+                    : llmApiFormat === 'gemini' ? 'https://generativelanguage.googleapis.com'
+                    : 'https://api.openai.com/v1'
+                  }
                 />
               </div>
 
@@ -1242,19 +1269,19 @@ export default function Settings() {
                 <div className="settings-row-label">
                   <div className="settings-row-title">聊天上下文条数</div>
                   <div className="settings-row-desc">
-                    控制每次发给模型的最近聊天消息条数。默认 50 条，范围 1-300 条。
+                    控制每次发给模型的最近聊天消息条数。默认 50 条，范围 1-999 条。
                   </div>
                 </div>
                 <input
                   className="settings-input"
                   type="number"
                   min={1}
-                  max={300}
+                  max={999}
                   step={1}
                   value={contextMessageLimit}
                   onChange={(event) =>
                     setContextMessageLimit(
-                      Math.max(1, Math.min(300, Number(event.target.value) || 1)),
+                      Math.max(1, Math.min(999, Number(event.target.value) || 1)),
                     )
                   }
                 />

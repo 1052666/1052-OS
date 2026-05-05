@@ -12,22 +12,40 @@ export type ToolCallEntry = {
 }
 
 const panelStyle: CSSProperties = {
-  margin: '8px auto 0',
+  margin: '4px auto 0',
   maxWidth: 640,
   width: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 3,
   fontSize: 12,
   lineHeight: 1.5,
+}
+
+const headerStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '3px 8px',
+  borderRadius: 6,
+  background: 'var(--surface-1, #f5f5f5)',
+  color: 'var(--fg-2, #555)',
+  cursor: 'pointer',
+  userSelect: 'none',
+}
+
+const listStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  marginTop: 2,
+  maxHeight: 200,
+  overflowY: 'auto',
 }
 
 const rowStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  padding: '3px 8px',
-  borderRadius: 6,
+  padding: '2px 8px 2px 16px',
+  borderRadius: 4,
   background: 'var(--surface-1, #f5f5f5)',
   color: 'var(--fg-2, #555)',
   overflow: 'hidden',
@@ -90,7 +108,7 @@ const ToolCallRow = memo(function ToolCallRow({ entry }: { entry: ToolCallEntry 
 
   const toggleExpand = () => {
     if (entry.status !== 'running' && (entry.resultPreview || entry.error)) {
-      setExpanded((v) => !v)
+      setExpanded((v: boolean) => !v)
     }
   }
 
@@ -128,12 +146,37 @@ const ToolCallRow = memo(function ToolCallRow({ entry }: { entry: ToolCallEntry 
 })
 
 function ToolCallPanel({ entries }: { entries: ToolCallEntry[] }) {
+  const [expanded, setExpanded] = useState(false)
+
   if (entries.length === 0) return null
+
+  const running = entries.filter((e) => e.status === 'running').length
+  const done = entries.filter((e) => e.status !== 'running').length
+  const errors = entries.filter((e) => e.status === 'error').length
+  const latestRunning = entries.find((e) => e.status === 'running')
+
+  const summaryParts: string[] = []
+  if (running > 0) summaryParts.push(`${running} 执行中`)
+  if (done > 0) summaryParts.push(`${done} 已完成`)
+  if (errors > 0) summaryParts.push(`${errors} 失败`)
+  const summary = summaryParts.join(' / ')
+
   return (
     <div style={panelStyle}>
-      {entries.map((entry) => (
-        <ToolCallRow key={entry.callId} entry={entry} />
-      ))}
+      <div style={headerStyle} onClick={() => setExpanded((v: boolean) => !v)}>
+        <span style={{ fontSize: 10, flexShrink: 0 }}>{expanded ? '▼' : '▶'}</span>
+        <span>🔧 工具调用 ({summary})</span>
+        {!expanded && latestRunning && (
+          <span style={{ ...argsStyle, marginLeft: 4 }}>{latestRunning.name}{latestRunning.argsPreview ? ` (${latestRunning.argsPreview})` : ''}</span>
+        )}
+      </div>
+      {expanded && (
+        <div style={listStyle}>
+          {entries.map((entry) => (
+            <ToolCallRow key={entry.callId} entry={entry} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

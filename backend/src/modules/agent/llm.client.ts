@@ -5,6 +5,8 @@ import {
 } from './agent.cache-policy.service.js'
 import { isMiniMaxCompatible } from './agent.provider.js'
 import type { LLMProfileKind, LLMProviderKind } from '../settings/settings.types.js'
+import { resolveAdapter } from './llm-providers/index.js'
+import type { LLMApiFormat, StreamChunkResult, LLMProviderAdapter } from './llm-providers/types.js'
 
 export type LLMConfig = {
   baseUrl: string
@@ -12,6 +14,7 @@ export type LLMConfig = {
   apiKey: string
   kind?: LLMProfileKind
   provider?: LLMProviderKind
+  apiFormat?: LLMApiFormat
 }
 
 export type LLMToolDefinition = {
@@ -325,6 +328,20 @@ async function postChatCompletion(
     }
   }
 
+  // Auto-recover from orphaned / invalid tool_call_id 400 errors.
+  // Instead of silently dropping, convert the bad tool_call pairs into a
+  // readable user message so the model sees the error and can self-correct.
+  if (res.status === 400 && /call_id|tool_call/i.test(body)) {
+    const messages = payload.messages as Array<Record<string, unknown>> | undefined
+    if (messages && !payload.__orphanRetried) {
+      const cleaned = sanitizeToolCallMessages(messages, tools)
+      if (cleaned !== messages) {
+        const retryPayload = { ...payload, messages: cleaned, __orphanRetried: true }
+        return postChatCompletion(cfg, retryPayload, tools, abortSignal)
+      }
+    }
+  }
+
   const isToolError =
     tools.length > 0 && /tool|function/i.test(body) && PARAM_REJECT_PATTERN.test(body)
 
@@ -334,6 +351,123 @@ async function postChatCompletion(
       ? '当前模型或网关不支持 Agent 工具调用，请切换到支持 function calling 的模型或兼容网关。'
       : `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`,
   )
+}
+
+type ToolCallEntry = { id?: string; function?: { name?: string; arguments?: string } }
+
+/**
+ * Sanitize messages that contain invalid tool_call references.
+ *
+ * For each assistant message, if any tool_calls reference a function name
+ * that isn't in the current `tools` list (hallucinated tool), we:
+ * 1. Remove those entries from the assistant's tool_calls array.
+ * 2. Collect the corresponding tool-result messages.
+ * 3. Inject a user-role message summarising the error so the model can
+ *    see what went wrong and call the correct tool.
+ *
+ * Returns the original array reference unchanged if no fix was needed.
+ */
+function sanitizeToolCallMessages(
+  messages: Array<Record<string, unknown>>,
+  tools: LLMToolDefinition[],
+): Array<Record<string, unknown>> {
+  const validToolNames = new Set(
+    tools.map((t) => (t as { function?: { name?: string } }).function?.name).filter(Boolean),
+  )
+
+  // Collect all valid call_ids from assistant tool_calls
+  const allCallIds = new Set<string>()
+  const badCallIds = new Set<string>()
+  const badCallInfo = new Map<string, { name: string; args: string; result?: string }>()
+
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls as ToolCallEntry[]) {
+        const id = tc.id ?? ''
+        const name = tc.function?.name ?? ''
+        allCallIds.add(id)
+        if (name && !validToolNames.has(name)) {
+          badCallIds.add(id)
+          badCallInfo.set(id, { name, args: tc.function?.arguments ?? '' })
+        }
+      }
+    }
+  }
+
+  // Also find orphan tool messages (tool_call_id not matching any assistant)
+  for (const msg of messages) {
+    if (msg.role === 'tool') {
+      const callId = (msg as { tool_call_id?: string }).tool_call_id ?? ''
+      if (callId && !allCallIds.has(callId)) {
+        badCallIds.add(callId)
+      }
+    }
+  }
+
+  if (badCallIds.size === 0) return messages
+
+  // Collect result content from bad tool result messages
+  for (const msg of messages) {
+    if (msg.role === 'tool') {
+      const callId = (msg as { tool_call_id?: string }).tool_call_id ?? ''
+      if (badCallIds.has(callId)) {
+        const info = badCallInfo.get(callId)
+        if (info) info.result = String(msg.content ?? '')
+      }
+    }
+  }
+
+  // Build cleaned messages
+  const result: Array<Record<string, unknown>> = []
+  for (const msg of messages) {
+    if (msg.role === 'tool') {
+      const callId = (msg as { tool_call_id?: string }).tool_call_id ?? ''
+      if (badCallIds.has(callId)) continue // skip orphaned tool result
+      result.push(msg)
+      continue
+    }
+
+    if (msg.role === 'assistant' && Array.isArray(msg.tool_calls)) {
+      const goodCalls = (msg.tool_calls as ToolCallEntry[]).filter(
+        (tc) => !badCallIds.has(tc.id ?? ''),
+      )
+      const removedCalls = (msg.tool_calls as ToolCallEntry[]).filter(
+        (tc) => badCallIds.has(tc.id ?? ''),
+      )
+
+      if (removedCalls.length === 0) {
+        result.push(msg)
+        continue
+      }
+
+      // Build error feedback message
+      const errorLines = removedCalls.map((tc) => {
+        const info = badCallInfo.get(tc.id ?? '')
+        return info
+          ? `- 你尝试调用了 "${info.name}"，但该工具不存在。请检查可用工具列表后重试。`
+          : `- 工具调用 ${tc.id} 无效。`
+      })
+      const feedbackMsg: Record<string, unknown> = {
+        role: 'user',
+        content: `[系统提示] 上一轮部分工具调用失败：\n${errorLines.join('\n')}\n请根据当前可用工具重新选择正确的工具完成任务。`,
+      }
+
+      if (goodCalls.length > 0) {
+        // Keep assistant message with only the valid tool_calls
+        result.push({ ...msg, tool_calls: goodCalls })
+      } else if (typeof msg.content === 'string' && msg.content.trim()) {
+        // Keep the text content as a plain assistant message
+        result.push({ role: 'assistant', content: msg.content })
+      }
+      // Inject the feedback message
+      result.push(feedbackMsg)
+      continue
+    }
+
+    result.push(msg)
+  }
+
+  return result
 }
 
 // Streaming tool_calls deltas come in three shapes across providers:
@@ -549,6 +683,43 @@ export async function chatCompletion(
   requestOptions?: AbortSignal | LLMRequestOptions,
 ): Promise<LLMAssistantMessage> {
   const options = normalizeRequestOptions(requestOptions)
+  const adapter = resolveAdapter(cfg)
+  const adapterCtx = { cfg, messages, tools, stream: false, options }
+
+  if (adapter.format !== 'openai-compatible') {
+    // Non-OpenAI path: adapter handles request building and response parsing
+    const req = adapter.buildRequest(adapterCtx)
+    if (!cfg.baseUrl) throw httpError(400, 'LLM baseUrl 未配置，请前往设置页填写')
+    if (!cfg.modelId) throw httpError(400, 'LLM modelId 未配置，请前往设置页填写')
+
+    let res: Response
+    try {
+      res = await fetch(req.url, {
+        method: 'POST',
+        headers: req.headers,
+        body: JSON.stringify(req.body),
+        signal: options.abortSignal,
+      })
+    } catch (error) {
+      if (options.abortSignal?.aborted) throw httpError(499, 'LLM request aborted')
+      throw httpError(502, `无法连接 LLM: ${(error as Error).message}`)
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw httpError(res.status, `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`)
+    }
+
+    const json = await res.json().catch(() => null)
+    const result = adapter.parseResponse(json, adapterCtx)
+    if (!result.content && result.toolCalls.length === 0) {
+      throw httpError(502, 'LLM 响应格式异常：未找到有效的回复内容或工具调用')
+    }
+    result.usage = result.usage ?? fallbackUsage(messages, result.content)
+    return result
+  }
+
+  // OpenAI-compatible path: use existing battle-tested logic with retry/sanitize
   const res = await postChatCompletion(
     cfg,
     buildPayload(cfg, messages, tools, false, options),
@@ -596,6 +767,14 @@ export async function* chatCompletionStream(
   requestOptions?: AbortSignal | LLMRequestOptions,
 ): AsyncGenerator<string, LLMAssistantMessage, void> {
   const options = normalizeRequestOptions(requestOptions)
+  const adapter = resolveAdapter(cfg)
+
+  if (adapter.format !== 'openai-compatible') {
+    return yield* adapterStream(cfg, messages, tools, options, adapter)
+  }
+
+  // ── OpenAI-compatible streaming (existing battle-tested logic) ────
+
   const externalSignal = options.abortSignal
   const idleTimeoutMs =
     typeof options.streamIdleTimeoutMs === 'number' && options.streamIdleTimeoutMs > 0
@@ -791,6 +970,150 @@ export async function* chatCompletionStream(
 
   // Reasoning is now part of `content` (wrapped in <think>...</think>), so
   // a reasoning-only turn no longer trips this check.
+  if (content.length === 0 && normalizedToolCalls.length === 0) {
+    throw httpError(502, 'LLM 响应格式异常：未找到有效的回复内容或工具调用')
+  }
+
+  return {
+    role: 'assistant',
+    content,
+    toolCalls: normalizedToolCalls,
+    usage: usage ?? fallbackUsage(messages, content),
+    finishReason,
+  }
+}
+
+// ── Adapter-based streaming (Anthropic, Gemini, custom) ──────────
+
+async function* adapterStream(
+  cfg: LLMConfig,
+  messages: LLMConversationMessage[],
+  tools: LLMToolDefinition[],
+  options: LLMRequestOptions,
+  adapter: LLMProviderAdapter,
+): AsyncGenerator<string, LLMAssistantMessage, void> {
+  const adapterCtx = { cfg, messages, tools, stream: true, options }
+  const req = adapter.buildRequest(adapterCtx)
+
+  if (!cfg.baseUrl) throw httpError(400, 'LLM baseUrl 未配置，请前往设置页填写')
+  if (!cfg.modelId) throw httpError(400, 'LLM modelId 未配置，请前往设置页填写')
+
+  const externalSignal = options.abortSignal
+  const idleTimeoutMs =
+    typeof options.streamIdleTimeoutMs === 'number' && options.streamIdleTimeoutMs > 0
+      ? options.streamIdleTimeoutMs
+      : 0
+
+  const composite = new AbortController()
+  let idleAborted = false
+  const onExternalAbort = () => composite.abort(externalSignal?.reason)
+  if (externalSignal) {
+    if (externalSignal.aborted) composite.abort(externalSignal.reason)
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+  }
+
+  let idleTimer: ReturnType<typeof setTimeout> | null = null
+  const armIdleTimer = () => {
+    if (idleTimeoutMs <= 0) return
+    if (idleTimer) clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => { idleAborted = true; composite.abort(new Error('idle timeout')) }, idleTimeoutMs)
+  }
+  const clearIdleTimer = () => { if (idleTimer) { clearTimeout(idleTimer); idleTimer = null } }
+  const detachExternal = () => { if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort) }
+
+  let res: Response
+  try {
+    armIdleTimer()
+    res = await fetch(req.url, {
+      method: 'POST',
+      headers: req.headers,
+      body: JSON.stringify(req.body),
+      signal: composite.signal,
+    })
+  } catch (error) {
+    clearIdleTimer(); detachExternal()
+    if (idleAborted) throw httpError(504, `LLM 流式响应空闲超时（${Math.floor(idleTimeoutMs / 1000)}s）`)
+    if (externalSignal?.aborted) throw httpError(499, 'LLM request aborted')
+    throw httpError(502, `无法连接 LLM: ${(error as Error).message}`)
+  }
+
+  if (!res.ok) {
+    clearIdleTimer(); detachExternal()
+    const body = await res.text().catch(() => '')
+    throw httpError(res.status, `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`)
+  }
+
+  if (!res.body) {
+    clearIdleTimer(); detachExternal()
+    throw httpError(502, 'LLM 流式响应格式异常：缺少 body')
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  const parser = adapter.createStreamParser(adapterCtx)
+  const toolCallBuffer = new ToolCallBuffer()
+  let buffer = ''
+  let content = ''
+  let reasoningOpen = false
+  let streamDone = false
+  let usage: LLMTokenUsage | undefined
+  let finishReason: string | undefined
+
+  function* processChunk(chunk: StreamChunkResult): Generator<string, void, void> {
+    if (chunk.usage) usage = chunk.usage
+    if (chunk.finishReason) finishReason = chunk.finishReason
+    if (chunk.done) { streamDone = true; return }
+
+    // Reasoning → <think> blocks
+    if (chunk.reasoning) {
+      if (!reasoningOpen) { const open = '<think>\n'; reasoningOpen = true; content += open; yield open }
+      content += chunk.reasoning; yield chunk.reasoning
+    }
+    // Content → close reasoning if open
+    if (chunk.content) {
+      if (reasoningOpen) { const close = '\n</think>\n\n'; reasoningOpen = false; content += close; yield close }
+      content += chunk.content; yield chunk.content
+    }
+    // Tool call deltas
+    if (chunk.toolCallDeltas) toolCallBuffer.ingest(chunk.toolCallDeltas)
+  }
+
+  try {
+    while (!streamDone) {
+      const { value, done: readDone } = await reader.read()
+      armIdleTimer()
+      if (readDone) break
+
+      buffer += decoder.decode(value, { stream: true })
+      // Split on line boundaries (SSE events separated by blank lines or single newlines)
+      const lines = buffer.split(/\r?\n/)
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        const chunks = parser.feedLine(line)
+        for (const c of chunks) { yield* processChunk(c); if (streamDone) break }
+        if (streamDone) break
+      }
+    }
+
+    const rest = decoder.decode()
+    if (rest) buffer += rest
+    if (buffer.trim()) {
+      const chunks = parser.feedLine(buffer)
+      for (const c of chunks) yield* processChunk(c)
+    }
+    for (const c of parser.flush()) yield* processChunk(c)
+  } catch (error) {
+    if (externalSignal?.aborted) throw httpError(499, 'LLM stream aborted')
+    if (idleAborted) throw httpError(504, `LLM 流式响应空闲超时（${Math.floor(idleTimeoutMs / 1000)}s 内未收到任何数据）`)
+    throw httpError(502, `LLM 流式响应解析失败: ${(error as Error).message}`)
+  } finally {
+    clearIdleTimer(); detachExternal(); reader.releaseLock()
+  }
+
+  if (reasoningOpen) { const close = '\n</think>\n\n'; content += close; yield close }
+
+  const normalizedToolCalls = toolCallBuffer.finalize()
   if (content.length === 0 && normalizedToolCalls.length === 0) {
     throw httpError(502, 'LLM 响应格式异常：未找到有效的回复内容或工具调用')
   }

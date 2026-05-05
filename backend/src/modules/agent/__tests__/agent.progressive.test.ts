@@ -7,7 +7,6 @@ import {
 } from '../agent.pack.service.js'
 import {
   MAX_PACKS_PER_UPGRADE,
-  MAX_UPGRADES_PER_MESSAGE,
   validateContextUpgradeRequest,
 } from '../agent.upgrade.service.js'
 import {
@@ -242,26 +241,32 @@ describe('agent progressive disclosure helpers', () => {
     expect(describePackForRouting('settings-pack')).toContain('早报')
   })
 
-  it('enforces per-upgrade pack count and per-message upgrade count', () => {
+  it('enforces per-upgrade pack count limit', () => {
     expect(() =>
       validateContextUpgradeRequest(
         {
-          packs: ['repo-pack', 'search-pack', 'memory-pack'],
+          packs: [
+            'repo-pack', 'search-pack', 'memory-pack', 'skill-pack',
+            'data-pack', 'plan-pack', 'channel-pack', 'image-pack', 'settings-pack',
+          ],
           reason: 'too many packs',
         },
         0,
       ),
     ).toThrow(String(MAX_PACKS_PER_UPGRADE))
+  })
 
+  it('allows unlimited upgrades per message', () => {
+    // Should not throw even with a very high upgrade count
     expect(() =>
       validateContextUpgradeRequest(
         {
           packs: ['repo-pack'],
-          reason: 'too many upgrades',
+          reason: 'still going',
         },
-        MAX_UPGRADES_PER_MESSAGE,
+        100,
       ),
-    ).toThrow('upgrade_limit_reached')
+    ).not.toThrow()
   })
 
   it('caps injected checkpoint summary size', () => {

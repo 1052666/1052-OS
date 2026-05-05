@@ -71,6 +71,13 @@ function stripInternalDiagnostics(content: string) {
 export function sanitizeContentForModel(role: ChatMessage['role'], content: string) {
   const withoutThought = stripThinkBlocks(content)
   if (role === 'assistant' && isRequestFailureContent(withoutThought)) return ''
+  // User messages are passed through without redaction — the user may need the
+  // Agent to process API keys, tokens, or passwords (e.g. saving to secure
+  // memory or updating a configuration). Only redact in assistant/system
+  // historical messages to prevent leaking secrets back into visible context.
+  if (role === 'user') {
+    return stripInternalDiagnostics(withoutThought)
+  }
   return stripInternalDiagnostics(redactSensitiveText(withoutThought))
 }
 
@@ -97,6 +104,27 @@ export function toModelChatMessages<T extends ChatMessage & { error?: boolean }>
     .map((message) => sanitizeChatMessageForModel(message))
     .filter((message): message is ChatMessage => message !== null)
   return sanitized.slice(-Math.max(1, limit))
+}
+
+/**
+ * Slice conversation messages from the end without orphaning tool-result
+ * messages. If a naive `.slice(-limit)` would start inside a tool-call group
+ * (assistant+toolCalls → tool results), this moves the cut point earlier to
+ * include the entire group — preventing the LLM provider from rejecting
+ * orphaned tool_call_ids with a 400 error.
+ */
+export function safeSliceMessages<T extends { role: string }>(messages: readonly T[], limit: number): T[] {
+  if (messages.length <= limit) return [...messages]
+  let start = messages.length - Math.max(1, limit)
+
+  // Walk backwards from the cut point: if we land on a 'tool' message, move
+  // the start earlier until we pass all consecutive tool messages and reach
+  // their parent 'assistant' message.
+  while (start > 0 && messages[start]!.role === 'tool') {
+    start--
+  }
+
+  return messages.slice(start)
 }
 
 function normalizeKnownSystemInstruction(content: string) {

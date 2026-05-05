@@ -55,13 +55,13 @@ import {
 import { appendAgentRuntimeLog } from './agent.runtime-log.service.js'
 import {
   formatSafeCallerSystemInstructions,
+  safeSliceMessages,
   sanitizeCheckpointTextForModel,
   toModelChatMessages,
 } from './agent.context-sanitizer.service.js'
 import { maybeCreateInferredMemorySuggestion } from './agent.memory-autosuggest.service.js'
 
 const MAX_TOOL_ROUNDS = 450
-const PROGRESSIVE_HISTORY_LIMIT = 6
 
 type AgentRunOptions = {
   runtimeContext?: AgentToolRuntimeContext
@@ -424,8 +424,9 @@ async function buildProgressiveMessages(input: {
   morningBriefContext: string
 }) {
   const checkpoint = await getCheckpoint(input.checkpointSessionId)
-  const progressiveHistory = input.history.slice(
-    -Math.max(1, Math.min(PROGRESSIVE_HISTORY_LIMIT * 4, input.contextMessageLimit * 2)),
+  const progressiveHistory = safeSliceMessages(
+    input.history,
+    Math.max(1, input.contextMessageLimit * 2),
   )
   const extraSections = await maybeBuildExtraSections(
     input.mountedPacks,
@@ -553,7 +554,7 @@ async function* runProgressiveStream(
   let checkpoint = await ensureCheckpointSeedForSession(sessionId, history, storedMessages)
   let conversation = normalizeHistoryForProgressive(
     history,
-    Math.max(1, Math.min(PROGRESSIVE_HISTORY_LIMIT, settings.agent.contextMessageLimit)),
+    Math.max(1, settings.agent.contextMessageLimit),
   )
 
   if (settings.agent.checkpointEnabled && latestUserContent && !checkpoint.goal) {

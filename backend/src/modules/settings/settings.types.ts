@@ -1,5 +1,10 @@
 export type LLMProfileKind = 'cloud' | 'local'
 
+export type LLMApiFormat =
+  | 'openai-compatible'
+  | 'anthropic'
+  | 'gemini'
+
 export type LLMProviderKind =
   | 'openai-compatible'
   | 'ollama'
@@ -20,6 +25,7 @@ export type LLMProfile = {
   name: string
   kind: LLMProfileKind
   provider: LLMProviderKind
+  apiFormat: LLMApiFormat
   baseUrl: string
   modelId: string
   apiKey: string
@@ -45,6 +51,7 @@ export type LLMSettings = {
   apiKey: string
   kind: LLMProfileKind
   provider: LLMProviderKind
+  apiFormat: LLMApiFormat
   activeProfileId: string
   profiles: LLMProfile[]
   taskRoutes: LLMTaskRoute[]
@@ -104,6 +111,7 @@ export type PublicSettings = {
     modelId: string
     kind: LLMProfileKind
     provider: LLMProviderKind
+    apiFormat: LLMApiFormat
     activeProfileId: string
     profiles: PublicLLMProfile[]
     taskRoutes: LLMTaskRoute[]

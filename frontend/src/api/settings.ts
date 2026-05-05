@@ -1,11 +1,14 @@
 import { api } from './client'
 
+export type LlmApiFormat = 'openai-compatible' | 'anthropic' | 'gemini'
+
 export type PublicSettings = {
   llm: {
     baseUrl: string
     modelId: string
     kind: 'cloud' | 'local'
     provider: 'openai-compatible' | 'ollama' | 'lm-studio' | 'localai' | 'custom'
+    apiFormat: LlmApiFormat
     activeProfileId: string
     profiles: PublicLlmProfile[]
     taskRoutes: LlmTaskRoute[]
@@ -68,6 +71,7 @@ export type PublicLlmProfile = {
   name: string
   kind: PublicSettings['llm']['kind']
   provider: PublicSettings['llm']['provider']
+  apiFormat: LlmApiFormat
   baseUrl: string
   modelId: string
   enabled: boolean
@@ -89,6 +93,7 @@ export type SettingsPatch = {
     baseUrl: string
     modelId: string
     apiKey: string
+    apiFormat: LlmApiFormat
     activeProfileId: string
     taskRoutes: LlmTaskRoute[]
   }>

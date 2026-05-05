@@ -2,8 +2,10 @@ import { HttpError } from '../../http-error.js'
 import type { ContextUpgradeRequest } from './agent.runtime.types.js'
 import { normalizeRequestedPacks } from './agent.pack.service.js'
 
-export const MAX_UPGRADES_PER_MESSAGE = 2
-export const MAX_PACKS_PER_UPGRADE = 2
+/** Max packs in a single request_context_upgrade call. There are 9 requestable packs total. */
+export const MAX_PACKS_PER_UPGRADE = 8
+/** Kept for test compatibility but no longer enforced at runtime — upgrades are unlimited. */
+export const MAX_UPGRADES_PER_MESSAGE = Infinity
 export const REQUEST_CONTEXT_UPGRADE_TOOL = 'request_context_upgrade'
 
 export function isContextUpgradeToolCall(name: string) {
@@ -23,14 +25,10 @@ export function parseContextUpgradeArgs(value: string): ContextUpgradeRequest {
 
 export function validateContextUpgradeRequest(
   input: ContextUpgradeRequest,
-  currentUpgradeCount: number,
+  _currentUpgradeCount: number,
 ) {
-  if (currentUpgradeCount >= MAX_UPGRADES_PER_MESSAGE) {
-    throw new HttpError(
-      400,
-      'upgrade_limit_reached',
-    )
-  }
+  // No per-message upgrade count limit — the agent can request packs as many
+  // times as needed to complete a complex task.
   if (input.packs.length === 0) {
     throw new HttpError(400, 'No valid pack requested')
   }

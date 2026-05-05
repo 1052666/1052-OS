@@ -124,6 +124,7 @@ function createProfile(source: DiscoverySource, modelId: string, now: number): L
     name: `${source.label} · ${modelId}`,
     kind: 'local',
     provider: source.provider,
+    apiFormat: 'openai-compatible',
     baseUrl: source.baseUrl,
     modelId,
     apiKey: '',

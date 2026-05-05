@@ -10,6 +10,7 @@ import type {
   AgentSettings,
   AppearanceSettings,
   ImageGenerationSettings,
+  LLMApiFormat,
   LLMProfile,
   LLMProfileKind,
   LLMProviderKind,
@@ -27,30 +28,16 @@ import type {
 const FILE = 'settings.json'
 const MORNING_BRIEF_TASK_MARKER = '[managed:agent-morning-brief]'
 const MORNING_BRIEF_TASK_TITLE = '每日 Intel Center 早报'
-const DEFAULT_1052_LLM_PROFILE_ID = 'llm_1052_api_default'
-const DEFAULT_1052_LLM_BASE_URL = 'https://api.lxj.asia/v1'
-const DEFAULT_1052_LLM_MODEL_ID = 'deepseek-v4-flash-search'
-
 const DEFAULT_SETTINGS: Settings = {
   llm: {
-    baseUrl: DEFAULT_1052_LLM_BASE_URL,
-    modelId: DEFAULT_1052_LLM_MODEL_ID,
+    baseUrl: '',
+    modelId: '',
     apiKey: '',
     kind: 'cloud',
     provider: 'openai-compatible',
-    activeProfileId: DEFAULT_1052_LLM_PROFILE_ID,
-    profiles: [
-      {
-        id: DEFAULT_1052_LLM_PROFILE_ID,
-        name: '1052 API',
-        kind: 'cloud',
-        provider: 'openai-compatible',
-        baseUrl: DEFAULT_1052_LLM_BASE_URL,
-        modelId: DEFAULT_1052_LLM_MODEL_ID,
-        apiKey: '',
-        enabled: true,
-      },
-    ],
+    apiFormat: 'openai-compatible',
+    activeProfileId: '',
+    profiles: [],
     taskRoutes: [],
   },
   imageGeneration: {
@@ -98,6 +85,7 @@ type LegacySettings = Omit<Partial<Settings>, 'agent'> & {
 }
 
 const VALID_LLM_KINDS = new Set<LLMProfileKind>(['cloud', 'local'])
+const VALID_LLM_API_FORMATS = new Set<LLMApiFormat>(['openai-compatible', 'anthropic', 'gemini'])
 const VALID_LLM_PROVIDERS = new Set<LLMProviderKind>([
   'openai-compatible',
   'ollama',
@@ -117,6 +105,17 @@ function hashId(prefix: string, parts: string[]) {
   const hash = createHash('sha256')
   for (const part of parts) hash.update(part).update('\n')
   return `${prefix}_${hash.digest('hex').slice(0, 16)}`
+}
+
+function inferLlmApiFormat(baseUrl: string, modelId: string): LLMApiFormat {
+  const sig = `${baseUrl} ${modelId}`.toLowerCase()
+  if (sig.includes('anthropic') || sig.includes('claude')) return 'anthropic'
+  if (
+    sig.includes('generativelanguage.googleapis.com') ||
+    sig.includes('aiplatform.googleapis.com') ||
+    /\bgemini\b/.test(sig)
+  ) return 'gemini'
+  return 'openai-compatible'
 }
 
 function inferLlmProvider(baseUrl: string, modelId: string): LLMProviderKind {
@@ -156,6 +155,10 @@ function normalizeLlmProfile(input: unknown, fallbackIndex = 0): LLMProfile | nu
       ? raw.id.trim().replace(/[^A-Za-z0-9_-]/g, '_')
       : hashId('llm', [kind, provider, baseUrl, modelId, String(fallbackIndex)])
 
+  const apiFormat = VALID_LLM_API_FORMATS.has(raw.apiFormat as LLMApiFormat)
+    ? (raw.apiFormat as LLMApiFormat)
+    : inferLlmApiFormat(baseUrl, modelId)
+
   return {
     id,
     name:
@@ -164,6 +167,7 @@ function normalizeLlmProfile(input: unknown, fallbackIndex = 0): LLMProfile | nu
         : `${kind === 'local' ? '本地模型' : '云端模型'} · ${modelId}`,
     kind,
     provider,
+    apiFormat,
     baseUrl,
     modelId,
     apiKey: typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '',
@@ -215,11 +219,16 @@ function createLegacyLlmProfile(llm: Partial<LLMSettings>): LLMProfile | null {
     ? (llm.kind as LLMProfileKind)
     : inferLlmKind(baseUrl, provider)
 
+  const apiFormat = VALID_LLM_API_FORMATS.has(llm.apiFormat as LLMApiFormat)
+    ? (llm.apiFormat as LLMApiFormat)
+    : inferLlmApiFormat(baseUrl, modelId)
+
   return {
     id: hashId('llm', ['legacy', kind, provider, baseUrl, modelId]),
     name: '当前模型',
     kind,
     provider,
+    apiFormat,
     baseUrl,
     modelId,
     apiKey,
@@ -240,6 +249,7 @@ function mirrorActiveLlmProfile(llm: Omit<LLMSettings, 'baseUrl' | 'modelId' | '
     apiKey: activeProfile?.apiKey ?? '',
     kind: activeProfile?.kind ?? llm.kind,
     provider: activeProfile?.provider ?? llm.provider,
+    apiFormat: activeProfile?.apiFormat ?? llm.apiFormat,
   }
 }
 
@@ -270,6 +280,9 @@ function normalizeLlmSettings(llm: Partial<LLMSettings> | undefined): LLMSetting
     provider: VALID_LLM_PROVIDERS.has(current.provider as LLMProviderKind)
       ? (current.provider as LLMProviderKind)
       : DEFAULT_SETTINGS.llm.provider,
+    apiFormat: VALID_LLM_API_FORMATS.has(current.apiFormat as LLMApiFormat)
+      ? (current.apiFormat as LLMApiFormat)
+      : DEFAULT_SETTINGS.llm.apiFormat,
     activeProfileId,
     profiles: normalizedProfiles,
     taskRoutes: normalizeLlmTaskRoutes(current.taskRoutes, normalizedProfiles),
@@ -440,7 +453,7 @@ function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSe
               Math.round((agent as { contextMessageLimit?: number }).contextMessageLimit ?? 50),
               1,
             ),
-            300,
+            999,
           )
         : DEFAULT_SETTINGS.agent.contextMessageLimit,
     progressiveDisclosureEnabled:
@@ -515,6 +528,7 @@ function toPublic(settings: Settings): PublicSettings {
       modelId: settings.llm.modelId,
       kind: settings.llm.kind,
       provider: settings.llm.provider,
+      apiFormat: settings.llm.apiFormat,
       activeProfileId: settings.llm.activeProfileId,
       profiles: settings.llm.profiles.map((profile) => toPublicLlmProfile(profile)),
       taskRoutes: settings.llm.taskRoutes,
@@ -604,12 +618,17 @@ function applyLlmPatch(current: LLMSettings, patch: Partial<LLMSettings> | undef
         ? patch.apiKey.trim()
         : currentActive?.apiKey ?? ''
 
+    const apiFormat = VALID_LLM_API_FORMATS.has(patch.apiFormat as LLMApiFormat)
+      ? (patch.apiFormat as LLMApiFormat)
+      : currentActive?.apiFormat ?? inferLlmApiFormat(baseUrl, modelId)
+
     if (baseUrl && modelId) {
       const nextProfile: LLMProfile = {
         id: currentActive?.id ?? hashId('llm', ['manual', kind, provider, baseUrl, modelId]),
         name: currentActive?.name ?? '当前模型',
         kind,
         provider,
+        apiFormat,
         baseUrl,
         modelId,
         apiKey,
@@ -626,6 +645,7 @@ function applyLlmPatch(current: LLMSettings, patch: Partial<LLMSettings> | undef
   const next = mirrorActiveLlmProfile({
     kind: current.kind,
     provider: current.provider,
+    apiFormat: current.apiFormat,
     activeProfileId,
     profiles,
     taskRoutes: normalizeLlmTaskRoutes(patch.taskRoutes ?? current.taskRoutes, profiles),
@@ -655,6 +675,7 @@ export function resolveLlmConfigForTask(
     apiKey: activeProfile.apiKey,
     kind: activeProfile.kind,
     provider: activeProfile.provider,
+    apiFormat: activeProfile.apiFormat,
   }
 }
 

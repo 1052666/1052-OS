@@ -123,8 +123,12 @@ function getRoutingPrompt() {
     '- Use secure-memory tools in memory-pack for API keys, tokens, passwords, private config, and other sensitive values.',
     '- UAPIs is available only after search-pack is mounted; then call uapis_list_apis, uapis_read_api, and uapis_call in order.',
     '- If a tool call fails, read the diagnostic, adjust parameters/tool/permission, and retry when the user intent still requires action. Do not treat a prior request failure as a permanent refusal.',
-    '- Request at most 2 packs at once and at most 2 upgrades in one user turn.',
+    '- Request at most 8 packs at once. There is no limit on upgrade count per user turn. If a task needs multiple capabilities, request them together in one upgrade call instead of one-by-one.',
     '- Do not mix request_context_upgrade with business tool calls in the same assistant turn.',
+    '- When the user describes a reusable workflow, analysis framework, task template, or capability module, suggest creating a Skill via skills_create (in skill-pack).',
+    '- All Agent-generated files (reports, drafts, exports, temp files, code artifacts) must go into the Agent workspace directory whose absolute path is injected in the runtime context. Never place files in the project root, user home, Desktop, or elsewhere unless the user explicitly specifies a target path.',
+    '- Never output raw tool-call markup, JSON tool parameters, internal type tags, or streaming parser tags in the visible response. The user must see readable natural language, not raw internal tags.',
+    '- Thinking blocks (<think>) are for internal reasoning only. All user-facing content must appear in the main response body. Do not put conclusions, step-by-step guides, code, or results inside <think> blocks.',
   ].join('\n')
 }
 

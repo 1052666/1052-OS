@@ -59,7 +59,6 @@ function setsEqual(a: string[], b: string[]): boolean {
 
 function setsOverlap(actual: string[], expected: string[]): 'exact' | 'superset' | 'subset' | 'partial' | 'disjoint' {
   if (setsEqual(actual, expected)) return 'exact'
-  const sa = new Set(actual)
   const se = new Set(expected)
   const intersection = actual.filter((a) => se.has(a))
   if (intersection.length === 0) return 'disjoint'
