@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    container_name: 1052-os
+    restart: unless-stopped
+    ports:
+      - "10052:80"
+    volumes:
+      - app-data:/app/data
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=10053
+
+volumes:
+  app-data:
