@@ -382,7 +382,7 @@ export async function callUapis(input: UapisCallInput): Promise<UapisCallResult>
     }
   }
 
-  if (/^text\/|html|xml|markdown/i.test(contentType)) {
+  if (/^text\/|^application\/(xhtml\+xml|xml|.*markdown|html)/i.test(contentType)) {
     const text = await response.text()
     return {
       ...baseResult,
