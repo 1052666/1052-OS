@@ -40,7 +40,7 @@
 <table>
   <tr>
     <td width="280" valign="top">
-      <img src="./assets/readme/wechat-group-qr.jpg" alt="1052 OS 微信群二维码" width="260" />
+      <img src="./assets/readme/wechat-group-qr.png" alt="1052 OS 微信群二维码" width="260" />
     </td>
     <td valign="top">
       <h3>交流、反馈、测试与共建</h3>
