@@ -225,7 +225,15 @@ function createMarkdownComponents(
       )
     },
     img({ src, alt, title }) {
-      const safeSrc = src && resolveUrl ? resolveUrl(src, 'image') : src
+      let safeSrc = src && resolveUrl ? resolveUrl(src, 'image') : src
+      // Normalize absolute generated-image URLs back to relative paths.
+      // LLMs sometimes prepend a tunnel/external domain to the relative URL
+      // they see in tool results, making the image unreachable when the
+      // tunnel changes or expires.
+      if (safeSrc) {
+        const genIdx = safeSrc.indexOf('/api/generated-images/')
+        if (genIdx > 0) safeSrc = safeSrc.slice(genIdx)
+      }
       return <img src={safeSrc} alt={alt ?? ''} title={title} loading="lazy" decoding="async" />
     },
     h1: heading(1),
