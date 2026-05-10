@@ -62,7 +62,19 @@ import {
 import { maybeCreateInferredMemorySuggestion } from './agent.memory-autosuggest.service.js'
 
 const MAX_TOOL_ROUNDS = Infinity
-const STREAM_IDLE_TIMEOUT_MS = 90_000
+/**
+ * Maximum idle gap (no SSE data received) inside an LLM stream before we abort.
+ *
+ * Reasoning models (DeepSeek R1, Qwen QwQ, search-augmented variants, etc.)
+ * may think internally for several minutes without emitting any deltas — a
+ * 90s window was too tight and caused legitimate long-thinking responses to
+ * be aborted as "idle timeout", then silently retried (and timing out again).
+ *
+ * 5 minutes is generous enough for heavy reasoning while still catching truly
+ * hung connections. Combined with the wall-clock cap this still bounds runaway
+ * requests at MAX_REQUEST_DURATION_MS (25 min).
+ */
+const STREAM_IDLE_TIMEOUT_MS = 5 * 60_000
 /** Hard wall-clock cap per streaming request – prevents indefinitely running agent loops. */
 const MAX_REQUEST_DURATION_MS = 25 * 60_000
 /**
@@ -73,13 +85,59 @@ const MAX_REQUEST_DURATION_MS = 25 * 60_000
 const MAX_CONVERSATION_MESSAGES = 120
 /** How many times to retry an LLM call on transient errors (502/504/idle timeout) per round. */
 const MAX_LLM_RETRIES = 2
+/**
+ * How many times to nudge the LLM after it returns a "think-only" response
+ * (reasoning content but no visible answer and no tool call). This happens when
+ * a reasoning model emits reasoning_content / thinking deltas but never produces
+ * an actual `content` chunk or a tool_call — leaving the user with a silent stream
+ * that "thinks for a long time and then quits".
+ */
+const MAX_EMPTY_REPLY_RETRIES = 2
 
 /** Returns true for errors that are likely transient and worth retrying. */
 function isTransientLlmError(error: unknown): boolean {
   if (!(error instanceof HttpError)) return false
-  // 502 Bad Gateway, 504 Gateway Timeout, 429 Rate Limit
+  // Skip retry for our own client-side idle timeout. The idle window is a
+  // configured limit on this side; retrying with the same configuration just
+  // hits the same timeout and wastes another window of compute. Surface the
+  // error directly so the caller can either show a graceful message or have
+  // the user retry with the (now extended) timeout.
+  if (error.status === 504 && /空闲超时|idle\s*timeout/i.test(error.message)) return false
+  // Provider-side 502 Bad Gateway / 504 Gateway Timeout / 429 Rate Limit are
+  // genuinely transient and worth retrying.
   if (error.status === 502 || error.status === 504 || error.status === 429) return true
   return false
+}
+
+/**
+ * Detects a "think-only" LLM reply: the model produced reasoning blocks but
+ * never emitted real content or a tool call. We treat this as a recoverable
+ * failure mode (some providers emit the reasoning stream then close without
+ * the actual answer) and either nudge the model to retry or surface a clear
+ * message to the user instead of silently ending the stream.
+ */
+function isEmptyReply(response: LLMAssistantMessage): boolean {
+  if (response.toolCalls.length > 0) return false
+  // Strip <think>...</think> blocks from the visible content.
+  const visible = response.content.replace(/<think>[\s\S]*?<\/think>/g, '').trim()
+  return visible.length === 0
+}
+
+/**
+ * System nudge appended to the conversation when the model returns a think-only
+ * response. It tells the model to actually emit either visible content or a
+ * tool_call on the next turn.
+ */
+const EMPTY_REPLY_NUDGE_MESSAGE: LLMConversationMessage = {
+  role: 'system',
+  content: [
+    '上一轮你只输出了思考块（<think>），没有产生面向用户的可见正文，也没有发起任何工具调用。',
+    '用户完全看不到 <think> 块的内容，这等同于你没有回答。',
+    '现在请立刻给出实际行动：',
+    '1) 如果用户要求生成/绘制图片，请直接调用 image_generate 工具（如果当前未挂载 image-pack，请先用 request_context_upgrade 申请 image-pack）；',
+    '2) 如果用户要求其他操作，请直接调用对应工具或在正文（不要放在 <think> 中）输出明确答复；',
+    '3) 不要再单独输出思考内容而不给出动作。',
+  ].join('\n'),
 }
 
 type AgentRunOptions = {
@@ -524,6 +582,8 @@ async function* runLegacyStream(
   const usedToolNames = new Set<string>()
   const requestStartedAt = Date.now()
 
+  let emptyReplyRetries = 0
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     // ── Wall-clock timeout: graceful finish ────────────────────────
     if (Date.now() - requestStartedAt > MAX_REQUEST_DURATION_MS) {
@@ -540,6 +600,7 @@ async function* runLegacyStream(
 
     // ── LLM call with auto-retry on transient errors ───────────────
     let response: LLMAssistantMessage | undefined
+    let llmError: unknown
     for (let attempt = 0; attempt <= MAX_LLM_RETRIES; attempt += 1) {
       try {
         const stream = chatCompletionStream(llm, messages, tools, {
@@ -554,25 +615,52 @@ async function* runLegacyStream(
           step = await stream.next()
         }
         response = step.value
+        llmError = undefined
         break
       } catch (error) {
+        llmError = error
         if (attempt < MAX_LLM_RETRIES && isTransientLlmError(error)) {
           console.warn(`[agent] LLM transient error (attempt ${attempt + 1}/${MAX_LLM_RETRIES + 1}), retrying: ${(error as Error).message}`)
           await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
           continue
         }
-        throw error
+        break
       }
     }
-    if (!response) continue
+    if (!response) {
+      // Surface a graceful chat message instead of throwing — the user gets
+      // a clear explanation, and the previously streamed deltas (if any) stay
+      // intact instead of being replaced by a red error toast.
+      const message = llmError instanceof Error ? llmError.message : '未知错误'
+      const isIdle = llmError instanceof HttpError && /空闲超时|idle\s*timeout/i.test(message)
+      const friendly = isIdle
+        ? `\n\n---\n⏱ 模型在 ${Math.floor(STREAM_IDLE_TIMEOUT_MS / 60_000)} 分钟内没有继续输出（可能是推理过久或网络中断）。发送"继续"可重试这一步。`
+        : `\n\n---\n⚠ 模型调用失败：${message}。发送"继续"可重试。`
+      yield { type: 'delta', content: friendly }
+      yield { type: 'usage', usage: withUserTokens(usage, history) }
+      return
+    }
 
     usage = addUsage(usage, response.usage)
     messages.push(toAssistantHistoryMessage(response))
+
+    // ── Empty-reply recovery: model produced only <think> blocks ────
+    if (isEmptyReply(response) && emptyReplyRetries < MAX_EMPTY_REPLY_RETRIES) {
+      emptyReplyRetries += 1
+      console.warn(`[agent] empty reply (think-only) — nudging model (attempt ${emptyReplyRetries}/${MAX_EMPTY_REPLY_RETRIES})`)
+      messages.push(EMPTY_REPLY_NUDGE_MESSAGE)
+      continue
+    }
 
     if (response.toolCalls.length === 0) {
       const nextContent = appendGeneratedImageMarkdown(response.content, messages)
       if (nextContent !== response.content) {
         yield { type: 'delta', content: nextContent.slice(response.content.length) }
+      }
+      // If the response is STILL empty after the nudge attempts, surface a
+      // visible explanation so the user understands why nothing was produced.
+      if (isEmptyReply(response)) {
+        yield { type: 'delta', content: '\n\n---\n⚠ 模型只输出了思考内容但没有给出实际答复或工具调用。可以重新发送问题，或换一个更明确的指令。' }
       }
       await maybeCreateInferredMemorySuggestion({
         latestUserContent,
@@ -622,6 +710,7 @@ async function* runProgressiveStream(
   let mountedPacks = checkpoint.mountedPacks
   let usage: TokenUsage = {}
   let upgradeCount = 0
+  let emptyReplyRetries = 0
   const requestStartedAt = Date.now()
 
   appendAgentRuntimeLog({
@@ -702,6 +791,7 @@ async function* runProgressiveStream(
 
     // ── LLM call with auto-retry on transient errors ───────────────
     let response: LLMAssistantMessage | undefined
+    let llmError: unknown
     for (let attempt = 0; attempt <= MAX_LLM_RETRIES; attempt += 1) {
       try {
         const stream = chatCompletionStream(llm, built.messages, tools, {
@@ -716,23 +806,44 @@ async function* runProgressiveStream(
           step = await stream.next()
         }
         response = step.value
+        llmError = undefined
         break
       } catch (error) {
+        llmError = error
         if (attempt < MAX_LLM_RETRIES && isTransientLlmError(error)) {
           console.warn(`[agent] LLM transient error (attempt ${attempt + 1}/${MAX_LLM_RETRIES + 1}), retrying: ${(error as Error).message}`)
           await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
           continue
         }
-        throw error
+        break
       }
     }
-    if (!response) continue
+    if (!response) {
+      const message = llmError instanceof Error ? llmError.message : '未知错误'
+      const isIdle = llmError instanceof HttpError && /空闲超时|idle\s*timeout/i.test(message)
+      const friendly = isIdle
+        ? `\n\n---\n⏱ 模型在 ${Math.floor(STREAM_IDLE_TIMEOUT_MS / 60_000)} 分钟内没有继续输出（可能是推理过久或网络中断）。发送"继续"可重试这一步。`
+        : `\n\n---\n⚠ 模型调用失败：${message}。发送"继续"可重试。`
+      yield { type: 'delta', content: friendly }
+      yield { type: 'usage', usage: withUserTokens(usage, history) }
+      return
+    }
     const hasUpgradeToolCall = response.toolCalls.some((toolCall) =>
       isContextUpgradeToolCall(toolCall.function.name),
     )
     usage = addUsage(usage, response.usage, {
       upgradeOverhead: hasUpgradeToolCall,
     })
+
+    // ── Empty-reply recovery: model produced only <think> blocks ────
+    // Nudge the model up to MAX_EMPTY_REPLY_RETRIES times before giving up.
+    if (isEmptyReply(response) && emptyReplyRetries < MAX_EMPTY_REPLY_RETRIES) {
+      emptyReplyRetries += 1
+      console.warn(`[agent] empty reply (think-only) — nudging model (attempt ${emptyReplyRetries}/${MAX_EMPTY_REPLY_RETRIES})`)
+      conversation.push(toAssistantHistoryMessage(response))
+      conversation.push(EMPTY_REPLY_NUDGE_MESSAGE)
+      continue
+    }
 
     if (response.toolCalls.length === 0) {
       const nextContent = appendGeneratedImageMarkdown(response.content, built.messages)
@@ -744,6 +855,11 @@ async function* runProgressiveStream(
       }
       if (nextContent !== response.content) {
         yield { type: 'delta', content: nextContent.slice(response.content.length) }
+      }
+      // If the response is STILL empty after the nudges, surface a visible
+      // explanation so the user understands why nothing was produced.
+      if (isEmptyReply(response)) {
+        yield { type: 'delta', content: '\n\n---\n⚠ 模型只输出了思考内容但没有给出实际答复或工具调用。可以重新发送问题，或换一个更明确的指令。' }
       }
       const finalUsage = withUserTokens(usage, history)
       appendAgentRuntimeLog({
