@@ -1644,7 +1644,7 @@ export default function Settings() {
                   className="settings-input"
                   value={migrationSourcePath}
                   onChange={(event) => setMigrationSourcePath(event.target.value)}
-                  placeholder="例如：D:\1052os-old 或 D:\1052os-old\data"
+                  placeholder="例如：D:\\1052os-old 或 D:\\1052os-old\\data"
                 />
                 <div className="settings-actions">
                   <button
