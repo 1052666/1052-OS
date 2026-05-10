@@ -21,6 +21,9 @@
     "unzipper": "^0.12.3",
     "zod": "^3.24.0"
   },
+  "overrides": {
+    "axios": "^1.16.0"
+  },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.17",
