@@ -8,6 +8,15 @@ import type { LLMProfileKind, LLMProviderKind } from '../settings/settings.types
 import { resolveAdapter } from './llm-providers/index.js'
 import type { LLMApiFormat, StreamChunkResult, LLMProviderAdapter } from './llm-providers/types.js'
 
+function extractLlmErrorMessage(_status: number, body: string, statusText: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string }; message?: string }
+    const detail = parsed?.error?.message || parsed?.message
+    if (detail && typeof detail === 'string') return detail
+  } catch {}
+  return body.slice(0, 200) || statusText
+}
+
 export type LLMConfig = {
   baseUrl: string
   modelId: string
@@ -387,7 +396,7 @@ async function postChatCompletion(
     res.status,
     isToolError
       ? '当前模型或网关不支持 Agent 工具调用，请切换到支持 function calling 的模型或兼容网关。'
-      : `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`,
+      : `LLM 返回 ${res.status}: ${extractLlmErrorMessage(res.status, body, res.statusText)}`,
   )
 }
 
@@ -745,7 +754,7 @@ export async function chatCompletion(
 
     if (!res.ok) {
       const body = await res.text().catch(() => '')
-      throw httpError(res.status, `LLM 返回 ${res.status}: ${body.slice(0, 500) || res.statusText}`)
+      throw httpError(res.status, `LLM 返回 ${res.status}: ${extractLlmErrorMessage(res.status, body, res.statusText)}`)
     }
 
     const json = await res.json().catch(() => null)

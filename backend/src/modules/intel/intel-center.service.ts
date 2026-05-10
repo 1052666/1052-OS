@@ -118,7 +118,10 @@ export async function collectIntelCenterData(input: {
       if (settled) return
       settled = true
       clearTimeout(timer)
-      reject(new HttpError(500, `Failed to start Intel Center collector: ${error.message}`))
+      const msg = (error as NodeJS.ErrnoException).code === 'ENOENT'
+        ? 'Intel Center 采集器启动失败：未找到 Python，请确保已安装 Python 并加入 PATH。'
+        : `Intel Center 采集器启动失败：${error.message}`
+      reject(new HttpError(500, msg))
     })
 
     child.once('close', (exitCode) => {

@@ -548,7 +548,7 @@ export default function Chat() {
         message.error = true
         if (!message.content) {
           message.content = INTERRUPTED_MESSAGE_PLACEHOLDER
-        } else {
+        } else if (!message.content.includes(INTERRUPTED_MESSAGE_PLACEHOLDER)) {
           message.content = message.content + '\n\n' + INTERRUPTED_MESSAGE_PLACEHOLDER
         }
         needsPatch = true
