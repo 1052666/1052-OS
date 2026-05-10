@@ -2,6 +2,32 @@ import { api } from './client'
 
 export type LlmApiFormat = 'openai-compatible' | 'anthropic' | 'gemini'
 
+export type AppearanceWaterEffectIntensity = 'low' | 'medium' | 'high'
+
+export type AppearanceWaterEffectSettings = {
+  enabled: boolean
+  intensity?: AppearanceWaterEffectIntensity
+  hoverRipple?: boolean
+  clickWave?: boolean
+}
+
+export type AppearanceEffects = {
+  water?: AppearanceWaterEffectSettings
+}
+
+export type AppearanceSettings = {
+  theme: 'dark' | 'light' | 'auto'
+  language: 'zh-CN' | 'en-US'
+  /**
+   * 用户「降低动效」偏好（覆盖系统检测）：
+   * - null/undefined = 跟随 prefers-reduced-motion 系统检测
+   * - true / false = 用户偏好覆盖系统检测
+   * 与 effects.water.enabled 语义解耦。
+   */
+  reduceMotion?: boolean | null
+  effects?: AppearanceEffects
+}
+
 export type PublicSettings = {
   llm: {
     baseUrl: string
@@ -27,7 +53,7 @@ export type PublicSettings = {
     hasApiKey: boolean
     apiKeyMask: string
   }
-  appearance: { theme: 'dark' | 'light' | 'auto'; language: 'zh-CN' | 'en-US' }
+  appearance: AppearanceSettings
   agent: {
     streaming: boolean
     userPrompt: string

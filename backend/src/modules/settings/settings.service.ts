@@ -8,7 +8,10 @@ import {
 } from '../calendar/calendar.schedule.service.js'
 import type {
   AgentSettings,
+  AppearanceEffects,
   AppearanceSettings,
+  AppearanceWaterEffectIntensity,
+  AppearanceWaterEffectSettings,
   ImageGenerationSettings,
   LLMApiFormat,
   LLMProfile,
@@ -56,6 +59,7 @@ const DEFAULT_SETTINGS: Settings = {
     theme: 'dark',
     language: 'zh-CN',
   },
+  // Note: reduceMotion 与 effects 字段为可选；DEFAULT_SETTINGS 不写入它们以让 normalize 与 patch 处理 undefined 时保持向后兼容（旧 settings.json 不含这两字段）。
   agent: {
     streaming: true,
     userPrompt: '',
@@ -540,10 +544,41 @@ function normalizeUapisSettings(uapis: Partial<UapisSettings> | undefined): Uapi
   }
 }
 
+const VALID_WATER_INTENSITIES = new Set<AppearanceWaterEffectIntensity>(['low', 'medium', 'high'])
+
+function normalizeWaterEffectSettings(
+  input: Partial<AppearanceWaterEffectSettings> | undefined,
+): AppearanceWaterEffectSettings | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const enabled = typeof input.enabled === 'boolean' ? input.enabled : true
+  const result: AppearanceWaterEffectSettings = { enabled }
+  if (VALID_WATER_INTENSITIES.has(input.intensity as AppearanceWaterEffectIntensity)) {
+    result.intensity = input.intensity as AppearanceWaterEffectIntensity
+  }
+  if (typeof input.hoverRipple === 'boolean') result.hoverRipple = input.hoverRipple
+  if (typeof input.clickWave === 'boolean') result.clickWave = input.clickWave
+  return result
+}
+
+function normalizeAppearanceEffects(
+  effects: Partial<AppearanceEffects> | undefined,
+): AppearanceEffects | undefined {
+  if (!effects || typeof effects !== 'object') return undefined
+  const water = normalizeWaterEffectSettings(effects.water)
+  if (!water) return undefined
+  return { water }
+}
+
+function normalizeReduceMotion(value: unknown): boolean | null | undefined {
+  if (value === true || value === false) return value
+  if (value === null) return null
+  return undefined
+}
+
 function normalizeAppearanceSettings(
   appearance: Partial<AppearanceSettings> | undefined,
 ): AppearanceSettings {
-  return {
+  const result: AppearanceSettings = {
     theme:
       appearance?.theme === 'dark' || appearance?.theme === 'light' || appearance?.theme === 'auto'
         ? appearance.theme
@@ -553,6 +588,11 @@ function normalizeAppearanceSettings(
         ? appearance.language
         : DEFAULT_SETTINGS.appearance.language,
   }
+  const reduceMotion = normalizeReduceMotion(appearance?.reduceMotion)
+  if (reduceMotion !== undefined) result.reduceMotion = reduceMotion
+  const effects = normalizeAppearanceEffects(appearance?.effects)
+  if (effects) result.effects = effects
+  return result
 }
 
 function maskKey(key: string): string {

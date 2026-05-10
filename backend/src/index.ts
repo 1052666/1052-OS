@@ -2,6 +2,7 @@ import { createApp } from './app.js'
 import { config } from './config.js'
 import { startScheduledTaskRunner } from './modules/calendar/calendar.schedule.service.js'
 import { ensureAgentWorkspace } from './modules/agent/agent.workspace.service.js'
+import { seedBuiltinAppearanceProfiles } from './modules/appearance/appearance.service.js'
 import { startAllEnabledWechatAccounts } from './modules/channels/wechat/wechat.service.js'
 import { startAllEnabledFeishuChannels } from './modules/channels/feishu/feishu.service.js'
 import { ensureBundledSkillsInstalled } from './modules/skills/skills.service.js'
@@ -13,6 +14,7 @@ const app = createApp()
 
 async function bootstrap() {
   await initUpdaterState()
+  await seedBuiltinAppearanceProfiles()
   const agentWorkspace = await ensureAgentWorkspace()
   const bundledSkills = await ensureBundledSkillsInstalled()
 

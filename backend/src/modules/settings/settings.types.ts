@@ -69,9 +69,30 @@ export type ImageGenerationSettings = {
   outputCompression: number
 }
 
+export type AppearanceWaterEffectIntensity = 'low' | 'medium' | 'high'
+
+export type AppearanceWaterEffectSettings = {
+  enabled: boolean
+  intensity?: AppearanceWaterEffectIntensity
+  hoverRipple?: boolean
+  clickWave?: boolean
+}
+
+export type AppearanceEffects = {
+  water?: AppearanceWaterEffectSettings
+}
+
 export type AppearanceSettings = {
   theme: 'dark' | 'light' | 'auto'
   language: 'zh-CN' | 'en-US'
+  /**
+   * 用户「降低动效」偏好。
+   * - null = 跟随系统 prefers-reduced-motion 检测
+   * - true / false = 用户偏好覆盖系统检测
+   * 与 effects.water.enabled 语义解耦：reduceMotion 控制总体动效偏好，effects.water.enabled 是水波特效本身的高级开关。
+   */
+  reduceMotion?: boolean | null
+  effects?: AppearanceEffects
 }
 
 export type AgentSettings = {

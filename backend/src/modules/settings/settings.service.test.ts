@@ -266,3 +266,63 @@ describe('settings llm profiles', () => {
     )
   })
 })
+
+describe('settings appearance reduceMotion + effects (P0)', () => {
+  it('omits reduceMotion and effects in default settings (backward-compatible with old settings.json)', async () => {
+    const service = await import('./settings.service.js')
+    const settings = await service.getSettings()
+    expect(settings.appearance.theme).toBe('dark')
+    expect(settings.appearance.reduceMotion).toBeUndefined()
+    expect(settings.appearance.effects).toBeUndefined()
+  })
+
+  it('persists reduceMotion = true / false / null via updateSettings', async () => {
+    const service = await import('./settings.service.js')
+    for (const value of [true, false, null] as const) {
+      await service.updateSettings({ appearance: { reduceMotion: value } })
+      const next = await service.getSettings()
+      expect(next.appearance.reduceMotion).toBe(value)
+    }
+  })
+
+  it('normalizes invalid reduceMotion (string / number) to undefined (omitted)', async () => {
+    const service = await import('./settings.service.js')
+    await service.updateSettings({
+      appearance: { reduceMotion: 'yes' as unknown as boolean },
+    })
+    const next = await service.getSettings()
+    expect(next.appearance.reduceMotion).toBeUndefined()
+  })
+
+  it('persists nested effects.water.enabled with intensity / hoverRipple / clickWave', async () => {
+    const service = await import('./settings.service.js')
+    await service.updateSettings({
+      appearance: {
+        effects: {
+          water: { enabled: true, intensity: 'medium', hoverRipple: true, clickWave: false },
+        },
+      },
+    })
+    const next = await service.getSettings()
+    expect(next.appearance.effects?.water).toEqual({
+      enabled: true,
+      intensity: 'medium',
+      hoverRipple: true,
+      clickWave: false,
+    })
+  })
+
+  it('drops invalid water.intensity values', async () => {
+    const service = await import('./settings.service.js')
+    await service.updateSettings({
+      appearance: {
+        effects: {
+          water: { enabled: false, intensity: 'extreme' as unknown as 'low' },
+        },
+      },
+    })
+    const next = await service.getSettings()
+    expect(next.appearance.effects?.water?.enabled).toBe(false)
+    expect(next.appearance.effects?.water?.intensity).toBeUndefined()
+  })
+})

@@ -54,12 +54,16 @@ export type AppearanceReviewReport = {
   warnings: AppearanceReviewIssue[]
 }
 
+export type AppearanceThemeProfileSource = 'user' | 'builtin'
+
 export type AppearanceThemeProfile = {
   id: string
   theme: ThemeSpec
   review: AppearanceReviewReport
   createdAt: number
   updatedAt: number
+  source?: AppearanceThemeProfileSource
+  builtinVersion?: number
 }
 
 export type AppearanceApplyHistoryEntry = {

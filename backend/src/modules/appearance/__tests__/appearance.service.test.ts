@@ -243,3 +243,97 @@ describe('appearance theme profiles', () => {
     }
   })
 })
+
+describe('appearance builtin profile seeding (P0)', () => {
+  it('seeds three builtin profiles on first run with source=builtin and builtinVersion', async () => {
+    const service = await import('../appearance.service.js')
+    await service.seedBuiltinAppearanceProfiles()
+
+    const themes = await service.listAppearanceThemes()
+    const builtinIds = themes.profiles
+      .filter((profile) => profile.source === 'builtin')
+      .map((profile) => profile.id)
+      .sort()
+
+    expect(builtinIds).toEqual(['builtin:gpt-dark', 'builtin:mirror-dark', 'builtin:mirror-light'])
+    for (const profile of themes.profiles) {
+      if (profile.source === 'builtin') {
+        expect(profile.builtinVersion).toBe(1)
+      }
+    }
+  })
+
+  it('is idempotent: repeated seeding does not duplicate profiles', async () => {
+    const service = await import('../appearance.service.js')
+    await service.seedBuiltinAppearanceProfiles()
+    await service.seedBuiltinAppearanceProfiles()
+    await service.seedBuiltinAppearanceProfiles()
+
+    const themes = await service.listAppearanceThemes()
+    const builtinCount = themes.profiles.filter((profile) => profile.source === 'builtin').length
+    expect(builtinCount).toBe(3)
+  })
+
+  it('preserves user-created profiles untouched during seed', async () => {
+    const service = await import('../appearance.service.js')
+    const created = await service.createAppearanceTheme(validTheme())
+    const userProfile = created.profiles[0]
+
+    await service.seedBuiltinAppearanceProfiles()
+
+    const themes = await service.listAppearanceThemes()
+    const stillThere = themes.profiles.find((profile) => profile.id === userProfile.id)
+    expect(stillThere).toBeDefined()
+    expect(stillThere?.source).toBe('user')
+  })
+
+  it('marks user-created profiles with source=user', async () => {
+    const service = await import('../appearance.service.js')
+    const created = await service.createAppearanceTheme(validTheme())
+    expect(created.profiles[0].source).toBe('user')
+    expect(created.profiles[0].builtinVersion).toBeUndefined()
+  })
+
+  it('refuses to delete a builtin profile (by source flag)', async () => {
+    const service = await import('../appearance.service.js')
+    await service.seedBuiltinAppearanceProfiles()
+    await expect(service.deleteAppearanceTheme('builtin:gpt-dark')).rejects.toThrow(/不可删除/)
+  })
+
+  it('preserves user data when seed encounters namespace collision (source !== builtin)', async () => {
+    // 模拟极端情况：磁盘上已有一个 id 以 builtin: 开头但 source 不是 builtin 的脏数据
+    const fsMod = await import('node:fs/promises')
+    const pathMod = await import('node:path')
+    const storeFile = pathMod.join(tempDir, 'appearance', 'theme-profiles.json')
+    await fsMod.mkdir(pathMod.dirname(storeFile), { recursive: true })
+    await fsMod.writeFile(
+      storeFile,
+      JSON.stringify({
+        schemaVersion: 1,
+        activeProfileId: '',
+        applyHistory: [],
+        profiles: [
+          {
+            id: 'builtin:gpt-dark',
+            theme: validTheme({ name: 'User-claimed-this-id' }),
+            review: { passed: true, safetyLevel: 'safe', blockingIssues: [], warnings: [] },
+            createdAt: 1,
+            updatedAt: 1,
+            source: 'user',
+          },
+        ],
+      }),
+      'utf-8',
+    )
+
+    const service = await import('../appearance.service.js')
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await service.seedBuiltinAppearanceProfiles()
+    warnSpy.mockRestore()
+
+    const themes = await service.listAppearanceThemes()
+    const conflicted = themes.profiles.find((profile) => profile.id === 'builtin:gpt-dark')
+    expect(conflicted?.theme.name).toBe('User-claimed-this-id')
+    expect(conflicted?.source).toBe('user')
+  })
+})
