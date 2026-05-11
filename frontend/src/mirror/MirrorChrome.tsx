@@ -12,9 +12,11 @@ import { LiquidPourOverlay } from './LiquidPourOverlay'
 const MirrorChat = lazy(() =>
   import('./MirrorChat').then((m) => ({ default: m.MirrorChat })),
 )
-const MirrorSettings = lazy(() =>
-  import('./MirrorSettings').then((m) => ({ default: m.MirrorSettings })),
-)
+// MirrorSettings showcase file retained for Phase 2 reference (LLM + Token
+// panels in mirror-styled rendering) — currently /settings falls back to
+// classic Settings wrapped in MirrorPageWrapper so all sections are
+// preserved. The showcase will be re-routed when all sections are mirror-
+// native.
 
 // Lazy classic pages — wrapped in MirrorPageWrapper so the mirror page
 // chrome (title + scroll region) renders before the classic body. PR2/
