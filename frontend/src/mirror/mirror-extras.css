@@ -465,3 +465,28 @@
 [data-base-profile='mirror'] .mr-page-loading::before {
   content: '加载中';
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Dirty-guard warning — profile-switch confirmation panel (IU-8)
+   Base style works in any profile; mirror gets token-backed colours.
+   ───────────────────────────────────────────────────────────────────── */
+.mr-dirty-warning {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(220, 60, 60, 0.06);
+  border: 1px solid rgba(220, 60, 60, 0.18);
+  color: rgba(200, 80, 80, 0.95);
+  font-size: 13px;
+  margin-top: 10px;
+  line-height: 1.5;
+}
+
+[data-base-profile='mirror'] .mr-dirty-warning {
+  padding: var(--mr-g4);
+  border-radius: var(--mr-radius-control);
+  background: rgba(229, 165, 165, 0.08);
+  border: 1px solid rgba(229, 165, 165, 0.18);
+  color: rgba(229, 165, 165, 0.9);
+  font-size: 13px;
+  margin-top: var(--mr-g3);
+}

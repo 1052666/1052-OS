@@ -20,6 +20,7 @@ import ThemePreviewMatrix from '../components/appearance/ThemePreviewMatrix'
 import MemorySummaryPanel from '../components/MemorySummaryPanel'
 import TokenUsagePanel from '../components/TokenUsagePanel'
 import { useTheme } from '../theme-context'
+import { getDirtyScopes, SCOPE_LABELS } from '../mirror/dirtyGuard'
 import {
   canInstallSystemUpdate as getCanInstallSystemUpdate,
   canReinstallArchiveLatest,
@@ -1862,6 +1863,17 @@ export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
                             )}
                       </p>
                     </div>
+                    {(() => {
+                      const dirtyScopes = getDirtyScopes()
+                      return dirtyScopes.length > 0 ? (
+                        <div className="mr-dirty-warning">
+                          {t(
+                            `⚠ 当前有未保存的内容（${dirtyScopes.map((s) => SCOPE_LABELS[s] ?? s).join('、')}），切换将丢失。`,
+                            `⚠ You have unsaved content (${dirtyScopes.map((s) => SCOPE_LABELS[s] ?? s).join(', ')}) that will be lost on switch.`,
+                          )}
+                        </div>
+                      ) : null
+                    })()}
                     {appearanceConfirmation.kind === 'apply' &&
                     appearanceConfirmation.profile.review.warnings.length > 0 ? (
                       <div className="theme-profile-issues warning">
