@@ -6,20 +6,17 @@
  * This is the "outer layer" referenced by the theme spec — it does not modify
  * applyTheme()'s internal behavior and contains no DOM side effects.
  *
- * Canonical mapping (§1.1):
- *   - classic              ↔ activeProfileId === null
- *   - gpt + dark           ↔ 'builtin:gpt-dark'
- *   - gpt + light          ↔ 'builtin:gpt-light'
- *   - gpt + auto           → resolves to gpt-dark or gpt-light via system query
- *   - mirror + dark        ↔ 'builtin:mirror-dark'
- *   - mirror + light       ↔ 'builtin:mirror-light'
- *   - mirror + auto        → resolves to mirror-dark or mirror-light via system query
+ * Canonical mapping:
+ *   - classic               ↔ activeProfileId === null
+ *   - gpt + dark            ↔ 'builtin:gpt-dark'
+ *   - gpt + light           ↔ 'builtin:gpt-light'
+ *   - gpt + auto            → resolves to gpt-dark or gpt-light via system query
+ *   - mirror (any scheme)   ↔ 'builtin:mirror-dark' + lockedColorScheme='dark'
  *
- * Decision history: GPT was originally locked to dark (Codex decision #6) on
- * the assumption that ChatGPT.html only exposed the dark palette. That decision
- * was reverted after visual validation showed GPT-dark and the existing
- * default-dark were too close to feel like a switch. Light tokens come from
- * the same ChatGPT design system export.
+ * Decision history: mirror ("液镜") is intentionally dark-only as of v3.
+ * The graphite/silk material language doesn't survive a translation to
+ * a light substrate (Apple frosted glass territory). The Settings page
+ * hides the colorScheme controls entirely when mirror is active.
  */
 
 export type BaseThemeProfile = 'classic' | 'gpt' | 'mirror'
@@ -30,14 +27,12 @@ export const BUILTIN_PROFILE_IDS = {
   gptDark: 'builtin:gpt-dark',
   gptLight: 'builtin:gpt-light',
   mirrorDark: 'builtin:mirror-dark',
-  mirrorLight: 'builtin:mirror-light',
 } as const
 
 export type BuiltinProfileId =
   | typeof BUILTIN_PROFILE_IDS.gptDark
   | typeof BUILTIN_PROFILE_IDS.gptLight
   | typeof BUILTIN_PROFILE_IDS.mirrorDark
-  | typeof BUILTIN_PROFILE_IDS.mirrorLight
 
 const ALL_BUILTIN_IDS: ReadonlySet<string> = new Set<string>(Object.values(BUILTIN_PROFILE_IDS))
 
@@ -82,7 +77,7 @@ export function resolveProfileForBase(
     return { profileId: null }
   }
 
-  // gpt and mirror both have dark + light variants; auto follows the system.
+  // gpt has dark + light variants; mirror is dark-only.
   const resolved = colorScheme === 'auto' ? resolveAuto() : colorScheme
 
   if (baseProfileName === 'gpt') {
@@ -94,11 +89,11 @@ export function resolveProfileForBase(
     }
   }
 
+  // mirror — "液镜" material language is intentionally dark-only.
+  // The mode/scheme picker is hidden in Settings when this base is active.
   return {
-    profileId:
-      resolved === 'light'
-        ? BUILTIN_PROFILE_IDS.mirrorLight
-        : BUILTIN_PROFILE_IDS.mirrorDark,
+    profileId: BUILTIN_PROFILE_IDS.mirrorDark,
+    lockedColorScheme: 'dark',
   }
 }
 
@@ -122,10 +117,7 @@ export function resolveBaseFromProfile(profileId: string | null | undefined): Ba
   ) {
     return 'gpt'
   }
-  if (
-    profileId === BUILTIN_PROFILE_IDS.mirrorDark ||
-    profileId === BUILTIN_PROFILE_IDS.mirrorLight
-  ) {
+  if (profileId === BUILTIN_PROFILE_IDS.mirrorDark) {
     return 'mirror'
   }
   // Forward-compat: any other future builtin under known prefixes.

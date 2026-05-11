@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -136,10 +137,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return theme
   }, [lockedColorScheme, theme])
 
-  // (1) Render side-effect: apply the active theme to the DOM.
-  useEffect(() => {
+  // (1) Apply theme tokens + base-profile attribute to the DOM root, in
+  // ONE useLayoutEffect, before any child paints. Combining the two effects
+  // closes the first-frame race where a child component (e.g. ThemeEffectLayer)
+  // would mount and read stale CSS variables / data attributes before
+  // ThemeProvider's normal useEffect ran.
+  //
+  // [data-base-profile] is the scope hook for mirror-only CSS
+  // (backdrop-filter chain, inset shadows, wet-ceramic light mode).
+  useLayoutEffect(() => {
+    document.documentElement.dataset.baseProfile = baseProfile
     applyTheme(effectiveScheme, activeThemeProfile?.theme)
-  }, [effectiveScheme, activeThemeProfile])
+  }, [effectiveScheme, activeThemeProfile, baseProfile])
 
   // (2) Listen for system color-scheme changes when the system signal is
   // actually relevant. Dual-variant bases (gpt, mirror) re-apply the matching

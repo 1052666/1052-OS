@@ -1739,8 +1739,8 @@ export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
                   <div className="settings-row-title">{t('主题风格', 'Theme Style')}</div>
                   <div className="settings-row-desc">
                     {t(
-                      '选择整体视觉风格。「经典」沿用线上外观；「GPT 风格」为深色现代化设计；「水面」为灰度镜面带交互特效（开发中）。',
-                      'Pick the overall visual style. "Classic" keeps the current look; "GPT Style" is a modern dark theme; "Mirror" is a grayscale mirror surface with interaction effects (in progress).',
+                      '选择整体视觉风格。「经典」沿用线上外观；「GPT 风格」为深色现代化设计；「液镜」为深灰镜面金属材质，仅深色。',
+                      'Pick the overall visual style. "Classic" keeps the current look; "GPT Style" is a modern dark theme; "Liquid Mirror" is a graphite-silk material, dark only.',
                     )}
                   </div>
                 </div>
@@ -1760,12 +1760,17 @@ export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
                         ? t('经典', 'Classic')
                         : base === 'gpt'
                           ? t('GPT 风格', 'GPT Style')
-                          : t('水面', 'Mirror')}
+                          : t('液镜', 'Liquid Mirror')}
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Mirror (液镜) is dark-only — the colorScheme picker is
+                  hidden entirely instead of shown disabled. Other base
+                  profiles still see the picker; GPT locks dark via the
+                  existing tooltip path. */}
+              {baseProfile !== 'mirror' && (
               <div className="settings-row">
                 <div className="settings-row-label">
                   <div className="settings-row-title">{t('主题模式', 'Theme Mode')}</div>
@@ -1824,6 +1829,7 @@ export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
                   })}
                 </div>
               </div>
+              )}
 
               {onRestartOnboarding ? (
                 <div className="settings-row">

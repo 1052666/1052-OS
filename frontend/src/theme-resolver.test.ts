@@ -44,27 +44,12 @@ describe('resolveProfileForBase', () => {
     expect(result.lockedColorScheme).toBeUndefined()
   })
 
-  it('returns mirror-dark for mirror + dark, no lock', () => {
-    const result = resolveProfileForBase('mirror', 'dark')
-    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.mirrorDark)
-    expect(result.lockedColorScheme).toBeUndefined()
-  })
-
-  it('returns mirror-light for mirror + light, no lock', () => {
-    const result = resolveProfileForBase('mirror', 'light')
-    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.mirrorLight)
-    expect(result.lockedColorScheme).toBeUndefined()
-  })
-
-  it('resolves mirror + auto via injected resolver (light)', () => {
-    const result = resolveProfileForBase('mirror', 'auto', () => 'light')
-    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.mirrorLight)
-    expect(result.lockedColorScheme).toBeUndefined()
-  })
-
-  it('resolves mirror + auto via injected resolver (dark)', () => {
-    const result = resolveProfileForBase('mirror', 'auto', () => 'dark')
-    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.mirrorDark)
+  it('mirror is dark-only: returns mirror-dark with lock for any colorScheme', () => {
+    for (const scheme of ['dark', 'light', 'auto'] as const) {
+      const result = resolveProfileForBase('mirror', scheme)
+      expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.mirrorDark)
+      expect(result.lockedColorScheme).toBe('dark')
+    }
   })
 })
 
@@ -80,9 +65,8 @@ describe('resolveBaseFromProfile', () => {
     expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.gptLight)).toBe('gpt')
   })
 
-  it('maps known builtin mirror ids to mirror', () => {
+  it('maps known builtin mirror id to mirror', () => {
     expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.mirrorDark)).toBe('mirror')
-    expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.mirrorLight)).toBe('mirror')
   })
 
   it('forward-compat: unknown gpt-* / mirror-* future builtin id still maps correctly', () => {
@@ -97,11 +81,10 @@ describe('resolveBaseFromProfile', () => {
 })
 
 describe('isKnownBuiltinProfile', () => {
-  it('recognizes the four v1 builtin ids', () => {
+  it('recognizes the three v1 builtin ids (mirror is dark-only)', () => {
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.gptDark)).toBe(true)
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.gptLight)).toBe(true)
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.mirrorDark)).toBe(true)
-    expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.mirrorLight)).toBe(true)
   })
 
   it('rejects null / unknown / future builtin ids', () => {
@@ -109,6 +92,7 @@ describe('isKnownBuiltinProfile', () => {
     expect(isKnownBuiltinProfile(undefined)).toBe(false)
     expect(isKnownBuiltinProfile('')).toBe(false)
     expect(isKnownBuiltinProfile('builtin:gpt-warm')).toBe(false)
+    expect(isKnownBuiltinProfile('builtin:mirror-light')).toBe(false)
     expect(isKnownBuiltinProfile('user-created-uuid')).toBe(false)
   })
 })

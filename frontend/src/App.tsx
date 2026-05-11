@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import OnboardingModal from './components/OnboardingModal'
 import Sidebar from './components/Sidebar'
+import ThemeEffectLayer from './components/ThemeEffectLayer'
 import Chat from './pages/Chat'
 import Calendar from './pages/Calendar'
 import Repository from './pages/Repository'
@@ -31,6 +32,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <ThemeEffectLayer />
       <Sidebar />
       <main className="main">
         <Routes>

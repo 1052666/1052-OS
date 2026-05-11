@@ -43,27 +43,14 @@ describe('decideThemeUpdate — gpt base (dual variant after decision #6 reversa
   })
 })
 
-describe('decideThemeUpdate — mirror base (dual variant)', () => {
-  it('mirror + dark → schedules mirror-dark reapply', () => {
-    const decision = decideThemeUpdate('mirror', 'dark', undefined)
-    expect(decision.acceptStateUpdate).toBe(true)
-    expect(decision.reapplyVariantProfileId).toBe(BUILTIN_PROFILE_IDS.mirrorDark)
-  })
-
-  it('mirror + light → schedules mirror-light reapply', () => {
-    const decision = decideThemeUpdate('mirror', 'light', undefined)
-    expect(decision.acceptStateUpdate).toBe(true)
-    expect(decision.reapplyVariantProfileId).toBe(BUILTIN_PROFILE_IDS.mirrorLight)
-  })
-
-  it('mirror + auto resolves through injected matcher (light)', () => {
-    const decision = decideThemeUpdate('mirror', 'auto', undefined, () => 'light')
-    expect(decision.reapplyVariantProfileId).toBe(BUILTIN_PROFILE_IDS.mirrorLight)
-  })
-
-  it('mirror + auto resolves through injected matcher (dark)', () => {
-    const decision = decideThemeUpdate('mirror', 'auto', undefined, () => 'dark')
-    expect(decision.reapplyVariantProfileId).toBe(BUILTIN_PROFILE_IDS.mirrorDark)
+describe('decideThemeUpdate — mirror base (dark-only)', () => {
+  it('mirror does not need variant reapply on colorScheme change (lock dark)', () => {
+    for (const scheme of ['dark', 'light', 'auto'] as const) {
+      const decision = decideThemeUpdate('mirror', scheme, undefined)
+      // No variant reapply — mirror has only one builtin. The lock is
+      // enforced upstream by the resolver returning lockedColorScheme.
+      expect(decision.reapplyVariantProfileId).toBeNull()
+    }
   })
 })
 
@@ -91,9 +78,10 @@ describe('decideMediaListener', () => {
     expect(decision.reapplyVariantOnSystemFlip).toBe(true)
   })
 
-  it('mirror + auto: listen AND reapply mirror builtin on system flip', () => {
-    const decision = decideMediaListener('mirror', 'auto', undefined)
-    expect(decision.shouldListen).toBe(true)
-    expect(decision.reapplyVariantOnSystemFlip).toBe(true)
+  it('mirror + auto: do not listen because mirror is locked dark', () => {
+    // mirror always carries lockedColorScheme=dark from the resolver,
+    // so the system signal is irrelevant for mirror.
+    const decision = decideMediaListener('mirror', 'auto', 'dark')
+    expect(decision.shouldListen).toBe(false)
   })
 })

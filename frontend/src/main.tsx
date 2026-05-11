@@ -6,6 +6,9 @@ import { installFrontendRuntimeLogging } from './runtime-logs'
 import { ThemeProvider } from './theme-context'
 import './styles.css'
 import './sql-workbench.css'
+// Mirror profile material layer — must load AFTER styles.css so its
+// [data-base-profile=mirror] rules cascade-override the base palette.
+import './mirror-theme.css'
 
 installFrontendRuntimeLogging()
 

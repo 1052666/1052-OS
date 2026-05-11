@@ -245,7 +245,7 @@ describe('appearance theme profiles', () => {
 })
 
 describe('appearance builtin profile seeding (P0)', () => {
-  it('seeds four builtin profiles on first run with source=builtin and builtinVersion', async () => {
+  it('seeds three builtin profiles on first run with source=builtin and builtinVersion', async () => {
     const service = await import('../appearance.service.js')
     await service.seedBuiltinAppearanceProfiles()
 
@@ -259,11 +259,17 @@ describe('appearance builtin profile seeding (P0)', () => {
       'builtin:gpt-dark',
       'builtin:gpt-light',
       'builtin:mirror-dark',
-      'builtin:mirror-light',
     ])
+    // GPT profiles seeded at version 1; mirror-dark at version 3
+    // (v1 placeholder, v2 real palette, v3 renamed + mirror is now dark-only).
+    const expectedVersions: Record<string, number> = {
+      'builtin:gpt-dark': 1,
+      'builtin:gpt-light': 1,
+      'builtin:mirror-dark': 3,
+    }
     for (const profile of themes.profiles) {
       if (profile.source === 'builtin') {
-        expect(profile.builtinVersion).toBe(1)
+        expect(profile.builtinVersion).toBe(expectedVersions[profile.id])
       }
     }
   })
@@ -276,7 +282,7 @@ describe('appearance builtin profile seeding (P0)', () => {
 
     const themes = await service.listAppearanceThemes()
     const builtinCount = themes.profiles.filter((profile) => profile.source === 'builtin').length
-    expect(builtinCount).toBe(4)
+    expect(builtinCount).toBe(3)
   })
 
   it('preserves user-created profiles untouched during seed', async () => {

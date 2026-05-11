@@ -109,7 +109,7 @@ export default function OnboardingModal({ open, onClose, onApplyGpt }: Props) {
               <ul className="onboarding-bullets">
                 <li><strong>经典</strong> · 沿用现有外观</li>
                 <li><strong>GPT 风格</strong> · 现代深色 / 浅色，青绿强调</li>
-                <li><strong>水面</strong> · 灰度镜面 + 交互特效（开发中）</li>
+                <li><strong>液镜</strong> · 深灰镜面金属材质（仅深色）</li>
               </ul>
               <p className="muted">
                 你的当前外观不会被自动改变，下面给你看怎么切换。
@@ -124,7 +124,7 @@ export default function OnboardingModal({ open, onClose, onApplyGpt }: Props) {
                 打开 <strong>设置 → 外观</strong>，你会看到两组段控件：
               </p>
               <ul className="onboarding-bullets">
-                <li>第一组「主题风格」选 经典 / GPT 风格 / 水面</li>
+                <li>第一组「主题风格」选 经典 / GPT 风格 / 液镜</li>
                 <li>第二组「主题模式」选 浅色 / 深色 / 跟随系统</li>
               </ul>
               <p className="muted">

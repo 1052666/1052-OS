@@ -272,35 +272,6 @@ type BuiltinProfileSeed = {
   theme: ThemeSpec
 }
 
-const PLACEHOLDER_CORE_TOKENS = {
-  bg: '#000000',
-  surface: '#000000',
-  fg: '#ffffff',
-  accent: '#ffffff',
-  success: '#22c55e',
-  danger: '#ef4444',
-} as const
-
-const PLACEHOLDER_TOKENS = {
-  ...PLACEHOLDER_CORE_TOKENS,
-  bgGrad1: '#000000',
-  bgGrad2: '#000000',
-  surface0: '#000000',
-  surface1: '#000000',
-  surface2: '#000000',
-  surface3: '#000000',
-  surfaceHover: '#111111',
-  hairline: '#222222',
-  hairline2: '#222222',
-  hairlineStrong: '#333333',
-  fg2: '#cccccc',
-  fg3: '#999999',
-  fg4: '#666666',
-  accent2: '#ffffff',
-  accentSoft: '#222222',
-  accentRing: '#ffffff',
-} as const
-
 /**
  * GPT 风格 (深色) — builtin:gpt-dark
  *
@@ -380,6 +351,85 @@ const GPT_LIGHT_TOKENS = {
   accentRing: '#027e6f',
 } as const
 
+/**
+ * 水面 (深色) — builtin:mirror-dark
+ *
+ * 设计语言：液态石墨 / 丝绸 / 雾化铅灰镜面（不是水蓝色，不是科幻 HUD）。
+ * 关键审美：暗部里的层次变化 + 极弱 accent + 大面积低对比。
+ * 参考：Porsche 官网 / B&O 高端音响 UI / 沙丘电影 UI。
+ *
+ * Hex 取自项目搭档（用户）确认的设计语言文档（2026-05-10）。
+ * accent #7C8EA3 是冷灰带极弱蓝紫，绝不可换成霓虹蓝/青绿等强色。
+ *
+ * Phase A 仅做静态底；Phase B 加 viscous displacement shader。
+ */
+const MIRROR_DARK_CORE_TOKENS = {
+  bg: '#111315',
+  surface: '#1B1E22',
+  fg: '#E5E7EA',
+  accent: '#7C8EA3',
+  success: '#34d399',
+  danger: '#fb7185',
+} as const
+
+const MIRROR_DARK_TOKENS = {
+  ...MIRROR_DARK_CORE_TOKENS,
+  bgGrad1: '#1B1E22',
+  bgGrad2: '#0E1012',
+  surface0: '#111315',
+  surface1: '#181B1F',
+  surface2: '#1B1E22',
+  surface3: '#24282D', // elevated surface
+  surfaceHover: '#1F2226',
+  hairline: '#2A2D32',
+  hairline2: '#1F2226',
+  hairlineStrong: '#3A3E45', // approximation of #8C949C22 (alpha not allowed in token contract)
+  fg2: '#9CA3AF',
+  fg3: '#6B7280',
+  fg4: '#4B5158',
+  accent2: '#9CA3AF', // pull accent2 toward neutral too — no neon
+  accentSoft: '#2A3340',
+  accentRing: '#7C8EA3',
+} as const
+
+/**
+ * 水面 (浅色) — builtin:mirror-light
+ *
+ * 设计语言：浅灰液态丝绸 / 润湿陶瓷 / 微湿银漆 / 雾面铝（不是白玻璃，不是 frosted white）。
+ * 关键差别：「微弱反射」≠「透明」。light 版的高级感来自有深度的灰白，不是亮。
+ *
+ * elevated #FFFFFFB8 (含 alpha) 在用户原稿中暗示半透叠层；
+ * 本期 token 契约不接受 alpha hex，简化为 #FFFFFF；半透感留给 shader 与 box-shadow。
+ */
+const MIRROR_LIGHT_CORE_TOKENS = {
+  bg: '#E7E8EA',
+  surface: '#F3F4F6',
+  fg: '#1A1D21',
+  accent: '#708090',
+  success: '#016a5e',
+  danger: '#eb0a00',
+} as const
+
+const MIRROR_LIGHT_TOKENS = {
+  ...MIRROR_LIGHT_CORE_TOKENS,
+  bgGrad1: '#F3F4F6',
+  bgGrad2: '#DCDDE0',
+  surface0: '#E7E8EA',
+  surface1: '#EDEEF0',
+  surface2: '#F3F4F6',
+  surface3: '#FFFFFF', // elevated; alpha removed from #FFFFFFB8
+  surfaceHover: '#E2E3E5',
+  hairline: '#CFD2D6',
+  hairline2: '#DCDDE0',
+  hairlineStrong: '#A8AEB4',
+  fg2: '#6B7280',
+  fg3: '#9CA3AF',
+  fg4: '#B8BDC4',
+  accent2: '#8C949C', // muted twin
+  accentSoft: '#D8DDE3',
+  accentRing: '#708090',
+} as const
+
 export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
   {
     id: 'builtin:gpt-dark',
@@ -409,30 +459,29 @@ export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
   },
   {
     id: 'builtin:mirror-dark',
-    builtinVersion: 1,
+    // bump version to 3:
+    //   v1 — placeholder palette (P0)
+    //   v2 — real graphite/silk palette
+    //   v3 — name changed 水面 → 液镜; mirror is now dark-only (mirror-light
+    //        builtin removed), so any cached active mirror-light id should
+    //        fail to resolve and the resolver will fall back to mirror-dark
+    //        for any user who previously had mirror-light selected.
+    builtinVersion: 3,
     theme: {
       schemaVersion: 1,
-      name: '水面 (深色)',
+      name: '液镜',
       mode: 'dark',
       scope: 'all',
       safetyLevel: 'safe',
-      coreTokens: { ...PLACEHOLDER_CORE_TOKENS },
-      tokens: { ...PLACEHOLDER_TOKENS },
+      coreTokens: { ...MIRROR_DARK_CORE_TOKENS },
+      tokens: { ...MIRROR_DARK_TOKENS },
     },
   },
-  {
-    id: 'builtin:mirror-light',
-    builtinVersion: 1,
-    theme: {
-      schemaVersion: 1,
-      name: '水面 (浅色)',
-      mode: 'light',
-      scope: 'all',
-      safetyLevel: 'safe',
-      coreTokens: { ...PLACEHOLDER_CORE_TOKENS, bg: '#ffffff', surface: '#f4f4f6', fg: '#161719' },
-      tokens: { ...PLACEHOLDER_TOKENS, bg: '#ffffff', surface: '#f4f4f6', fg: '#161719' },
-    },
-  },
+  // mirror-light deliberately removed — "liquid mirror" is a dark-only
+  // material language. The visible color/scheme controls hide entirely
+  // when the user is on the mirror profile (see Settings.tsx). The
+  // MIRROR_LIGHT_* token constants are kept above for reference / future
+  // revival but no longer seeded.
 ] as const
 
 /**

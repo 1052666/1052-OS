@@ -192,7 +192,14 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 /* ─────────────────────────────────────────
    App layout
    ───────────────────────────────────────── */
-.app { display: flex; height: 100%; }
+.app {
+  display: flex;
+  height: 100%;
+  /* spec §2.1: app root is the stacking context for the theme effect layer.
+     Without isolation:isolate, the effect canvas could leak under html/body. */
+  position: relative;
+  isolation: isolate;
+}
 
 .main {
   flex: 1;
@@ -200,6 +207,29 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* App content sits above the effect canvas (z-index 0). */
+  position: relative;
+  z-index: 1;
+}
+
+/* Theme effect layer (mirror-only, viscous displacement shader).
+   Lives inside .app's stacking context at z-index 0; pointer-events: none
+   so it never intercepts clicks. The canvas itself is positioned to fill
+   the viewport. */
+.theme-effect-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  display: block;
+}
+
+/* Sidebar also needs to render above the effect layer. */
+.sidebar {
+  position: relative;
+  z-index: 1;
 }
 
 /* ─────────────────────────────────────────

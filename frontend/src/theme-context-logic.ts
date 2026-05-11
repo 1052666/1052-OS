@@ -27,9 +27,11 @@ import {
  * dual-variant bases. `classic` has neither variant nor lock.
  */
 
+// mirror is dark-only as of v3 (lockedColorScheme='dark'), so only gpt
+// belongs to this set. Kept as a set so future bases that gain dual
+// variants slot in trivially.
 const DUAL_VARIANT_BASES: ReadonlySet<BaseThemeProfile> = new Set<BaseThemeProfile>([
   'gpt',
-  'mirror',
 ])
 
 export type ThemeStateChangeDecision = {

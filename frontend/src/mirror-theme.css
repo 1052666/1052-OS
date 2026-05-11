@@ -1,0 +1,701 @@
+/* ─────────────────────────────────────────────────────────────────────
+   Mirror profile material layer — "liquid graphite" / "wet ceramic"
+   ─────────────────────────────────────────────────────────────────────
+   This file is loaded AFTER styles.css (see main.tsx), so its rules
+   override the base 1052-OS palette whenever [data-base-profile=mirror]
+   is set on the html root. It is the entire visual language of the
+   mirror theme — sidebar, navigation, controls, cards, modals,
+   typography, scrollbars — all redefined in one place.
+   ─────────────────────────────────────────────────────────────────────
+
+   Visual contract (synced with the project mirror visual spec):
+
+     Surface    rgba(27,30,34, 0.24)      dark large panels
+                rgba(38,42,48, 0.28)      dark small controls
+                rgba(48,52,58, 0.34)      dark hover
+                rgba(255,255,255, 0.34)   light surface
+     Hairline   rgba(255,255,255, 0.035)  dark default
+                rgba(255,255,255, 0.07)   dark strong
+                rgba(0,0,0, 0.045)        light default
+                rgba(0,0,0, 0.06)         light bottom inset
+     Shadow     inset 0 1px 0 rgba(255,255,255, .045),
+                inset 0 -1px 0 rgba(0,0,0, .28),
+                0 8px 24px rgba(0,0,0, .18)
+     Backdrop   blur(36px) saturate(.82) brightness(1.035) contrast(1.015)
+     Radius     14px cards / 16px major panels / 9px controls
+     Transition 420ms cubic-bezier(.22, 1, .36, 1)
+     Padding    14-16px card / 13px 16px row
+     Typography heading 600 / body 400-450 / meta 400
+
+   "克制" rule of thumb: any single element should differ from its
+   immediate background by ΔL* ∈ [3, 8]. No glow, no neon, no rim.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Custom property for animated conic light angle — registered so it can
+   actually transition / animate rather than snap. */
+@property --mr-light-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 215deg;
+}
+
+/* Slow sweep of the virtual light source — wider arc (50°) and longer
+   period (18s) so the motion is unmistakable but never reads as snappy.
+   The cubic-bezier is the same expo-out used elsewhere; alternate makes
+   the highlight return along its path instead of jumping. */
+@keyframes mr-light-sweep {
+  from { --mr-light-angle: var(--mr-card-angle, 215deg); }
+  to {
+    --mr-light-angle: calc(var(--mr-card-angle, 215deg) + 50deg);
+  }
+}
+
+/* Reusable variable layer — referenced everywhere below. ───────────── */
+[data-base-profile='mirror'] {
+  --mr-surface: rgba(27, 30, 34, 0.24);
+  --mr-surface-strong: rgba(27, 30, 34, 0.36);
+  --mr-control: rgba(38, 42, 48, 0.28);
+  --mr-control-hover: rgba(48, 52, 58, 0.34);
+  --mr-control-active: rgba(60, 65, 72, 0.45);
+  --mr-hairline: rgba(255, 255, 255, 0.035);
+  --mr-hairline-strong: rgba(255, 255, 255, 0.07);
+  --mr-bottom-shadow: rgba(0, 0, 0, 0.28);
+  --mr-elevation: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --mr-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --mr-inset-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  --mr-backdrop: blur(36px) saturate(0.82) brightness(1.035) contrast(1.015);
+  --mr-backdrop-small: blur(20px) saturate(0.82) brightness(1.035);
+  --mr-radius-card: 14px;
+  --mr-radius-panel: 16px;
+  --mr-radius-control: 9px;
+  --mr-transition: 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-base-profile='mirror'][data-theme='light'] {
+  --mr-surface: rgba(255, 255, 255, 0.34);
+  --mr-surface-strong: rgba(255, 255, 255, 0.5);
+  --mr-control: rgba(255, 255, 255, 0.42);
+  --mr-control-hover: rgba(255, 255, 255, 0.56);
+  --mr-control-active: rgba(255, 255, 255, 0.78);
+  --mr-hairline: rgba(0, 0, 0, 0.045);
+  --mr-hairline-strong: rgba(0, 0, 0, 0.085);
+  --mr-bottom-shadow: rgba(0, 0, 0, 0.06);
+  --mr-elevation: 0 6px 20px rgba(0, 0, 0, 0.06);
+  --mr-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --mr-inset-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Shell — app / main / sidebar
+   ─────────────────────────────────────────────────────────────────────
+   The classic dark theme paints the sidebar in solid surface-2; under
+   mirror it should dissolve into the shader bg. The visible UI on the
+   sidebar is the ribbon of nav items, not the panel itself.
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] .sidebar {
+  background: transparent;
+  border-right: 1px solid var(--mr-hairline);
+  backdrop-filter: var(--mr-backdrop);
+  -webkit-backdrop-filter: var(--mr-backdrop);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.025);
+}
+
+[data-base-profile='mirror'][data-theme='light'] .sidebar {
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.025);
+}
+
+[data-base-profile='mirror'] .nav-item {
+  background: transparent;
+  border-radius: var(--mr-radius-control);
+  transition: var(--mr-transition);
+}
+
+[data-base-profile='mirror'] .nav-item:hover {
+  background: var(--mr-control-hover);
+}
+
+[data-base-profile='mirror'] .nav-item.active {
+  background: var(--mr-control-active);
+  box-shadow: var(--mr-inset-top), var(--mr-inset-bottom);
+}
+
+[data-base-profile='mirror'] .nav-section-title {
+  color: var(--fg-4);
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+[data-base-profile='mirror'] .brand,
+[data-base-profile='mirror'] .brand-name {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Pages / shells around the main scroll area
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] .main,
+[data-base-profile='mirror'] .page,
+[data-base-profile='mirror'] .page-header,
+[data-base-profile='mirror'] .toolbar {
+  background: transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Cards and panels — broad coverage, applied uniformly
+   ─────────────────────────────────────────────────────────────────────
+   The list mirrors what we found grepping styles.css. Any new card class
+   added later should be added here too.
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] .settings-section,
+[data-base-profile='mirror'] .settings-row-stack,
+[data-base-profile='mirror'] .settings-preset-card,
+[data-base-profile='mirror'] .settings-model-card,
+[data-base-profile='mirror'] .settings-route-row,
+[data-base-profile='mirror'] .theme-profile-preset,
+[data-base-profile='mirror'] .theme-profile-card,
+[data-base-profile='mirror'] .usage-card,
+[data-base-profile='mirror'] .memory-card,
+[data-base-profile='mirror'] .task-card,
+[data-base-profile='mirror'] .repo-card,
+[data-base-profile='mirror'] .resource-card,
+[data-base-profile='mirror'] .skill-card,
+[data-base-profile='mirror'] .social-card,
+[data-base-profile='mirror'] .search-group,
+[data-base-profile='mirror'] .search-status-card,
+[data-base-profile='mirror'] .search-source-card,
+[data-base-profile='mirror'] .wiki-panel,
+[data-base-profile='mirror'] .wiki-viewer,
+[data-base-profile='mirror'] .pkm-search-panel,
+[data-base-profile='mirror'] .pkm-result-card,
+[data-base-profile='mirror'] .pkm-sop-card,
+[data-base-profile='mirror'] .calendar-main,
+[data-base-profile='mirror'] .calendar-day-panel,
+[data-base-profile='mirror'] .composer,
+[data-base-profile='mirror'] .toast,
+[data-base-profile='mirror'] .modal,
+[data-base-profile='mirror'] .card,
+[data-base-profile='mirror'] .sql-workbench-card,
+[data-base-profile='mirror'] .sql-ds-form-card,
+[data-base-profile='mirror'] .sql-ds-card,
+[data-base-profile='mirror'] .sql-file-card,
+[data-base-profile='mirror'] .sql-var-card,
+[data-base-profile='mirror'] .orch-card {
+  background: var(--mr-surface);
+  backdrop-filter: var(--mr-backdrop);
+  -webkit-backdrop-filter: var(--mr-backdrop);
+  border: 1px solid var(--mr-hairline);
+  border-radius: var(--mr-radius-card);
+  box-shadow: var(--mr-inset-top), var(--mr-inset-bottom), var(--mr-elevation);
+  transition: var(--mr-transition);
+}
+
+[data-base-profile='mirror'] .modal {
+  border-radius: var(--mr-radius-panel);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Specular edge reflection — the "贵感" signature
+   ─────────────────────────────────────────────────────────────────────
+   This is the visual signature from the reference image: card edges
+   carry a non-uniform highlight that bends around the rounded corner,
+   peaking at the upper-left as if a single virtual light source sits
+   off-screen above-left. Per Opus reviewer's analysis, this is what
+   makes Arc / visionOS / the reference image read as "premium material"
+   rather than "consumer dark theme".
+
+   Implementation: pseudo-element overlay with a conic-gradient revealed
+   only on a 1px-thick padding rim (via mask-composite exclude). Two
+   layers:
+     ::before — main specular reflection, smooth angular falloff
+     ::after  — 1px metal edge (Arc browser's real formula)
+   ───────────────────────────────────────────────────────────────────── */
+
+[data-base-profile='mirror'][data-theme='dark'] .settings-section,
+[data-base-profile='mirror'][data-theme='dark'] .settings-row-stack,
+[data-base-profile='mirror'][data-theme='dark'] .settings-preset-card,
+[data-base-profile='mirror'][data-theme='dark'] .settings-model-card,
+[data-base-profile='mirror'][data-theme='dark'] .theme-profile-preset,
+[data-base-profile='mirror'][data-theme='dark'] .theme-profile-card,
+[data-base-profile='mirror'][data-theme='dark'] .usage-card,
+[data-base-profile='mirror'][data-theme='dark'] .memory-card,
+[data-base-profile='mirror'][data-theme='dark'] .task-card,
+[data-base-profile='mirror'][data-theme='dark'] .repo-card,
+[data-base-profile='mirror'][data-theme='dark'] .resource-card,
+[data-base-profile='mirror'][data-theme='dark'] .skill-card,
+[data-base-profile='mirror'][data-theme='dark'] .social-card,
+[data-base-profile='mirror'][data-theme='dark'] .search-source-card,
+[data-base-profile='mirror'][data-theme='dark'] .pkm-result-card,
+[data-base-profile='mirror'][data-theme='dark'] .pkm-sop-card,
+[data-base-profile='mirror'][data-theme='dark'] .modal,
+[data-base-profile='mirror'][data-theme='dark'] .card,
+[data-base-profile='mirror'][data-theme='dark'] .sql-workbench-card,
+[data-base-profile='mirror'][data-theme='dark'] .sql-ds-card,
+[data-base-profile='mirror'][data-theme='dark'] .sql-file-card,
+[data-base-profile='mirror'][data-theme='dark'] .sql-var-card,
+[data-base-profile='mirror'][data-theme='dark'] .orch-card {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-base-profile='mirror'][data-theme='dark'] .settings-section::before,
+[data-base-profile='mirror'][data-theme='dark'] .settings-row-stack::before,
+[data-base-profile='mirror'][data-theme='dark'] .settings-preset-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .settings-model-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .theme-profile-preset::before,
+[data-base-profile='mirror'][data-theme='dark'] .theme-profile-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .usage-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .memory-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .task-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .repo-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .resource-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .skill-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .social-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .search-source-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .pkm-result-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .pkm-sop-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .modal::before,
+[data-base-profile='mirror'][data-theme='dark'] .card::before,
+[data-base-profile='mirror'][data-theme='dark'] .sql-workbench-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .sql-ds-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .sql-file-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .sql-var-card::before,
+[data-base-profile='mirror'][data-theme='dark'] .orch-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  /* Primary specular reflection — uses the live --mr-light-angle so the
+     edge highlight slides slowly around the card. v7 raises peak alpha
+     (0.42 → 0.58) and widens secondary bounce so the light variance is
+     visible without staring. Each card carries its own --mr-card-angle
+     (nth-child below) so the cohort never aligns. */
+  background:
+    conic-gradient(
+      from var(--mr-light-angle) at 50% 50%,
+      rgba(255, 255, 255, 0.00)   0deg,
+      rgba(255, 255, 255, 0.58)  35deg,
+      rgba(255, 255, 255, 0.22)  85deg,
+      rgba(255, 255, 255, 0.04) 150deg,
+      rgba(255, 255, 255, 0.00) 210deg,
+      rgba(255, 255, 255, 0.11) 285deg,
+      rgba(255, 255, 255, 0.00) 360deg
+    ),
+    /* Secondary environmental bounce — opposite side, weaker. v7
+       strengthens this so the bottom-right of every card carries a
+       faint counter-reflection (matters when the primary is sweeping
+       away from the user's eye). */
+    conic-gradient(
+      from calc(var(--mr-light-angle) + 180deg) at 50% 50%,
+      rgba(255, 255, 255, 0.00)   0deg,
+      rgba(255, 255, 255, 0.13)  45deg,
+      rgba(255, 255, 255, 0.00)  120deg,
+      rgba(255, 255, 255, 0.00)  360deg
+    );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+  animation: mr-light-sweep 18s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  animation-delay: var(--mr-card-delay, 0s);
+}
+
+/* Phase / angle spread — four cohorts so any group of cards on screen
+   never all hits the same conic position. Negative delays start each
+   cohort partway through the sweep, so first paint already shows variance. */
+[data-base-profile='mirror'] .settings-section,
+[data-base-profile='mirror'] .settings-preset-card,
+[data-base-profile='mirror'] .theme-profile-preset,
+[data-base-profile='mirror'] .usage-card,
+[data-base-profile='mirror'] .memory-card,
+[data-base-profile='mirror'] .pkm-result-card,
+[data-base-profile='mirror'] .card {
+  --mr-card-angle: 218deg;
+  --mr-card-delay: 0s;
+}
+
+[data-base-profile='mirror'] .settings-section:nth-of-type(4n+2),
+[data-base-profile='mirror'] .settings-preset-card:nth-of-type(4n+2),
+[data-base-profile='mirror'] .theme-profile-preset:nth-of-type(4n+2),
+[data-base-profile='mirror'] .usage-card:nth-of-type(4n+2),
+[data-base-profile='mirror'] .memory-card:nth-of-type(4n+2),
+[data-base-profile='mirror'] .pkm-result-card:nth-of-type(4n+2),
+[data-base-profile='mirror'] .card:nth-of-type(4n+2) {
+  --mr-card-angle: 200deg;
+  --mr-card-delay: -1.5s;
+}
+
+[data-base-profile='mirror'] .settings-section:nth-of-type(4n+3),
+[data-base-profile='mirror'] .settings-preset-card:nth-of-type(4n+3),
+[data-base-profile='mirror'] .theme-profile-preset:nth-of-type(4n+3),
+[data-base-profile='mirror'] .usage-card:nth-of-type(4n+3),
+[data-base-profile='mirror'] .memory-card:nth-of-type(4n+3),
+[data-base-profile='mirror'] .pkm-result-card:nth-of-type(4n+3),
+[data-base-profile='mirror'] .card:nth-of-type(4n+3) {
+  --mr-card-angle: 236deg;
+  --mr-card-delay: -4.2s;
+}
+
+[data-base-profile='mirror'] .settings-section:nth-of-type(4n+4),
+[data-base-profile='mirror'] .settings-preset-card:nth-of-type(4n+4),
+[data-base-profile='mirror'] .theme-profile-preset:nth-of-type(4n+4),
+[data-base-profile='mirror'] .usage-card:nth-of-type(4n+4),
+[data-base-profile='mirror'] .memory-card:nth-of-type(4n+4),
+[data-base-profile='mirror'] .pkm-result-card:nth-of-type(4n+4),
+[data-base-profile='mirror'] .card:nth-of-type(4n+4) {
+  --mr-card-angle: 248deg;
+  --mr-card-delay: -7.1s;
+}
+
+/* When the user prefers reduced motion, freeze the sweep — the angle
+   spread per cohort still gives the multi-light look without animation. */
+@media (prefers-reduced-motion: reduce) {
+  [data-base-profile='mirror'] *::before {
+    animation: none !important;
+  }
+}
+
+/* ::after — thin 1px metal edge sliver at the upper-left peak, Arc's
+   trick. Same mask technique, narrower angle window, higher alpha. */
+[data-base-profile='mirror'][data-theme='dark'] .settings-section::after,
+[data-base-profile='mirror'][data-theme='dark'] .settings-preset-card::after,
+[data-base-profile='mirror'][data-theme='dark'] .settings-model-card::after,
+[data-base-profile='mirror'][data-theme='dark'] .theme-profile-preset::after,
+[data-base-profile='mirror'][data-theme='dark'] .theme-profile-card::after,
+[data-base-profile='mirror'][data-theme='dark'] .usage-card::after,
+[data-base-profile='mirror'][data-theme='dark'] .memory-card::after,
+[data-base-profile='mirror'][data-theme='dark'] .pkm-result-card::after,
+[data-base-profile='mirror'][data-theme='dark'] .modal::after,
+[data-base-profile='mirror'][data-theme='dark'] .card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 215deg at 50% 50%,
+    rgba(255, 255, 255, 0.00)  0deg,
+    rgba(255, 255, 255, 0.00) 25deg,
+    rgba(255, 255, 255, 0.85) 38deg,
+    rgba(255, 255, 255, 0.00) 50deg,
+    rgba(255, 255, 255, 0.00) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Light variant — same geometry, dark reflections instead of bright ones
+   (light hits the back of the edge, so the visible rim is shadow on light).
+   The upper-left peak still gets the "metal edge" highlight (silver
+   lacquer reads as light there), but body conic uses dark stops. */
+[data-base-profile='mirror'][data-theme='light'] .settings-section,
+[data-base-profile='mirror'][data-theme='light'] .settings-row-stack,
+[data-base-profile='mirror'][data-theme='light'] .settings-preset-card,
+[data-base-profile='mirror'][data-theme='light'] .settings-model-card,
+[data-base-profile='mirror'][data-theme='light'] .theme-profile-preset,
+[data-base-profile='mirror'][data-theme='light'] .theme-profile-card,
+[data-base-profile='mirror'][data-theme='light'] .usage-card,
+[data-base-profile='mirror'][data-theme='light'] .memory-card,
+[data-base-profile='mirror'][data-theme='light'] .pkm-result-card,
+[data-base-profile='mirror'][data-theme='light'] .modal,
+[data-base-profile='mirror'][data-theme='light'] .card {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-base-profile='mirror'][data-theme='light'] .settings-section::before,
+[data-base-profile='mirror'][data-theme='light'] .settings-row-stack::before,
+[data-base-profile='mirror'][data-theme='light'] .settings-preset-card::before,
+[data-base-profile='mirror'][data-theme='light'] .settings-model-card::before,
+[data-base-profile='mirror'][data-theme='light'] .theme-profile-preset::before,
+[data-base-profile='mirror'][data-theme='light'] .theme-profile-card::before,
+[data-base-profile='mirror'][data-theme='light'] .usage-card::before,
+[data-base-profile='mirror'][data-theme='light'] .memory-card::before,
+[data-base-profile='mirror'][data-theme='light'] .pkm-result-card::before,
+[data-base-profile='mirror'][data-theme='light'] .modal::before,
+[data-base-profile='mirror'][data-theme='light'] .card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 215deg at 50% 50%,
+    rgba(0, 0, 0, 0.00)   0deg,
+    rgba(0, 0, 0, 0.10)  35deg,
+    rgba(0, 0, 0, 0.04)  85deg,
+    rgba(0, 0, 0, 0.00) 150deg,
+    rgba(0, 0, 0, 0.06) 210deg,
+    rgba(0, 0, 0, 0.02) 285deg,
+    rgba(0, 0, 0, 0.00) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   L2 — interactive cards respond to hover
+   ─────────────────────────────────────────────────────────────────────
+   Subtle physical feedback: 1px lift, border brightens to hairline-strong,
+   elevation shadow deepens. Transition uses the existing expo-out curve
+   so the response feels viscous, not snappy. Without this, the L1 shader
+   halo has nothing to "rest against" — the cards under the cursor still
+   look static even though the bg responds.
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] .settings-preset-card:hover,
+[data-base-profile='mirror'] .settings-model-card:hover,
+[data-base-profile='mirror'] .theme-profile-preset:hover,
+[data-base-profile='mirror'] .theme-profile-card:hover,
+[data-base-profile='mirror'] .pkm-result-card:hover,
+[data-base-profile='mirror'] .pkm-sop-card:hover,
+[data-base-profile='mirror'] .task-card:hover,
+[data-base-profile='mirror'] .repo-card:hover,
+[data-base-profile='mirror'] .resource-card:hover,
+[data-base-profile='mirror'] .skill-card:hover,
+[data-base-profile='mirror'] .social-card:hover,
+[data-base-profile='mirror'] .search-source-card:hover,
+[data-base-profile='mirror'] .sql-ds-card:hover,
+[data-base-profile='mirror'] .sql-file-card:hover,
+[data-base-profile='mirror'] .sql-var-card:hover,
+[data-base-profile='mirror'] .orch-card:hover {
+  background: var(--mr-surface-strong);
+  border-color: var(--mr-hairline-strong);
+  transform: translateY(-1px);
+  box-shadow:
+    var(--mr-inset-top),
+    var(--mr-inset-bottom),
+    0 14px 32px rgba(0, 0, 0, 0.24);
+}
+
+[data-base-profile='mirror'][data-theme='light'] .settings-preset-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .settings-model-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .theme-profile-preset:hover,
+[data-base-profile='mirror'][data-theme='light'] .theme-profile-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .pkm-result-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .pkm-sop-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .task-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .repo-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .resource-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .skill-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .social-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .search-source-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .sql-ds-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .sql-file-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .sql-var-card:hover,
+[data-base-profile='mirror'][data-theme='light'] .orch-card:hover {
+  box-shadow:
+    var(--mr-inset-top),
+    var(--mr-inset-bottom),
+    0 12px 28px rgba(0, 0, 0, 0.1);
+}
+
+/* Settings rows — softer feedback: just a brightening, no lift, because
+   they're stacked tightly inside a card and a translateY would shift
+   neighbors visually. */
+[data-base-profile='mirror'] .settings-row:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+[data-base-profile='mirror'][data-theme='light'] .settings-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Active press feedback — sink slightly, kills the "lift" so click reads
+   as pressure rather than reverberation. */
+[data-base-profile='mirror'] .settings-preset-card:active,
+[data-base-profile='mirror'] .theme-profile-preset:active,
+[data-base-profile='mirror'] .pkm-result-card:active,
+[data-base-profile='mirror'] .repo-card:active,
+[data-base-profile='mirror'] .resource-card:active,
+[data-base-profile='mirror'] .task-card:active {
+  transform: translateY(0);
+  transition-duration: 120ms;
+  box-shadow:
+    var(--mr-inset-top),
+    var(--mr-inset-bottom),
+    0 4px 12px rgba(0, 0, 0, 0.32);
+}
+
+[data-base-profile='mirror'] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(6px) saturate(0.9);
+  -webkit-backdrop-filter: blur(6px) saturate(0.9);
+}
+
+[data-base-profile='mirror'][data-theme='light'] .modal-backdrop {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Section titles inside cards — neutralize the heavy underline that
+   was reading as a hard divider in the screenshot. */
+[data-base-profile='mirror'] .settings-section-title {
+  background: transparent;
+  border-bottom: 1px solid var(--mr-hairline);
+  color: var(--fg-3);
+  font-weight: 550;
+  letter-spacing: 0.06em;
+}
+
+[data-base-profile='mirror'] .settings-row {
+  border-bottom: 1px solid var(--mr-hairline);
+  padding: 13px 16px;
+}
+
+[data-base-profile='mirror'] .settings-row:last-child {
+  border-bottom: 0;
+}
+
+[data-base-profile='mirror'] .settings-row-title {
+  font-weight: 550;
+}
+
+[data-base-profile='mirror'] .settings-row-desc {
+  color: var(--fg-4);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Controls — chips, segmented buttons, inputs, icon buttons
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] .chip,
+[data-base-profile='mirror'] .icon-btn,
+[data-base-profile='mirror'] .segmented {
+  background: var(--mr-control);
+  backdrop-filter: var(--mr-backdrop-small);
+  -webkit-backdrop-filter: var(--mr-backdrop-small);
+  border: 1px solid var(--mr-hairline);
+  border-radius: var(--mr-radius-control);
+  box-shadow: var(--mr-inset-top), var(--mr-inset-bottom);
+  transition: var(--mr-transition);
+}
+
+[data-base-profile='mirror'] .chip:hover,
+[data-base-profile='mirror'] .icon-btn:hover {
+  background: var(--mr-control-hover);
+}
+
+[data-base-profile='mirror'] .chip.primary {
+  /* Use the existing accent token — but mirror's accent is intentionally
+     muted (#7C8EA3 / #708090), so this stays in palette. */
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  border-color: var(--mr-hairline-strong);
+}
+
+[data-base-profile='mirror'] .seg {
+  background: transparent;
+  border: 0;
+  border-radius: calc(var(--mr-radius-control) - 2px);
+  transition: var(--mr-transition);
+}
+
+[data-base-profile='mirror'] .seg:hover {
+  background: var(--mr-control-hover);
+}
+
+[data-base-profile='mirror'] .seg.active {
+  background: var(--mr-control-active);
+  box-shadow: var(--mr-inset-top), var(--mr-inset-bottom);
+}
+
+[data-base-profile='mirror'] .settings-input,
+[data-base-profile='mirror'] textarea.settings-input,
+[data-base-profile='mirror'] select.settings-input,
+[data-base-profile='mirror'] .calendar-field input,
+[data-base-profile='mirror'] .calendar-field textarea,
+[data-base-profile='mirror'] .calendar-field select,
+[data-base-profile='mirror'] .pkm-input,
+[data-base-profile='mirror'] .wiki-textarea,
+[data-base-profile='mirror'] .sql-ds-form input,
+[data-base-profile='mirror'] .sql-ds-form select {
+  background: var(--mr-control);
+  border: 1px solid var(--mr-hairline);
+  border-radius: var(--mr-radius-control);
+  box-shadow: var(--mr-inset-bottom);
+  transition: var(--mr-transition);
+}
+
+[data-base-profile='mirror'] .settings-input:focus,
+[data-base-profile='mirror'] textarea.settings-input:focus,
+[data-base-profile='mirror'] select.settings-input:focus,
+[data-base-profile='mirror'] .pkm-input:focus,
+[data-base-profile='mirror'] .wiki-textarea:focus {
+  border-color: var(--mr-hairline-strong);
+  box-shadow: var(--mr-inset-bottom), 0 0 0 3px rgba(255, 255, 255, 0.04);
+  outline: none;
+}
+
+[data-base-profile='mirror'][data-theme='light'] .settings-input:focus,
+[data-base-profile='mirror'][data-theme='light'] textarea.settings-input:focus {
+  box-shadow: var(--mr-inset-bottom), 0 0 0 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-base-profile='mirror'] .search {
+  background: var(--mr-control);
+  border: 1px solid var(--mr-hairline);
+  border-radius: var(--mr-radius-control);
+  backdrop-filter: var(--mr-backdrop-small);
+  -webkit-backdrop-filter: var(--mr-backdrop-small);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Typography & spacing — softer hierarchy
+   ─────────────────────────────────────────────────────────────────────
+   Default theme uses heavier weights; mirror prefers a flatter contrast
+   ladder so titles don't shout above the calm material.
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] h1,
+[data-base-profile='mirror'] h2,
+[data-base-profile='mirror'] h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+[data-base-profile='mirror'] body,
+[data-base-profile='mirror'] p,
+[data-base-profile='mirror'] li,
+[data-base-profile='mirror'] td,
+[data-base-profile='mirror'] th {
+  font-weight: 420;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Scrollbars — neutralize so they don't break the calm
+   ───────────────────────────────────────────────────────────────────── */
+[data-base-profile='mirror'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-base-profile='mirror'] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-base-profile='mirror'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+
+[data-base-profile='mirror'][data-theme='light'] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-base-profile='mirror'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+[data-base-profile='mirror'][data-theme='light'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.16);
+}
