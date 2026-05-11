@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import {
   SettingsApi,
   type LlmApiFormat,
@@ -15,83 +15,83 @@ export interface UseSettingsPageModelReturn {
 
   // LLM
   baseUrl: string
-  setBaseUrl: (value: string) => void
+  setBaseUrl: Dispatch<SetStateAction<string>>
   modelId: string
-  setModelId: (value: string) => void
+  setModelId: Dispatch<SetStateAction<string>>
   llmApiFormat: LlmApiFormat
-  setLlmApiFormat: (value: LlmApiFormat) => void
+  setLlmApiFormat: Dispatch<SetStateAction<LlmApiFormat>>
   apiKey: string
-  setApiKey: (value: string) => void
+  setApiKey: Dispatch<SetStateAction<string>>
   llmTaskRoutes: LlmTaskRoute[]
-  setLlmTaskRoutes: (value: LlmTaskRoute[]) => void
+  setLlmTaskRoutes: Dispatch<SetStateAction<LlmTaskRoute[]>>
   updateTaskRoute: (task: LlmTaskKind, profileId: string) => void
   taskRouteProfileId: (task: LlmTaskKind) => string
 
   // Image generation
   imageApiFormat: PublicSettings['imageGeneration']['apiFormat']
-  setImageApiFormat: (value: PublicSettings['imageGeneration']['apiFormat']) => void
+  setImageApiFormat: Dispatch<SetStateAction<PublicSettings['imageGeneration']['apiFormat']>>
   imageBaseUrl: string
-  setImageBaseUrl: (value: string) => void
+  setImageBaseUrl: Dispatch<SetStateAction<string>>
   imageModelId: string
-  setImageModelId: (value: string) => void
+  setImageModelId: Dispatch<SetStateAction<string>>
   imageApiKey: string
-  setImageApiKey: (value: string) => void
+  setImageApiKey: Dispatch<SetStateAction<string>>
   imageSize: PublicSettings['imageGeneration']['size']
-  setImageSize: (value: PublicSettings['imageGeneration']['size']) => void
+  setImageSize: Dispatch<SetStateAction<PublicSettings['imageGeneration']['size']>>
   imageQuality: PublicSettings['imageGeneration']['quality']
-  setImageQuality: (value: PublicSettings['imageGeneration']['quality']) => void
+  setImageQuality: Dispatch<SetStateAction<PublicSettings['imageGeneration']['quality']>>
   imageBackground: PublicSettings['imageGeneration']['background']
-  setImageBackground: (value: PublicSettings['imageGeneration']['background']) => void
+  setImageBackground: Dispatch<SetStateAction<PublicSettings['imageGeneration']['background']>>
   imageOutputFormat: PublicSettings['imageGeneration']['outputFormat']
-  setImageOutputFormat: (value: PublicSettings['imageGeneration']['outputFormat']) => void
+  setImageOutputFormat: Dispatch<SetStateAction<PublicSettings['imageGeneration']['outputFormat']>>
   imageOutputCompression: number
-  setImageOutputCompression: (value: number) => void
+  setImageOutputCompression: Dispatch<SetStateAction<number>>
 
   // OCR
   ocrProvider: PublicSettings['ocr']['provider']
-  setOcrProvider: (value: PublicSettings['ocr']['provider']) => void
+  setOcrProvider: Dispatch<SetStateAction<PublicSettings['ocr']['provider']>>
   ocrCustomBaseUrl: string
-  setOcrCustomBaseUrl: (value: string) => void
+  setOcrCustomBaseUrl: Dispatch<SetStateAction<string>>
   ocrCustomModelId: string
-  setOcrCustomModelId: (value: string) => void
+  setOcrCustomModelId: Dispatch<SetStateAction<string>>
   ocrCustomApiKey: string
-  setOcrCustomApiKey: (value: string) => void
+  setOcrCustomApiKey: Dispatch<SetStateAction<string>>
 
   // UAPIs
   uapisApiKey: string
-  setUapisApiKey: (value: string) => void
+  setUapisApiKey: Dispatch<SetStateAction<string>>
 
   // Appearance (language only — theme lives in ThemeContext)
   uiLanguage: PublicSettings['appearance']['language']
-  setUiLanguage: (value: PublicSettings['appearance']['language']) => void
+  setUiLanguage: Dispatch<SetStateAction<PublicSettings['appearance']['language']>>
 
   // Agent
   userPrompt: string
-  setUserPrompt: (value: string) => void
+  setUserPrompt: Dispatch<SetStateAction<string>>
   streaming: boolean
-  setStreaming: (value: boolean) => void
+  setStreaming: Dispatch<SetStateAction<boolean>>
   fullAccess: boolean
-  setFullAccess: (value: boolean) => void
+  setFullAccess: Dispatch<SetStateAction<boolean>>
   contextMessageLimit: number
-  setContextMessageLimit: (value: number) => void
+  setContextMessageLimit: Dispatch<SetStateAction<number>>
   progressiveDisclosureEnabled: boolean
-  setProgressiveDisclosureEnabled: (value: boolean) => void
+  setProgressiveDisclosureEnabled: Dispatch<SetStateAction<boolean>>
   providerCachingEnabled: boolean
-  setProviderCachingEnabled: (value: boolean) => void
+  setProviderCachingEnabled: Dispatch<SetStateAction<boolean>>
   checkpointEnabled: boolean
-  setCheckpointEnabled: (value: boolean) => void
+  setCheckpointEnabled: Dispatch<SetStateAction<boolean>>
   seedOnResumeEnabled: boolean
-  setSeedOnResumeEnabled: (value: boolean) => void
+  setSeedOnResumeEnabled: Dispatch<SetStateAction<boolean>>
   upgradeDebugEventsEnabled: boolean
-  setUpgradeDebugEventsEnabled: (value: boolean) => void
+  setUpgradeDebugEventsEnabled: Dispatch<SetStateAction<boolean>>
   autoCompactEnabled: boolean
-  setAutoCompactEnabled: (value: boolean) => void
+  setAutoCompactEnabled: Dispatch<SetStateAction<boolean>>
   autoCompactThreshold: number
-  setAutoCompactThreshold: (value: number) => void
+  setAutoCompactThreshold: Dispatch<SetStateAction<number>>
   morningBriefEnabled: boolean
-  setMorningBriefEnabled: (value: boolean) => void
+  setMorningBriefEnabled: Dispatch<SetStateAction<boolean>>
   morningBriefTime: string
-  setMorningBriefTime: (value: string) => void
+  setMorningBriefTime: Dispatch<SetStateAction<string>>
 
   // Save flow
   saveState: SaveState
