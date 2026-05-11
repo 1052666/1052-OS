@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { setDirty, clearDirty } from '../mirror/dirtyGuard'
 import {
   SettingsApi,
   type LlmApiFormat,
@@ -555,6 +556,22 @@ export function useSettingsPageModel(): UseSettingsPageModelReturn {
     morningBriefEnabled,
     morningBriefTime,
   ])
+
+  // Sync dirty state to sessionStorage so profile-switch warning can detect unsaved changes.
+  useEffect(() => {
+    if (isDirty) {
+      setDirty('settings', null)
+    } else {
+      clearDirty('settings')
+    }
+  }, [isDirty])
+
+  // Defensive cleanup on unmount.
+  useEffect(() => {
+    return () => {
+      clearDirty('settings')
+    }
+  }, [])
 
   return {
     loaded,

@@ -7,6 +7,7 @@ import {
   type ToolCallEntry,
 } from '../api/agent'
 import { SettingsApi } from '../api/settings'
+import { setDirty, clearDirty } from '../mirror/dirtyGuard'
 
 // Public shape of a chat message as seen by the page.
 // Mirrors StoredChatMessage + a transient `streaming` flag.
@@ -244,6 +245,22 @@ export function useChatModel(): UseChatModelReturn {
   const lastSyncedKeyRef = useRef('')
   const abortRef = useRef<AbortController | null>(null)
   const toolCallsClearTimerRef = useRef<number | null>(null)
+
+  // Sync chat draft dirty state to sessionStorage for profile-switch warning.
+  useEffect(() => {
+    if (input.trim().length > 0) {
+      setDirty('chat-draft', null)
+    } else {
+      clearDirty('chat-draft')
+    }
+  }, [input])
+
+  // Defensive cleanup on unmount.
+  useEffect(() => {
+    return () => {
+      clearDirty('chat-draft')
+    }
+  }, [])
 
   const commitMessages = useCallback((next: Msg[]) => {
     messagesRef.current = next
