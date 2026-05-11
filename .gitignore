@@ -22,3 +22,8 @@ CHANGELOG.md
 
 .claude/
 *.egg-info/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
