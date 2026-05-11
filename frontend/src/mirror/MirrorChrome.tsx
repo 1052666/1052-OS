@@ -1,12 +1,11 @@
-import { useEffect, useRef, useState, lazy, Suspense, type ReactNode } from 'react'
+import { useEffect, useRef, lazy, Suspense, type ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { MirrorSidebar } from './MirrorSidebar'
 import { MirrorPageWrapper } from './MirrorPageWrapper'
 import { MirrorPageHeader } from './MirrorPageHeader'
 import { attachCursorTracking } from './cursorTracking'
 import { CouplingController, CouplingContext } from './cardCoupling'
-import { shouldShowPour, markPourSeen } from './liquidPour'
-import { LiquidPourOverlay } from './LiquidPourOverlay'
+// liquidPour.ts + LiquidPourOverlay.tsx kept on disk for Phase 2 reference.
 
 // Lazy mirror pages — PR2/PR3 fill the stubs.
 const MirrorChat = lazy(() =>
@@ -57,11 +56,54 @@ export function MirrorChrome() {
   const couplingRef = useRef<CouplingController | null>(null)
   if (couplingRef.current == null) couplingRef.current = new CouplingController()
 
-  // IU-16: Liquid pour on first mirror activation per session. Checked
-  // once at mount — gate handles reduced-motion + private-mode internally.
-  const [pouring, setPouring] = useState<boolean>(() => shouldShowPour())
-
   useEffect(() => attachCursorTracking(), [])
+
+  // IU-16 → material self-reveal: ramp --mr-reveal from 0 → 1 over 1.2s
+  // on first mount per session. Mirror's own material properties (specular
+  // peak alpha, silk noise opacity) are multiplied by this var, so the UI
+  // starts as a flat dark dashboard and "crystallizes" into reflective
+  // material. Hover boost + coupling are NOT multiplied — they're interaction
+  // effects, separate concern. sessionStorage key reused from pour gate.
+  useEffect(() => {
+    const root = document.documentElement
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+
+    const seen = (() => {
+      try { return sessionStorage.getItem('mirror_pour_seen') === '1' } catch { return false }
+    })()
+
+    if (reduced || seen) {
+      root.style.setProperty('--mr-reveal', '1')
+      return
+    }
+
+    root.style.setProperty('--mr-reveal', '0')
+    const start = performance.now()
+    const duration = 1200
+    let rafId: number | null = null
+
+    function easeOutCubic(t: number): number {
+      return 1 - Math.pow(1 - t, 3)
+    }
+
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / duration)
+      const eased = easeOutCubic(t)
+      root.style.setProperty('--mr-reveal', eased.toFixed(3))
+      if (t < 1) {
+        rafId = requestAnimationFrame(tick)
+      } else {
+        try { sessionStorage.setItem('mirror_pour_seen', '1') } catch {}
+        rafId = null
+      }
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
+      // Leave --mr-reveal at its final value on unmount.
+    }
+  }, [])
 
   // Cross-card coupling rAF loop: hover-source detection + scroll refresh
   // + 3s idle fadeout. Throttled via a single rAF in flight.
@@ -118,14 +160,6 @@ export function MirrorChrome() {
 
   return (
     <CouplingContext.Provider value={couplingRef.current}>
-    {pouring && (
-      <LiquidPourOverlay
-        onDone={() => {
-          markPourSeen()
-          setPouring(false)
-        }}
-      />
-    )}
     <div className="mr-shell">
       <MirrorSidebar />
       <Suspense fallback={<div className="mr-page-loading" />}>

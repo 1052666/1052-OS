@@ -363,8 +363,9 @@
   background-repeat: repeat, no-repeat;
   background-position: 0 0, -120% 0;
   /* opacity is the master volume on the silk layer. 0.55 keeps the
-     weave perceptible without obscuring text underneath. */
-  opacity: 0.55;
+     weave perceptible without obscuring text underneath.
+     Multiplied by --mr-reveal (0 → 1 ramp) so silk crystallizes in. */
+  opacity: calc(0.55 * var(--mr-reveal, 1));
   pointer-events: none;
   z-index: 0;
   animation: mr-silk-flow 22s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
@@ -422,7 +423,7 @@
     conic-gradient(
       from calc(var(--mr-cursor-angle, var(--mr-light-angle)) + var(--mr-card-angle-offset, 0deg) + var(--mr-coupled-angle, 0deg)) at 50% 50%,
       rgba(255, 255, 255, 0.00)   0deg,
-      rgba(255, 255, 255, calc(var(--mr-specular-base, 0.46) + var(--mr-hover-boost, 0) + var(--mr-coupled-strength, 0)))  55deg,
+      rgba(255, 255, 255, calc(min(1, var(--mr-specular-base, 0.46) * var(--mr-reveal, 1) + var(--mr-hover-boost, 0) + var(--mr-coupled-strength, 0))))  55deg,
       rgba(255, 255, 255, 0.18) 110deg,
       rgba(255, 255, 255, 0.04) 170deg,
       rgba(255, 255, 255, 0.00) 220deg,
