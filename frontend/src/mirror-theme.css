@@ -39,6 +39,24 @@
   initial-value: 215deg;
 }
 
+@property --mr-cursor-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 215deg;
+}
+
+@property --mr-coupled-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --mr-coupled-strength {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 /* Slow sweep of the virtual light source — wider arc (50°) and longer
    period (18s) so the motion is unmistakable but never reads as snappy.
    The cubic-bezier is the same expo-out used elsewhere; alternate makes
