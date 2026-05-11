@@ -1,8 +1,9 @@
-import { Fragment, useMemo } from 'react'
+import { Fragment, useEffect, useMemo, useRef } from 'react'
 import { useChatModel, type Msg } from '../hooks/useChatModel'
 import { MirrorPageWrapper } from './MirrorPageWrapper'
 import { MirrorPageHeader } from './MirrorPageHeader'
 import { MirrorText } from './primitives'
+import { MirrorComposer } from './MirrorComposer'
 import Markdown from '../components/Markdown'
 
 const FIVE_MIN_MS = 5 * 60 * 1000
@@ -69,6 +70,7 @@ function MirrorChatMessage({ message }: { message: Msg }) {
 export function MirrorChat() {
   const model = useChatModel()
   const { messages, historyLoaded } = model
+  const bottomRef = useRef<HTMLDivElement | null>(null)
 
   // Pre-compute time-separator labels in a single pass so the render is
   // straightforward; useMemo keeps it stable when messages reference equality
@@ -80,6 +82,14 @@ export function MirrorChat() {
       return formatChatTimeSep(prev?.ts, msg.ts, now)
     })
   }, [messages])
+
+  // Scroll-to-bottom on new messages. The doc itself doesn't scroll —
+  // `.mr-page-scroll` is the scroll container — so we anchor a 0-height
+  // sentinel just under the last message and call scrollIntoView on it.
+  // Users can still scroll up manually; the next message snaps them back.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages.length])
 
   const showEmpty = historyLoaded && messages.length === 0
 
@@ -104,9 +114,9 @@ export function MirrorChat() {
             </Fragment>
           )
         })}
-        {/* Composer mount point (IU-14 fills) */}
-        <div className="mr-chat-composer-anchor" />
+        <div ref={bottomRef} className="mr-chat-bottom-anchor" />
       </div>
+      <MirrorComposer model={model} />
     </MirrorPageWrapper>
   )
 }

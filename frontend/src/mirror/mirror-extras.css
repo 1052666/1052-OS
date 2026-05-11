@@ -660,7 +660,9 @@
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
-  padding-bottom: 140px; /* leave room for the floating composer (IU-14) */
+  /* Reserve room for the floating composer (≈76px) + bottom gap (24px) +
+     slack for tool-call panel / upload chips stacked above it. */
+  padding-bottom: 160px;
   display: flex;
   flex-direction: column;
 }
@@ -825,9 +827,204 @@
   background: rgba(0, 0, 0, 0.05);
 }
 
-/* Composer mount point — IU-14 fills it. Reserve a 0-height anchor so
-   layout doesn't jump when the composer is wired up. */
-[data-base-profile='mirror'] .mr-chat-composer-anchor {
+/* Zero-height sentinel at the tail of the chat doc. The useEffect in
+   MirrorChat scrolls this into view when messages.length changes so the
+   newest message snaps to the bottom of the page-scroll container. */
+[data-base-profile='mirror'] .mr-chat-bottom-anchor {
   height: 0;
   width: 100%;
+}
+
+/* =====================================================================
+   IU-14 — Floating composer
+
+   Pinned to the bottom of the viewport, centered horizontally and
+   matched to the .mr-chat-doc max-width so it tracks the column of text
+   above it. The wrap stacks (tool calls → upload chips → composer card)
+   so all three feel like one floating element.
+   ===================================================================== */
+[data-base-profile='mirror'] .mr-composer-wrap {
+  position: fixed;
+  bottom: var(--mr-g6);
+  /* Sidebar is 240px wide and sits to the left; offset the centerline so
+     the composer aligns with the chat doc (not the whole viewport). */
+  left: calc(50% + 120px);
+  transform: translateX(-50%);
+  width: 720px;
+  max-width: calc(100vw - 240px - var(--mr-g6) * 2);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mr-g3);
+  pointer-events: none; /* let scroll pass through dead zones */
+}
+
+[data-base-profile='mirror'] .mr-composer-wrap > * {
+  pointer-events: auto;
+}
+
+[data-base-profile='mirror'] .mr-composer-tools {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(40px) saturate(0.82);
+  -webkit-backdrop-filter: blur(40px) saturate(0.82);
+  border: var(--mr-hair);
+  border-radius: var(--mr-radius-card);
+  padding: var(--mr-g3);
+}
+
+[data-base-profile='light'] .mr-composer-tools {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+[data-base-profile='mirror'] .mr-composer-uploads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mr-g2);
+}
+
+[data-base-profile='mirror'] .mr-upload-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mr-g2);
+  padding: var(--mr-g1) var(--mr-g3);
+  background: rgba(255, 255, 255, 0.06);
+  border: var(--mr-hair);
+  border-radius: var(--mr-radius-chip);
+  font-size: 12px;
+  color: var(--fg-2);
+}
+
+[data-base-profile='light'] .mr-upload-chip {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-base-profile='mirror'] .mr-upload-chip button {
+  background: transparent;
+  border: none;
+  color: var(--fg-4);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+[data-base-profile='mirror'] .mr-upload-chip button:hover {
+  color: var(--fg-2);
+}
+
+/* Composer card: 24px panel radius (more curve than content cards). */
+[data-base-profile='mirror'] .mr-composer {
+  border-radius: var(--mr-radius-panel);
+  padding: var(--mr-g3) var(--mr-g4);
+  display: flex;
+  align-items: flex-end;
+  gap: var(--mr-g3);
+}
+
+[data-base-profile='mirror'] .mr-composer:focus-within {
+  transform: translateY(-2px);
+  /* Boost specular alpha through the hover-boost contract baked into
+     mr-card::after in mirror-theme.css. */
+  --mr-hover-boost: 0.18;
+}
+
+[data-base-profile='mirror'] .mr-composer-attach {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: var(--mr-hair);
+  color: var(--fg-3);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--mr-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+[data-base-profile='mirror'] .mr-composer-attach:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--fg-2);
+}
+
+[data-base-profile='mirror'] .mr-composer-attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+[data-base-profile='mirror'] .mr-composer-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  min-height: 24px;
+  max-height: 200px;
+  color: var(--fg-1);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 420;
+  line-height: 1.5;
+  padding: 6px 0;
+}
+
+[data-base-profile='mirror'] .mr-composer-input::placeholder {
+  color: var(--fg-4);
+  opacity: 0.6;
+}
+
+/* The 8x8 dot — pure CSS, drawn via ::before so the loading <svg> can
+   sit on top in the same 28px hit-target without re-flowing the row. */
+[data-base-profile='mirror'] .mr-composer-send {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  color: rgba(229, 165, 165, 0.85);
+  padding: 0;
+}
+
+[data-base-profile='mirror'] .mr-composer-send::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.3;
+  transition: opacity 200ms;
+}
+
+[data-base-profile='mirror'] .mr-composer-send.is-active::before {
+  opacity: 1;
+}
+
+/* When loading, the dot hides and the square sits in its place. */
+[data-base-profile='mirror'] .mr-composer-send.is-loading::before {
+  display: none;
+}
+
+[data-base-profile='mirror'] .mr-composer-send svg {
+  width: 8px;
+  height: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-base-profile='mirror'] .mr-composer-send::before {
+    transition: none;
+  }
+  [data-base-profile='mirror'] .mr-composer:focus-within {
+    transform: none;
+  }
 }
