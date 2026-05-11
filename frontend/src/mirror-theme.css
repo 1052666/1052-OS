@@ -78,8 +78,26 @@
    Tuned per Codex终审 (74→target 90+): brighter graphite palette, alpha-only
    surfaces so backdrop-filter actually has bg/shader to blur. Apple
    frosted glass mistake is rgba(dark, alpha); the premium feel uses
-   rgba(white, low-alpha) over a brighter base. */
-[data-base-profile='mirror'] {
+   rgba(white, low-alpha) over a brighter base.
+
+   silky-profile note (Codex review #2):
+   Below this token block — and across every selector list further down —
+   we use :is([data-base-profile='mirror'], [data-base-profile='silky'])
+   so the 22-class material system (specular edge + silk noise + graphite
+   palette + cohort offsets + level alpha decay) renders identically under
+   both profiles. The semantic split lives one level up in the React
+   shell: 'mirror' mounts MirrorChrome with cursor tracking / cross-card
+   coupling / liquid pour, 'silky' renders the classic shell. Static
+   specular under silky is correct — the ::after conic-gradient uses
+   `var(--mr-cursor-angle, var(--mr-light-angle))` etc., and since silky
+   doesn't set --mr-cursor-angle / --mr-coupled-* the fallback path takes
+   over: a swept-but-not-cursor-driven specular, exactly the "静的" look
+   silky targets.
+
+   `:is()` chosen over plain duplication for line bloat / readability;
+   chosen over `:where()` because `:where()` is specificity-zero and
+   would lose to any later cascade-equal selector. */
+:is([data-base-profile='mirror'], [data-base-profile='silky']) {
   /* Brighter graphite base — #161A1D feels like "wet铅灰" instead of
      "黑色 SaaS panel". Used by shader as uBg and by .app as bg fallback. */
   --bg: #161A1D;
@@ -116,6 +134,12 @@
   --mr-transition: 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* silky-specific token overrides (deliberately empty for first seed —
+   silky shares the entire mirror variable layer above via the :is()
+   wrapper). When/if silky diverges (e.g. slightly warmer bg, softer
+   specular base, different cohort delays), the overrides land here so
+   the mirror block stays the source of truth for the experiential shell. */
+
 [data-base-profile='mirror'][data-theme='light'] {
   --mr-surface: rgba(255, 255, 255, 0.34);
   --mr-surface-strong: rgba(255, 255, 255, 0.5);
@@ -137,7 +161,7 @@
    mirror it should dissolve into the shader bg. The visible UI on the
    sidebar is the ribbon of nav items, not the panel itself.
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] .sidebar {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sidebar {
   background: transparent;
   border-right: 1px solid var(--mr-hairline);
   backdrop-filter: var(--mr-backdrop);
@@ -149,29 +173,29 @@
   box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.025);
 }
 
-[data-base-profile='mirror'] .nav-item {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .nav-item {
   background: transparent;
   border-radius: var(--mr-radius-control);
   transition: var(--mr-transition);
 }
 
-[data-base-profile='mirror'] .nav-item:hover {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .nav-item:hover {
   background: var(--mr-control-hover);
 }
 
-[data-base-profile='mirror'] .nav-item.active {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .nav-item.active {
   background: var(--mr-control-active);
   box-shadow: var(--mr-inset-top), var(--mr-inset-bottom);
 }
 
-[data-base-profile='mirror'] .nav-section-title {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .nav-section-title {
   color: var(--fg-4);
   letter-spacing: 0.06em;
   font-weight: 500;
 }
 
-[data-base-profile='mirror'] .brand,
-[data-base-profile='mirror'] .brand-name {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .brand,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .brand-name {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
@@ -179,10 +203,10 @@
 /* ─────────────────────────────────────────────────────────────────────
    Pages / shells around the main scroll area
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] .main,
-[data-base-profile='mirror'] .page,
-[data-base-profile='mirror'] .page-header,
-[data-base-profile='mirror'] .toolbar {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .main,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .page,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .page-header,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .toolbar {
   background: transparent;
 }
 
@@ -192,41 +216,41 @@
    The list mirrors what we found grepping styles.css. Any new card class
    added later should be added here too.
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] .settings-section,
-[data-base-profile='mirror'] .settings-row-stack,
-[data-base-profile='mirror'] .settings-preset-card,
-[data-base-profile='mirror'] .settings-model-card,
-[data-base-profile='mirror'] .settings-route-row,
-[data-base-profile='mirror'] .theme-profile-preset,
-[data-base-profile='mirror'] .theme-profile-card,
-[data-base-profile='mirror'] .usage-card,
-[data-base-profile='mirror'] .memory-card,
-[data-base-profile='mirror'] .task-card,
-[data-base-profile='mirror'] .repo-card,
-[data-base-profile='mirror'] .resource-card,
-[data-base-profile='mirror'] .skill-card,
-[data-base-profile='mirror'] .social-card,
-[data-base-profile='mirror'] .search-group,
-[data-base-profile='mirror'] .search-status-card,
-[data-base-profile='mirror'] .search-source-card,
-[data-base-profile='mirror'] .wiki-panel,
-[data-base-profile='mirror'] .wiki-viewer,
-[data-base-profile='mirror'] .pkm-search-panel,
-[data-base-profile='mirror'] .pkm-result-card,
-[data-base-profile='mirror'] .pkm-sop-card,
-[data-base-profile='mirror'] .calendar-main,
-[data-base-profile='mirror'] .calendar-day-panel,
-[data-base-profile='mirror'] .composer,
-[data-base-profile='mirror'] .toast,
-[data-base-profile='mirror'] .modal,
-[data-base-profile='mirror'] .card,
-[data-base-profile='mirror'] .sql-workbench-card,
-[data-base-profile='mirror'] .sql-ds-form-card,
-[data-base-profile='mirror'] .sql-ds-card,
-[data-base-profile='mirror'] .sql-file-card,
-[data-base-profile='mirror'] .sql-var-card,
-[data-base-profile='mirror'] .orch-card,
-[data-base-profile='mirror'] .mr-card {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-section,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-row-stack,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-model-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-route-row,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .usage-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .memory-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .task-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .repo-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .resource-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .skill-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .social-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .search-group,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .search-status-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .search-source-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .wiki-panel,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .wiki-viewer,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-search-panel,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-sop-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .calendar-main,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .calendar-day-panel,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .composer,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .toast,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .modal,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-workbench-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-ds-form-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-ds-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-file-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-var-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .orch-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card {
   background: var(--mr-surface);
   backdrop-filter: var(--mr-backdrop);
   -webkit-backdrop-filter: var(--mr-backdrop);
@@ -236,7 +260,7 @@
   transition: var(--mr-transition);
 }
 
-[data-base-profile='mirror'] .modal {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .modal {
   border-radius: var(--mr-radius-panel);
 }
 
@@ -257,58 +281,58 @@
      ::after  — 1px metal edge (Arc browser's real formula)
    ───────────────────────────────────────────────────────────────────── */
 
-[data-base-profile='mirror'][data-theme='dark'] .settings-section,
-[data-base-profile='mirror'][data-theme='dark'] .settings-row-stack,
-[data-base-profile='mirror'][data-theme='dark'] .settings-preset-card,
-[data-base-profile='mirror'][data-theme='dark'] .settings-model-card,
-[data-base-profile='mirror'][data-theme='dark'] .theme-profile-preset,
-[data-base-profile='mirror'][data-theme='dark'] .theme-profile-card,
-[data-base-profile='mirror'][data-theme='dark'] .usage-card,
-[data-base-profile='mirror'][data-theme='dark'] .memory-card,
-[data-base-profile='mirror'][data-theme='dark'] .task-card,
-[data-base-profile='mirror'][data-theme='dark'] .repo-card,
-[data-base-profile='mirror'][data-theme='dark'] .resource-card,
-[data-base-profile='mirror'][data-theme='dark'] .skill-card,
-[data-base-profile='mirror'][data-theme='dark'] .social-card,
-[data-base-profile='mirror'][data-theme='dark'] .search-source-card,
-[data-base-profile='mirror'][data-theme='dark'] .pkm-result-card,
-[data-base-profile='mirror'][data-theme='dark'] .pkm-sop-card,
-[data-base-profile='mirror'][data-theme='dark'] .modal,
-[data-base-profile='mirror'][data-theme='dark'] .card,
-[data-base-profile='mirror'][data-theme='dark'] .sql-workbench-card,
-[data-base-profile='mirror'][data-theme='dark'] .sql-ds-card,
-[data-base-profile='mirror'][data-theme='dark'] .sql-file-card,
-[data-base-profile='mirror'][data-theme='dark'] .sql-var-card,
-[data-base-profile='mirror'][data-theme='dark'] .orch-card,
-[data-base-profile='mirror'][data-theme='dark'] .mr-card {
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-section,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-row-stack,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-preset-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-model-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .theme-profile-preset,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .theme-profile-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .usage-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .memory-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .task-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .repo-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .resource-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .skill-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .social-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .search-source-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .pkm-result-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .pkm-sop-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .modal,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-workbench-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-ds-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-file-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-var-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .orch-card,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .mr-card {
   position: relative;
   isolation: isolate;
 }
 
-[data-base-profile='mirror'][data-theme='dark'] .settings-section::before,
-[data-base-profile='mirror'][data-theme='dark'] .settings-row-stack::before,
-[data-base-profile='mirror'][data-theme='dark'] .settings-preset-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .settings-model-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .theme-profile-preset::before,
-[data-base-profile='mirror'][data-theme='dark'] .theme-profile-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .usage-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .memory-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .task-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .repo-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .resource-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .skill-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .social-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .search-source-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .pkm-result-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .pkm-sop-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .modal::before,
-[data-base-profile='mirror'][data-theme='dark'] .card::before,
-[data-base-profile='mirror'][data-theme='dark'] .sql-workbench-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .sql-ds-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .sql-file-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .sql-var-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .orch-card::before,
-[data-base-profile='mirror'][data-theme='dark'] .mr-card::before {
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-section::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-row-stack::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-preset-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-model-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .theme-profile-preset::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .theme-profile-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .usage-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .memory-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .task-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .repo-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .resource-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .skill-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .social-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .search-source-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .pkm-result-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .pkm-sop-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .modal::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-workbench-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-ds-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-file-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-var-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .orch-card::before,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .mr-card::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -360,30 +384,30 @@
    Two layers: primary specular (peak ~340° from --mr-light-angle 285°)
    + secondary 180° environmental bounce. Animation drifts the angle.
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'][data-theme='dark'] .settings-section::after,
-[data-base-profile='mirror'][data-theme='dark'] .settings-row-stack::after,
-[data-base-profile='mirror'][data-theme='dark'] .settings-preset-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .settings-model-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .theme-profile-preset::after,
-[data-base-profile='mirror'][data-theme='dark'] .theme-profile-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .usage-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .memory-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .task-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .repo-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .resource-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .skill-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .social-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .search-source-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .pkm-result-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .pkm-sop-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .modal::after,
-[data-base-profile='mirror'][data-theme='dark'] .card::after,
-[data-base-profile='mirror'][data-theme='dark'] .sql-workbench-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .sql-ds-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .sql-file-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .sql-var-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .orch-card::after,
-[data-base-profile='mirror'][data-theme='dark'] .mr-card::after {
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-section::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-row-stack::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-preset-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .settings-model-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .theme-profile-preset::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .theme-profile-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .usage-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .memory-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .task-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .repo-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .resource-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .skill-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .social-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .search-source-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .pkm-result-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .pkm-sop-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .modal::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-workbench-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-ds-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-file-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .sql-var-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .orch-card::after,
+:is([data-base-profile='mirror'][data-theme='dark'], [data-base-profile='silky'][data-theme='dark']) .mr-card::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -444,51 +468,51 @@
    When --mr-cursor-angle is set by attachCursorTracking(), it overrides
    the swept light-angle as the base; offsets keep cohort variation under
    cursor mode. */
-[data-base-profile='mirror'] .settings-section,
-[data-base-profile='mirror'] .settings-preset-card,
-[data-base-profile='mirror'] .theme-profile-preset,
-[data-base-profile='mirror'] .usage-card,
-[data-base-profile='mirror'] .memory-card,
-[data-base-profile='mirror'] .pkm-result-card,
-[data-base-profile='mirror'] .card,
-[data-base-profile='mirror'] .mr-card {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-section,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .usage-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .memory-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .card,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card {
   --mr-card-angle: 285deg;
   --mr-card-angle-offset: 0deg;
   --mr-card-delay: 0s;
 }
 
-[data-base-profile='mirror'] .settings-section:nth-of-type(4n+2),
-[data-base-profile='mirror'] .settings-preset-card:nth-of-type(4n+2),
-[data-base-profile='mirror'] .theme-profile-preset:nth-of-type(4n+2),
-[data-base-profile='mirror'] .usage-card:nth-of-type(4n+2),
-[data-base-profile='mirror'] .memory-card:nth-of-type(4n+2),
-[data-base-profile='mirror'] .pkm-result-card:nth-of-type(4n+2),
-[data-base-profile='mirror'] .card:nth-of-type(4n+2),
-[data-base-profile='mirror'] .mr-card:nth-of-type(4n+2) {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-section:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .usage-card:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .memory-card:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .card:nth-of-type(4n+2),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card:nth-of-type(4n+2) {
   --mr-card-angle-offset: -15deg; /* v1: 270deg base = 285 + (-15) */
   --mr-card-delay: -1.5s;
 }
 
-[data-base-profile='mirror'] .settings-section:nth-of-type(4n+3),
-[data-base-profile='mirror'] .settings-preset-card:nth-of-type(4n+3),
-[data-base-profile='mirror'] .theme-profile-preset:nth-of-type(4n+3),
-[data-base-profile='mirror'] .usage-card:nth-of-type(4n+3),
-[data-base-profile='mirror'] .memory-card:nth-of-type(4n+3),
-[data-base-profile='mirror'] .pkm-result-card:nth-of-type(4n+3),
-[data-base-profile='mirror'] .card:nth-of-type(4n+3),
-[data-base-profile='mirror'] .mr-card:nth-of-type(4n+3) {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-section:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .usage-card:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .memory-card:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .card:nth-of-type(4n+3),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card:nth-of-type(4n+3) {
   --mr-card-angle-offset: 15deg; /* v1: 300deg base = 285 + 15 */
   --mr-card-delay: -4.2s;
 }
 
-[data-base-profile='mirror'] .settings-section:nth-of-type(4n+4),
-[data-base-profile='mirror'] .settings-preset-card:nth-of-type(4n+4),
-[data-base-profile='mirror'] .theme-profile-preset:nth-of-type(4n+4),
-[data-base-profile='mirror'] .usage-card:nth-of-type(4n+4),
-[data-base-profile='mirror'] .memory-card:nth-of-type(4n+4),
-[data-base-profile='mirror'] .pkm-result-card:nth-of-type(4n+4),
-[data-base-profile='mirror'] .card:nth-of-type(4n+4),
-[data-base-profile='mirror'] .mr-card:nth-of-type(4n+4) {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-section:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .usage-card:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .memory-card:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .card:nth-of-type(4n+4),
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card:nth-of-type(4n+4) {
   --mr-card-angle-offset: 30deg; /* v1: 315deg base = 285 + 30 */
   --mr-card-delay: -7.1s;
 }
@@ -499,16 +523,16 @@
    surfaces) damp to 0.10. Because .mr-card-level-2 / -3 elements ALSO
    carry the base .mr-card class, the ::after rule still matches; this
    block just overrides the var for cascade-based level differentiation. */
-[data-base-profile='mirror'] .mr-card { --mr-specular-base: 0.46; }
-[data-base-profile='mirror'] .mr-card-level-2 { --mr-specular-base: 0.22; }
-[data-base-profile='mirror'] .mr-card-level-3 { --mr-specular-base: 0.10; }
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card { --mr-specular-base: 0.46; }
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card-level-2 { --mr-specular-base: 0.22; }
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .mr-card-level-3 { --mr-specular-base: 0.10; }
 
 /* When the user prefers reduced motion, freeze the sweep — the angle
    spread per cohort still gives the multi-light look without animation.
    ::before covers mr-silk-flow; ::after covers mr-light-sweep. */
 @media (prefers-reduced-motion: reduce) {
-  [data-base-profile='mirror'] *::before,
-  [data-base-profile='mirror'] *::after {
+  :is([data-base-profile='mirror'], [data-base-profile='silky']) *::before,
+  :is([data-base-profile='mirror'], [data-base-profile='silky']) *::after {
     animation: none !important;
   }
 }
@@ -581,22 +605,22 @@
    halo has nothing to "rest against" — the cards under the cursor still
    look static even though the bg responds.
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] .settings-preset-card:hover,
-[data-base-profile='mirror'] .settings-model-card:hover,
-[data-base-profile='mirror'] .theme-profile-preset:hover,
-[data-base-profile='mirror'] .theme-profile-card:hover,
-[data-base-profile='mirror'] .pkm-result-card:hover,
-[data-base-profile='mirror'] .pkm-sop-card:hover,
-[data-base-profile='mirror'] .task-card:hover,
-[data-base-profile='mirror'] .repo-card:hover,
-[data-base-profile='mirror'] .resource-card:hover,
-[data-base-profile='mirror'] .skill-card:hover,
-[data-base-profile='mirror'] .social-card:hover,
-[data-base-profile='mirror'] .search-source-card:hover,
-[data-base-profile='mirror'] .sql-ds-card:hover,
-[data-base-profile='mirror'] .sql-file-card:hover,
-[data-base-profile='mirror'] .sql-var-card:hover,
-[data-base-profile='mirror'] .orch-card:hover {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-model-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-sop-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .task-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .repo-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .resource-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .skill-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .social-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .search-source-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-ds-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-file-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-var-card:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .orch-card:hover {
   background: var(--mr-surface-strong);
   border-color: var(--mr-hairline-strong);
   transform: translateY(-1px);
@@ -631,7 +655,7 @@
 /* Settings rows — softer feedback: just a brightening, no lift, because
    they're stacked tightly inside a card and a translateY would shift
    neighbors visually. */
-[data-base-profile='mirror'] .settings-row:hover {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-row:hover {
   background: rgba(255, 255, 255, 0.018);
 }
 
@@ -641,12 +665,12 @@
 
 /* Active press feedback — sink slightly, kills the "lift" so click reads
    as pressure rather than reverberation. */
-[data-base-profile='mirror'] .settings-preset-card:active,
-[data-base-profile='mirror'] .theme-profile-preset:active,
-[data-base-profile='mirror'] .pkm-result-card:active,
-[data-base-profile='mirror'] .repo-card:active,
-[data-base-profile='mirror'] .resource-card:active,
-[data-base-profile='mirror'] .task-card:active {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-preset-card:active,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .theme-profile-preset:active,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-result-card:active,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .repo-card:active,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .resource-card:active,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .task-card:active {
   transform: translateY(0);
   transition-duration: 120ms;
   box-shadow:
@@ -655,7 +679,7 @@
     0 4px 12px rgba(0, 0, 0, 0.32);
 }
 
-[data-base-profile='mirror'] .modal-backdrop {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .modal-backdrop {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(6px) saturate(0.9);
   -webkit-backdrop-filter: blur(6px) saturate(0.9);
@@ -667,7 +691,7 @@
 
 /* Section titles inside cards — neutralize the heavy underline that
    was reading as a hard divider in the screenshot. */
-[data-base-profile='mirror'] .settings-section-title {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-section-title {
   background: transparent;
   border-bottom: 1px solid var(--mr-hairline);
   color: var(--fg-3);
@@ -675,37 +699,37 @@
   letter-spacing: 0.06em;
 }
 
-[data-base-profile='mirror'] .settings-row {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-row {
   /* Codex ROI #3: softer divider + roomier padding makes the section
      read as a single liquid surface rather than a stacked form. */
   border-bottom: 1px solid rgba(255, 255, 255, 0.032);
   padding: 15px 18px;
 }
 
-[data-base-profile='mirror'] {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) {
   /* Codex ROI #4: meta text was too dim. Lift fg-4 so secondary copy
      stays legible against the brighter graphite. */
   --fg-4: #7E8792;
 }
 
-[data-base-profile='mirror'] .settings-row:last-child {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-row:last-child {
   border-bottom: 0;
 }
 
-[data-base-profile='mirror'] .settings-row-title {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-row-title {
   font-weight: 550;
 }
 
-[data-base-profile='mirror'] .settings-row-desc {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-row-desc {
   color: var(--fg-4);
 }
 
 /* ─────────────────────────────────────────────────────────────────────
    Controls — chips, segmented buttons, inputs, icon buttons
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] .chip,
-[data-base-profile='mirror'] .icon-btn,
-[data-base-profile='mirror'] .segmented {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .chip,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .icon-btn,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .segmented {
   background: var(--mr-control);
   backdrop-filter: var(--mr-backdrop-small);
   -webkit-backdrop-filter: var(--mr-backdrop-small);
@@ -715,44 +739,44 @@
   transition: var(--mr-transition);
 }
 
-[data-base-profile='mirror'] .chip:hover,
-[data-base-profile='mirror'] .icon-btn:hover {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .chip:hover,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .icon-btn:hover {
   background: var(--mr-control-hover);
 }
 
-[data-base-profile='mirror'] .chip.primary {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .chip.primary {
   /* Use the existing accent token — but mirror's accent is intentionally
      muted (#7C8EA3 / #708090), so this stays in palette. */
   background: linear-gradient(180deg, var(--accent), var(--accent-2));
   border-color: var(--mr-hairline-strong);
 }
 
-[data-base-profile='mirror'] .seg {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .seg {
   background: transparent;
   border: 0;
   border-radius: calc(var(--mr-radius-control) - 2px);
   transition: var(--mr-transition);
 }
 
-[data-base-profile='mirror'] .seg:hover {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .seg:hover {
   background: var(--mr-control-hover);
 }
 
-[data-base-profile='mirror'] .seg.active {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .seg.active {
   background: var(--mr-control-active);
   box-shadow: var(--mr-inset-top), var(--mr-inset-bottom);
 }
 
-[data-base-profile='mirror'] .settings-input,
-[data-base-profile='mirror'] textarea.settings-input,
-[data-base-profile='mirror'] select.settings-input,
-[data-base-profile='mirror'] .calendar-field input,
-[data-base-profile='mirror'] .calendar-field textarea,
-[data-base-profile='mirror'] .calendar-field select,
-[data-base-profile='mirror'] .pkm-input,
-[data-base-profile='mirror'] .wiki-textarea,
-[data-base-profile='mirror'] .sql-ds-form input,
-[data-base-profile='mirror'] .sql-ds-form select {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-input,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) textarea.settings-input,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) select.settings-input,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .calendar-field input,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .calendar-field textarea,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .calendar-field select,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-input,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .wiki-textarea,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-ds-form input,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .sql-ds-form select {
   background: var(--mr-control);
   border: 1px solid var(--mr-hairline);
   border-radius: var(--mr-radius-control);
@@ -760,11 +784,11 @@
   transition: var(--mr-transition);
 }
 
-[data-base-profile='mirror'] .settings-input:focus,
-[data-base-profile='mirror'] textarea.settings-input:focus,
-[data-base-profile='mirror'] select.settings-input:focus,
-[data-base-profile='mirror'] .pkm-input:focus,
-[data-base-profile='mirror'] .wiki-textarea:focus {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .settings-input:focus,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) textarea.settings-input:focus,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) select.settings-input:focus,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .pkm-input:focus,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .wiki-textarea:focus {
   border-color: var(--mr-hairline-strong);
   box-shadow: var(--mr-inset-bottom), 0 0 0 3px rgba(255, 255, 255, 0.04);
   outline: none;
@@ -775,7 +799,7 @@
   box-shadow: var(--mr-inset-bottom), 0 0 0 3px rgba(0, 0, 0, 0.04);
 }
 
-[data-base-profile='mirror'] .search {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) .search {
   background: var(--mr-control);
   border: 1px solid var(--mr-hairline);
   border-radius: var(--mr-radius-control);
@@ -789,34 +813,34 @@
    Default theme uses heavier weights; mirror prefers a flatter contrast
    ladder so titles don't shout above the calm material.
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] h1,
-[data-base-profile='mirror'] h2,
-[data-base-profile='mirror'] h3 {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) h1,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) h2,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) h3 {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-[data-base-profile='mirror'] body,
-[data-base-profile='mirror'] p,
-[data-base-profile='mirror'] li,
-[data-base-profile='mirror'] td,
-[data-base-profile='mirror'] th {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) body,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) p,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) li,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) td,
+:is([data-base-profile='mirror'], [data-base-profile='silky']) th {
   font-weight: 420;
 }
 
 /* ─────────────────────────────────────────────────────────────────────
    Scrollbars — neutralize so they don't break the calm
    ───────────────────────────────────────────────────────────────────── */
-[data-base-profile='mirror'] ::-webkit-scrollbar {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-[data-base-profile='mirror'] ::-webkit-scrollbar-track {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-[data-base-profile='mirror'] ::-webkit-scrollbar-thumb {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
 }
@@ -825,7 +849,7 @@
   background: rgba(0, 0, 0, 0.08);
 }
 
-[data-base-profile='mirror'] ::-webkit-scrollbar-thumb:hover {
+:is([data-base-profile='mirror'], [data-base-profile='silky']) ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
