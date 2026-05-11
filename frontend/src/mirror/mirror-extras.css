@@ -452,4 +452,16 @@
 }
 [data-base-profile='mirror'] .mr-page-loading {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-4);
+  opacity: 0.4;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-base-profile='mirror'] .mr-page-loading::before {
+  content: '加载中';
 }
