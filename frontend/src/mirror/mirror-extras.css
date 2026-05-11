@@ -570,6 +570,33 @@
   margin-top: var(--mr-g3);
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   IU-11: Right column — Token 可视化面板 + Cache + 来源与时间窗口
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Card header — title/description left, refresh button right */
+[data-base-profile='mirror'] .mr-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: var(--mr-g4);
+  margin-bottom: var(--mr-g5);
+}
+
+/* 2x2 stat grid inside Token 可视化面板 / Cache 与升级开销 */
+[data-base-profile='mirror'] .mr-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--mr-g4);
+}
+
+/* Vertical list of progress rows in 来源与时间窗口 */
+[data-base-profile='mirror'] .mr-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mr-g5);
+}
+
 /* Task routing — label/description left, select right */
 [data-base-profile='mirror'] .mr-task-route-list {
   display: flex;

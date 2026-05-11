@@ -1,5 +1,6 @@
 import { useTheme } from '../theme-context'
 import { useSettingsPageModel } from '../hooks/useSettingsPageModel'
+import { useTokenUsage } from '../hooks/useTokenUsage'
 import type { LlmTaskKind } from '../api/settings'
 import { MirrorPageWrapper } from './MirrorPageWrapper'
 import { MirrorPageHeader } from './MirrorPageHeader'
@@ -9,8 +10,15 @@ import {
   MirrorCollapsible,
   MirrorInput,
   MirrorPresetCard,
+  MirrorProgressBar,
+  MirrorStatCard,
   MirrorText,
 } from './primitives'
+
+function pctOf(part: number | undefined, total: number | undefined): number {
+  if (!part || !total) return 0
+  return Math.min(100, Math.max(0, (part / total) * 100))
+}
 
 /**
  * IU-9: 2-column console shell + save chip in the page header.
@@ -47,11 +55,24 @@ const LLM_TASKS: ReadonlyArray<{ task: LlmTaskKind; label: string; description: 
 export function MirrorSettings() {
   const { theme } = useTheme()
   const model = useSettingsPageModel()
+  const usage = useTokenUsage()
 
   const profiles = model.loaded?.llm.profiles ?? []
   const activeProfileId = model.loaded?.llm.activeProfileId ?? ''
   const activeProfileName =
     profiles.find((p) => p.id === activeProfileId)?.name ?? '云端·未配置'
+
+  // Token usage data — pulled from the same `/agent/stats/usage` endpoint as
+  // the classic TokenUsagePanel. Fields are null/undefined when the request
+  // hasn't returned yet; MirrorStatCard renders `null` as an em-dash.
+  const totals = usage.stats?.totals
+  const totalTokens = totals?.totalTokens
+  const coverage = totals && totals.assistantMessages > 0
+    ? (totals.messagesWithUsage / totals.assistantMessages) * 100
+    : 0
+  const current = usage.stats?.current
+  const archived = usage.stats?.archived
+  const recent7 = usage.stats?.recent7Days
 
   return (
     <MirrorPageWrapper
@@ -200,7 +221,86 @@ export function MirrorSettings() {
           </MirrorCard>
         </div>
         <div className="mr-settings-col mr-settings-col-right">
-          <div className="mr-settings-placeholder">IU-11 fills Token 可视化面板 + Cache 与升级开销 + 来源与时间窗口</div>
+          {/* Card 1: Token 可视化面板 */}
+          <MirrorCard level={1} pad="form">
+            <header className="mr-card-header">
+              <div>
+                <MirrorText role="title" as="h3">Token 可视化面板</MirrorText>
+                <MirrorText role="body" as="p" className="mr-settings-sub-desc">
+                  重点观察总量、上下文开销、cache 命中和升级动作额外成本。
+                </MirrorText>
+              </div>
+              <MirrorButton
+                variant="subtle"
+                disabled={usage.refreshing || usage.loading}
+                onClick={() => void usage.refresh()}
+              >
+                {usage.refreshing ? '刷新中…' : '刷新统计'}
+              </MirrorButton>
+            </header>
+            <div className="mr-stat-grid">
+              <MirrorStatCard label="累计总量" value={totalTokens ?? null} />
+              <MirrorStatCard
+                label="用户输入"
+                value={totals?.userTokens ?? null}
+                delta={totals ? { value: `覆盖率 ${coverage.toFixed(1)}%` } : undefined}
+              />
+              <MirrorStatCard label="AI 输出" value={totals?.outputTokens ?? null} />
+              <MirrorStatCard label="上下文开销" value={totals?.contextTokens ?? null} />
+            </div>
+          </MirrorCard>
+
+          {/* Card 2: Cache 与升级开销 */}
+          <MirrorCard level={1} pad="form">
+            <MirrorText role="title" as="h3">Cache 与升级开销</MirrorText>
+            <MirrorText role="body" as="p" className="mr-settings-sub-desc">
+              这里单独拆出 provider cache 与 request_context_upgrade 造成的额外 token。
+            </MirrorText>
+            <div className="mr-stat-grid">
+              <MirrorStatCard label="CACHE READ" value={totals?.cacheReadTokens ?? null} />
+              <MirrorStatCard label="CACHE WRITE" value={totals?.cacheWriteTokens ?? null} />
+              <MirrorStatCard label="UPGRADE OVERHEAD" value={totals?.upgradeOverheadTotalTokens ?? null} />
+              <MirrorStatCard
+                label="有 USAGE 的回填"
+                value={totals?.messagesWithUsage ?? null}
+                delta={totals ? { value: `${totals.assistantMessages} 条 assistant 消息` } : undefined}
+              />
+            </div>
+          </MirrorCard>
+
+          {/* Card 3: 来源与时间窗口 */}
+          <MirrorCard level={1} pad="form">
+            <MirrorText role="title" as="h3">来源与时间窗口</MirrorText>
+            <MirrorText role="body" as="p" className="mr-settings-sub-desc">
+              区分当前聊天、历史归档和最近时间窗口的 token 规模。
+            </MirrorText>
+            <div className="mr-progress-list">
+              <MirrorProgressBar
+                label="当前聊天"
+                detail={current
+                  ? `输入 ${current.inputTokens.toLocaleString()} / 输出 ${current.outputTokens.toLocaleString()} / ${current.totalTokens.toLocaleString()}`
+                  : '暂无数据'}
+                fillPercent={pctOf(current?.totalTokens, totalTokens)}
+                totalValue={current?.totalTokens ?? null}
+              />
+              <MirrorProgressBar
+                label="历史归档"
+                detail={archived
+                  ? `输入 ${archived.inputTokens.toLocaleString()} / 输出 ${archived.outputTokens.toLocaleString()} / ${archived.totalTokens.toLocaleString()}`
+                  : '暂无数据'}
+                fillPercent={pctOf(archived?.totalTokens, totalTokens)}
+                totalValue={archived?.totalTokens ?? null}
+              />
+              <MirrorProgressBar
+                label="时间窗口·7 天"
+                detail={recent7
+                  ? `输入 ${recent7.inputTokens.toLocaleString()} / 输出 ${recent7.outputTokens.toLocaleString()} / ${recent7.totalTokens.toLocaleString()}`
+                  : '暂无数据'}
+                fillPercent={pctOf(recent7?.totalTokens, totalTokens)}
+                totalValue={recent7?.totalTokens ?? null}
+              />
+            </div>
+          </MirrorCard>
         </div>
       </div>
     </MirrorPageWrapper>
