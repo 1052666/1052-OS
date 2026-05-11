@@ -393,6 +393,50 @@ const MIRROR_DARK_TOKENS = {
 } as const
 
 /**
+ * 丝镜 (深色) — builtin:silky-dark
+ *
+ * 设计语言：和 mirror-dark 同款液态石墨 / 丝绸材质（22-class material system
+ * 共享），但**外壳是经典 shell**——sidebar + chat + settings 走 classic
+ * 组件树，不挂任何 Phase 1 的物理因果反馈（cursor tracking / cross-card
+ * coupling / liquid pour / MirrorChrome）。
+ *
+ * 用户面定位（codex review locked）：
+ *   - mirror = "experiential shell"（活的，cursor 跟随、卡片联动、液体倾倒）
+ *   - silky  = "classic shell + material skin"（静的，纯材质美学）
+ *
+ * Token 起点与 mirror-dark 完全一致（共享材质底）；后续如需差异化（如稍暖
+ * 一些）再调，避免破坏 22-class material 共享前提。
+ */
+const SILKY_DARK_CORE_TOKENS = {
+  bg: '#111315',
+  surface: '#1B1E22',
+  fg: '#E5E7EA',
+  accent: '#7C8EA3',
+  success: '#34d399',
+  danger: '#fb7185',
+} as const
+
+const SILKY_DARK_TOKENS = {
+  ...SILKY_DARK_CORE_TOKENS,
+  bgGrad1: '#1B1E22',
+  bgGrad2: '#0E1012',
+  surface0: '#111315',
+  surface1: '#181B1F',
+  surface2: '#1B1E22',
+  surface3: '#24282D',
+  surfaceHover: '#1F2226',
+  hairline: '#2A2D32',
+  hairline2: '#1F2226',
+  hairlineStrong: '#3A3E45',
+  fg2: '#9CA3AF',
+  fg3: '#6B7280',
+  fg4: '#4B5158',
+  accent2: '#9CA3AF',
+  accentSoft: '#2A3340',
+  accentRing: '#7C8EA3',
+} as const
+
+/**
  * 水面 (浅色) — builtin:mirror-light
  *
  * 设计语言：浅灰液态丝绸 / 润湿陶瓷 / 微湿银漆 / 雾面铝（不是白玻璃，不是 frosted white）。
@@ -482,6 +526,25 @@ export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
   // when the user is on the mirror profile (see Settings.tsx). The
   // MIRROR_LIGHT_* token constants are kept above for reference / future
   // revival but no longer seeded.
+  {
+    id: 'builtin:silky-dark',
+    // builtinVersion history:
+    //   v1 — initial seed; classic UI shell with mirror material skin —
+    //        no reactive cursor / coupling / pour effects. Shares the
+    //        22-class material system in mirror-theme.css via the
+    //        [data-base-profile='silky'] selector mirror (added in this
+    //        same change).
+    builtinVersion: 1,
+    theme: {
+      schemaVersion: 1,
+      name: '丝镜',
+      mode: 'dark',
+      scope: 'all',
+      safetyLevel: 'safe',
+      coreTokens: { ...SILKY_DARK_CORE_TOKENS },
+      tokens: { ...SILKY_DARK_TOKENS },
+    },
+  },
 ] as const
 
 /**
