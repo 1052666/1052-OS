@@ -1,4 +1,5 @@
-import { ReactNode, forwardRef, useState } from 'react'
+import { ReactNode, forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCoupling } from './cardCoupling'
 
 type CardLevel = 1 | 2 | 3
 type CardInteractive = 'none' | 'highlight' | 'lift'
@@ -14,7 +15,7 @@ export interface MirrorCardProps {
 }
 
 export const MirrorCard = forwardRef<HTMLDivElement, MirrorCardProps>(
-  ({ level = 1, interactive = 'none', pad = 'form', children, className, onClick }, ref) => {
+  ({ level = 1, interactive = 'none', pad = 'form', children, className, onClick }, fwdRef) => {
     const cls = [
       'mr-card',
       `mr-card-level-${level}`,
@@ -22,8 +23,50 @@ export const MirrorCard = forwardRef<HTMLDivElement, MirrorCardProps>(
       `mr-card-int-${interactive}`,
       className,
     ].filter(Boolean).join(' ')
+
+    const localRef = useRef<HTMLDivElement | null>(null)
+    const id = useId()
+    const coupling = useCoupling()
+
+    const setRef = useCallback(
+      (el: HTMLDivElement | null) => {
+        localRef.current = el
+        if (typeof fwdRef === 'function') fwdRef(el)
+        else if (fwdRef) fwdRef.current = el
+      },
+      [fwdRef],
+    )
+
+    // Register with the coupling controller. Centers are kept in a JS
+    // map (no data-* on the DOM) — per IU-3 codex nit.
+    useEffect(() => {
+      const el = localRef.current
+      if (!el || !coupling) return
+      const r = el.getBoundingClientRect()
+      coupling.register(id, el, {
+        cx: r.left + r.width / 2,
+        cy: r.top + r.height / 2,
+      })
+      const RO = typeof ResizeObserver !== 'undefined' ? ResizeObserver : null
+      const ro = RO
+        ? new RO(() => {
+            if (!el.isConnected) return
+            const rr = el.getBoundingClientRect()
+            coupling.updatePosition(id, {
+              cx: rr.left + rr.width / 2,
+              cy: rr.top + rr.height / 2,
+            })
+          })
+        : null
+      ro?.observe(el)
+      return () => {
+        coupling.unregister(id)
+        ro?.disconnect()
+      }
+    }, [coupling, id])
+
     return (
-      <div ref={ref} className={cls} onClick={onClick} data-mirror-card>
+      <div ref={setRef} className={cls} onClick={onClick} data-mirror-card>
         {children}
       </div>
     )
