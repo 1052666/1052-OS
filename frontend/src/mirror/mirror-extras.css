@@ -647,3 +647,187 @@
   font-size: 12px;
   margin-bottom: var(--mr-g4);
 }
+
+/* =====================================================================
+   IU-13: MirrorChat liquid-doc layout
+   ---------------------------------------------------------------------
+   Chat is rendered as a continuous document (no bubbles, no avatars).
+   Per-message hairline divider; user messages get a 2px left accent
+   bar reusing the nav-active idiom. A centered uppercase time-separator
+   appears between messages whose gap exceeds 5 minutes.
+   ===================================================================== */
+[data-base-profile='mirror'] .mr-chat-doc {
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+  padding-bottom: 140px; /* leave room for the floating composer (IU-14) */
+  display: flex;
+  flex-direction: column;
+}
+
+[data-base-profile='mirror'] .mr-chat-empty {
+  padding: var(--mr-g7) 0;
+  text-align: center;
+  color: var(--fg-4);
+  opacity: 0.6;
+}
+
+[data-base-profile='mirror'] .mr-chat-msg {
+  padding: var(--mr-g4) var(--mr-g4);
+  margin: 0;
+  border-bottom: var(--mr-hair-faint);
+  /* Room for the 2px left bar so user / assistant text aligns vertically. */
+  padding-left: calc(var(--mr-g4) + 2px);
+  border-left: 2px solid transparent;
+  color: var(--fg-1);
+  line-height: 1.6;
+  font-size: 14px;
+  font-weight: 420;
+}
+
+[data-base-profile='mirror'] .mr-chat-msg:last-of-type {
+  border-bottom: none;
+}
+
+[data-base-profile='mirror'] .mr-chat-msg.is-user {
+  /* The vertical bar idiom — reuses the nav-active accent. */
+  border-left-color: var(--fg-2);
+}
+
+[data-base-profile='mirror'] .mr-chat-msg.is-error {
+  color: rgba(229, 165, 165, 0.9);
+}
+
+[data-base-profile='mirror'] .mr-chat-user-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[data-base-profile='mirror'] .mr-chat-assistant-content {
+  /* Markdown component owns its own block layout; we just give it the
+     mirror text rhythm via color + line-height inherited from the parent. */
+  position: relative;
+}
+
+/* Streaming caret — sits inline at the trailing edge of the assistant
+   message while content is still arriving. */
+[data-base-profile='mirror'] .mr-chat-caret {
+  display: inline-block;
+  width: 6px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--fg-2);
+  opacity: 0.7;
+  animation: mr-chat-caret-blink 1s steps(2, end) infinite;
+}
+
+@keyframes mr-chat-caret-blink {
+  0%, 50% { opacity: 0.7; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Typing indicator (three dots) — shown when an assistant message is
+   streaming but no content has arrived yet. */
+[data-base-profile='mirror'] .mr-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 14px;
+}
+
+[data-base-profile='mirror'] .mr-chat-typing span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fg-3);
+  opacity: 0.4;
+  animation: mr-chat-typing-bounce 1.2s ease-in-out infinite;
+}
+
+[data-base-profile='mirror'] .mr-chat-typing span:nth-child(2) { animation-delay: 0.15s; }
+[data-base-profile='mirror'] .mr-chat-typing span:nth-child(3) { animation-delay: 0.30s; }
+
+@keyframes mr-chat-typing-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-3px); opacity: 0.9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-base-profile='mirror'] .mr-chat-caret,
+  [data-base-profile='mirror'] .mr-chat-typing span {
+    animation: none;
+  }
+}
+
+/* Centered uppercase time separator with thin lines on either side.
+   Sits between messages with a >5min gap; never above the first message. */
+[data-base-profile='mirror'] .mr-chat-time-sep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--mr-g5) 0 var(--mr-g4);
+}
+
+[data-base-profile='mirror'] .mr-chat-time-sep::before,
+[data-base-profile='mirror'] .mr-chat-time-sep::after {
+  content: '';
+  display: inline-block;
+  width: 40px;
+  height: 0.5px;
+  background: rgba(255, 255, 255, 0.04);
+  margin: 0 var(--mr-g3);
+}
+
+[data-base-profile='light'] .mr-chat-time-sep::before,
+[data-base-profile='light'] .mr-chat-time-sep::after {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-base-profile='mirror'] .mr-chat-time-sep .mr-text-meta {
+  letter-spacing: 0.12em;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+/* Markdown overrides inside mirror chat — classic Markdown.tsx ships
+   classic styles; these minimum overrides keep code blocks / inline code
+   visually consistent with mirror chrome (subtle bg, hairline border). */
+[data-base-profile='mirror'] .mr-chat-msg pre {
+  background: rgba(255, 255, 255, 0.04);
+  border: var(--mr-hair);
+  border-radius: var(--mr-radius-control);
+  padding: var(--mr-g4);
+  overflow-x: auto;
+  font-size: 12px;
+}
+
+[data-base-profile='mirror'] .mr-chat-msg code {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+[data-base-profile='mirror'] .mr-chat-msg pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+[data-base-profile='light'] .mr-chat-msg pre {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-base-profile='light'] .mr-chat-msg code {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Composer mount point — IU-14 fills it. Reserve a 0-height anchor so
+   layout doesn't jump when the composer is wired up. */
+[data-base-profile='mirror'] .mr-chat-composer-anchor {
+  height: 0;
+  width: 100%;
+}
