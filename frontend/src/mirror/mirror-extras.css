@@ -1027,6 +1027,16 @@
   [data-base-profile='mirror'] .mr-composer:focus-within {
     transform: none;
   }
+  /* Card hover lift — suppress translateY to avoid vestibular triggers */
+  [data-base-profile='mirror'] .mr-card-int-lift:hover,
+  [data-base-profile='mirror'] .mr-card-int-lift:active {
+    transform: none;
+    transition: none;
+  }
+  /* Progress bar fill — instant width change instead of 400ms slide */
+  [data-base-profile='mirror'] .mr-progress-fill {
+    transition: none;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────

@@ -486,9 +486,11 @@
 }
 
 /* When the user prefers reduced motion, freeze the sweep — the angle
-   spread per cohort still gives the multi-light look without animation. */
+   spread per cohort still gives the multi-light look without animation.
+   ::before covers mr-silk-flow; ::after covers mr-light-sweep. */
 @media (prefers-reduced-motion: reduce) {
-  [data-base-profile='mirror'] *::before {
+  [data-base-profile='mirror'] *::before,
+  [data-base-profile='mirror'] *::after {
     animation: none !important;
   }
 }
