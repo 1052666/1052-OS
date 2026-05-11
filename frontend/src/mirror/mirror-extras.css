@@ -1028,3 +1028,27 @@
     transform: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────
+   IU-16: Liquid pour overlay — radial mask expands from
+   viewport center over 1.5s to reveal the mirror chrome.
+   pointer-events:none so cursor tracking / card registration
+   continue to work beneath. Hidden under prefers-reduced-motion
+   via shouldShowPour() returning false (overlay never mounted).
+   ───────────────────────────────────────────────────────── */
+.mr-pour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.mr-pour-fill {
+  position: absolute;
+  inset: 0;
+  /* Layered: subtle highlight + matte fill matching mirror --bg. */
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.08), transparent 60%),
+    radial-gradient(circle at 70% 80%, rgba(255, 255, 255, 0.04), transparent 70%),
+    #161a1d;
+}
