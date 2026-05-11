@@ -781,8 +781,8 @@
   margin: 0 var(--mr-g3);
 }
 
-[data-base-profile='light'] .mr-chat-time-sep::before,
-[data-base-profile='light'] .mr-chat-time-sep::after {
+[data-base-profile='mirror'][data-theme='light'] .mr-chat-time-sep::before,
+[data-base-profile='mirror'][data-theme='light'] .mr-chat-time-sep::after {
   background: rgba(0, 0, 0, 0.05);
 }
 
@@ -819,11 +819,11 @@
   font-size: inherit;
 }
 
-[data-base-profile='light'] .mr-chat-msg pre {
+[data-base-profile='mirror'][data-theme='light'] .mr-chat-msg pre {
   background: rgba(0, 0, 0, 0.03);
 }
 
-[data-base-profile='light'] .mr-chat-msg code {
+[data-base-profile='mirror'][data-theme='light'] .mr-chat-msg code {
   background: rgba(0, 0, 0, 0.05);
 }
 
@@ -872,7 +872,7 @@
   padding: var(--mr-g3);
 }
 
-[data-base-profile='light'] .mr-composer-tools {
+[data-base-profile='mirror'][data-theme='light'] .mr-composer-tools {
   background: rgba(255, 255, 255, 0.6);
 }
 
@@ -894,7 +894,7 @@
   color: var(--fg-2);
 }
 
-[data-base-profile='light'] .mr-upload-chip {
+[data-base-profile='mirror'][data-theme='light'] .mr-upload-chip {
   background: rgba(0, 0, 0, 0.04);
 }
 
