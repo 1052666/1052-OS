@@ -1,9 +1,10 @@
-import { useEffect, lazy, Suspense, type ReactNode } from 'react'
+import { useEffect, useRef, lazy, Suspense, type ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { MirrorSidebar } from './MirrorSidebar'
 import { MirrorPageWrapper } from './MirrorPageWrapper'
 import { MirrorPageHeader } from './MirrorPageHeader'
 import { attachCursorTracking } from './cursorTracking'
+import { CouplingController, CouplingContext } from './cardCoupling'
 
 // Lazy mirror pages — PR2/PR3 fill the stubs.
 const MirrorChat = lazy(() =>
@@ -47,8 +48,67 @@ function Wrap(title: string, child: ReactNode) {
 }
 
 export function MirrorChrome() {
+  // Lazy-init once so the controller identity stays stable across renders.
+  const couplingRef = useRef<CouplingController | null>(null)
+  if (couplingRef.current == null) couplingRef.current = new CouplingController()
+
   useEffect(() => attachCursorTracking(), [])
+
+  // Cross-card coupling rAF loop: hover-source detection + scroll refresh
+  // + 3s idle fadeout. Throttled via a single rAF in flight.
+  useEffect(() => {
+    const controller = couplingRef.current!
+    let rafId: number | null = null
+    let idleTimer: number | null = null
+
+    const schedule = () => {
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        controller.tick()
+        rafId = null
+      })
+    }
+
+    const onMove = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      const card =
+        (t && typeof t.closest === 'function'
+          ? (t.closest('[data-mirror-card]') as HTMLElement | null)
+          : null)
+      if (card) {
+        const r = card.getBoundingClientRect()
+        controller.setSource({
+          cx: r.left + r.width / 2,
+          cy: r.top + r.height / 2,
+        })
+      } else {
+        controller.setSource(null)
+      }
+      schedule()
+      if (idleTimer != null) window.clearTimeout(idleTimer)
+      idleTimer = window.setTimeout(() => {
+        controller.setSource(null)
+        schedule()
+      }, 3000)
+    }
+
+    const onScroll = () => {
+      controller.refreshAll()
+      schedule()
+    }
+
+    window.addEventListener('mousemove', onMove, { passive: true })
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      document.removeEventListener('scroll', onScroll, { capture: true })
+      if (rafId != null) cancelAnimationFrame(rafId)
+      if (idleTimer != null) window.clearTimeout(idleTimer)
+    }
+  }, [])
+
   return (
+    <CouplingContext.Provider value={couplingRef.current}>
     <div className="mr-shell">
       <MirrorSidebar />
       <Suspense fallback={<div className="mr-page-loading" />}>
@@ -123,5 +183,6 @@ export function MirrorChrome() {
         </Routes>
       </Suspense>
     </div>
+    </CouplingContext.Provider>
   )
 }
