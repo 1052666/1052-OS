@@ -308,11 +308,12 @@ The Settings page also ships with built-in presets for:
 
 ### 8. Configure image generation
 
-Image generation supports three flavours:
+Image generation supports these providers:
 
 | API format | Example Base URL | Notes |
 | --- | --- | --- |
 | OpenAI compatible | `https://api.openai.com/v1` | Auto-appends `/images/generations` |
+| MiniMax image | `https://api.minimaxi.com` | Auto-appends `/v1/image_generation`; also accepts a `/v1` suffix |
 | Gemini native | `https://generativelanguage.googleapis.com/v1beta` | Auto-appends `generateContent` |
 | Gemini OpenAI compatible | `https://generativelanguage.googleapis.com/v1beta/openai` | Uses Gemini's OpenAI-compatible image endpoint |
 

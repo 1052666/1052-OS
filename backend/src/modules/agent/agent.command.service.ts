@@ -173,7 +173,7 @@ export async function resolveAgentCommand(
       handled: true,
       mode: 'action',
       command: definition.command,
-      responseText: '当前聊天上下文已清空。',
+      responseText: '当前聊天上下文已备份到 data/chat-history-backups，并已清空。',
     }
   }
 

@@ -203,6 +203,7 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
 function validateHistorySaveReason(value: unknown): ChatHistorySaveReason {
   return value === 'sync' ||
     value === 'clear' ||
+    value === 'command-new' ||
     value === 'compact' ||
     value === 'repair' ||
     value === 'replace'

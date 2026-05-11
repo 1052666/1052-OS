@@ -95,6 +95,12 @@ const IMAGE_ENDPOINT_PRESETS = [
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     modelId: 'imagen-4.0-generate-001',
   },
+  {
+    name: 'MiniMax 图片',
+    apiFormat: 'openai-compatible',
+    baseUrl: 'https://api.minimaxi.com',
+    modelId: 'image-01',
+  },
 ] as const
 
 const APPEARANCE_THEME_PRESETS: ThemeImportSpec[] = [
@@ -1012,7 +1018,7 @@ export default function Settings() {
                 <div className="settings-row-label">
                   <div className="settings-row-title">API 格式</div>
                   <div className="settings-row-desc">
-                    OpenAI 兼容会拼接 `/images/generations`；Gemini 原生会拼接 `/models/{'{model}'}:generateContent` 并解析 `inlineData` 图片。
+                    OpenAI 兼容会拼接 `/images/generations`；MiniMax 域名会自动使用 `/v1/image_generation`；Gemini 原生会拼接 `/models/{'{model}'}:generateContent` 并解析 `inlineData` 图片。
                   </div>
                 </div>
                 <select
@@ -1033,7 +1039,7 @@ export default function Settings() {
                 <div className="settings-row-label">
                   <div className="settings-row-title">Base URL</div>
                   <div className="settings-row-desc">
-                    OpenAI 兼容图像接口的基础地址，后端会自动拼接 `/images/generations`。
+                    OpenAI 兼容图像接口的基础地址；MiniMax 可填 `https://api.minimaxi.com`，带 `/v1` 也会自动兼容。
                   </div>
                 </div>
                 <input
