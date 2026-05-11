@@ -27,3 +27,5 @@ CHANGELOG.md
 test-results/
 playwright-report/
 playwright/.cache/
+# Visual diff overlays generated during pixelmatch runs (baselines themselves are committed)
+frontend/e2e/baseline/*.diff.png
