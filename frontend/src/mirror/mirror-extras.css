@@ -489,3 +489,35 @@
   color: rgba(229, 165, 165, 0.9);
   margin-top: var(--mr-g3);
 }
+
+/* IU-9: MirrorSettings 2-col layout shell */
+[data-base-profile='mirror'] .mr-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--mr-g5);
+}
+
+[data-base-profile='mirror'] .mr-settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mr-g4);
+}
+
+[data-base-profile='mirror'] .mr-settings-placeholder {
+  padding: var(--mr-g7);
+  border: var(--mr-hair);
+  border-radius: var(--mr-radius-card);
+  background: rgba(255, 255, 255, 0.012);
+  color: var(--fg-4);
+  font-size: 12px;
+  text-align: center;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+/* Responsive: at narrow viewports (rare for this OS) drop to 1 col */
+@media (max-width: 1100px) {
+  [data-base-profile='mirror'] .mr-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}
