@@ -1,7 +1,7 @@
 /**
- * Theme profile resolver: maps the user-facing theme选 (classic / gpt / mirror)
- * + the current colorScheme (light / dark / auto) onto the concrete builtin
- * profile id that should be applied via AppearanceApi.
+ * Theme profile resolver: maps the user-facing theme选 (classic / gpt /
+ * mirror / silky) + the current colorScheme (light / dark / auto) onto
+ * the concrete builtin profile id that should be applied via AppearanceApi.
  *
  * This is the "outer layer" referenced by the theme spec — it does not modify
  * applyTheme()'s internal behavior and contains no DOM side effects.
@@ -12,14 +12,19 @@
  *   - gpt + light           ↔ 'builtin:gpt-light'
  *   - gpt + auto            → resolves to gpt-dark or gpt-light via system query
  *   - mirror (any scheme)   ↔ 'builtin:mirror-dark' + lockedColorScheme='dark'
+ *   - silky  (any scheme)   ↔ 'builtin:silky-dark'  + lockedColorScheme='dark'
  *
  * Decision history: mirror ("液镜") is intentionally dark-only as of v3.
- * The graphite/silk material language doesn't survive a translation to
- * a light substrate (Apple frosted glass territory). The Settings page
- * hides the colorScheme controls entirely when mirror is active.
+ * silky ("丝镜") inherits the dark-only constraint because it reuses the
+ * exact same graphite/silk material language — just renders through the
+ * classic UI shell rather than MirrorChrome (no cursor tracking, no
+ * cross-card coupling, no liquid-pour effects).
+ *
+ * The Settings page hides the colorScheme controls entirely when either
+ * mirror or silky is active.
  */
 
-export type BaseThemeProfile = 'classic' | 'gpt' | 'mirror'
+export type BaseThemeProfile = 'classic' | 'gpt' | 'mirror' | 'silky'
 export type ColorScheme = 'dark' | 'light' | 'auto'
 export type ResolvedColorScheme = 'dark' | 'light'
 
@@ -27,12 +32,14 @@ export const BUILTIN_PROFILE_IDS = {
   gptDark: 'builtin:gpt-dark',
   gptLight: 'builtin:gpt-light',
   mirrorDark: 'builtin:mirror-dark',
+  silkyDark: 'builtin:silky-dark',
 } as const
 
 export type BuiltinProfileId =
   | typeof BUILTIN_PROFILE_IDS.gptDark
   | typeof BUILTIN_PROFILE_IDS.gptLight
   | typeof BUILTIN_PROFILE_IDS.mirrorDark
+  | typeof BUILTIN_PROFILE_IDS.silkyDark
 
 const ALL_BUILTIN_IDS: ReadonlySet<string> = new Set<string>(Object.values(BUILTIN_PROFILE_IDS))
 
@@ -89,6 +96,17 @@ export function resolveProfileForBase(
     }
   }
 
+  if (baseProfileName === 'silky') {
+    // silky — "丝镜" reuses the mirror dark-only material; the mode/scheme
+    // picker is hidden in Settings when this base is active. silky renders
+    // through the classic UI shell (no MirrorChrome), so the App.tsx route
+    // branch should NOT match this profile as `usesMirrorShell`.
+    return {
+      profileId: BUILTIN_PROFILE_IDS.silkyDark,
+      lockedColorScheme: 'dark',
+    }
+  }
+
   // mirror — "液镜" material language is intentionally dark-only.
   // The mode/scheme picker is hidden in Settings when this base is active.
   return {
@@ -105,9 +123,18 @@ export function resolveProfileForBase(
  * - null / unknown id → 'classic'
  * - any builtin:gpt-* → 'gpt'
  * - any builtin:mirror-* → 'mirror'
+ * - any builtin:silky-* → 'silky'
  *
  * User-created custom profile ids fall through to 'classic' for switcher
  * purposes; the actual custom theme remains applied (handled elsewhere).
+ *
+ * Codex review #4 (silky migration audit): an unknown / stale activeProfileId
+ * — e.g. a future builtin removed before its consumers cleaned up, or a
+ * cached id from an older release — falls through to 'classic' here. That
+ * means the UI keeps rendering (no crash); the backend toPublic() already
+ * surfaces activeProfile=null in that situation, so applyTheme() sees no
+ * custom tokens and the user lands on the classic palette. This is the
+ * intended degraded-state behavior.
  */
 export function resolveBaseFromProfile(profileId: string | null | undefined): BaseThemeProfile {
   if (!profileId) return 'classic'
@@ -120,9 +147,13 @@ export function resolveBaseFromProfile(profileId: string | null | undefined): Ba
   if (profileId === BUILTIN_PROFILE_IDS.mirrorDark) {
     return 'mirror'
   }
+  if (profileId === BUILTIN_PROFILE_IDS.silkyDark) {
+    return 'silky'
+  }
   // Forward-compat: any other future builtin under known prefixes.
   if (profileId.startsWith('builtin:gpt-')) return 'gpt'
   if (profileId.startsWith('builtin:mirror-')) return 'mirror'
+  if (profileId.startsWith('builtin:silky-')) return 'silky'
   return 'classic'
 }
 

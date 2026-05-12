@@ -54,6 +54,17 @@ describe('decideThemeUpdate — mirror base (dark-only)', () => {
   })
 })
 
+describe('decideThemeUpdate — silky base (dark-only, same constraint as mirror)', () => {
+  it('silky does not need variant reapply on colorScheme change (lock dark)', () => {
+    for (const scheme of ['dark', 'light', 'auto'] as const) {
+      const decision = decideThemeUpdate('silky', scheme, undefined)
+      // silky shares the mirror dark-only material — the resolver locks
+      // dark, so no variant flipping ever needs to happen here.
+      expect(decision.reapplyVariantProfileId).toBeNull()
+    }
+  })
+})
+
 describe('decideMediaListener', () => {
   it('non-auto colorScheme: do not listen', () => {
     expect(decideMediaListener('classic', 'dark', undefined).shouldListen).toBe(false)
@@ -82,6 +93,12 @@ describe('decideMediaListener', () => {
     // mirror always carries lockedColorScheme=dark from the resolver,
     // so the system signal is irrelevant for mirror.
     const decision = decideMediaListener('mirror', 'auto', 'dark')
+    expect(decision.shouldListen).toBe(false)
+  })
+
+  it('silky + auto: do not listen because silky is locked dark', () => {
+    // silky inherits mirror's dark-only lock — same outcome.
+    const decision = decideMediaListener('silky', 'auto', 'dark')
     expect(decision.shouldListen).toBe(false)
   })
 })

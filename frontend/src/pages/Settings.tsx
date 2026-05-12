@@ -1660,13 +1660,13 @@ export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
                   <div className="settings-row-title">{t('主题风格', 'Theme Style')}</div>
                   <div className="settings-row-desc">
                     {t(
-                      '选择整体视觉风格。「经典」沿用线上外观；「GPT 风格」为深色现代化设计；「液镜」为深灰镜面金属材质，仅深色。',
-                      'Pick the overall visual style. "Classic" keeps the current look; "GPT Style" is a modern dark theme; "Liquid Mirror" is a graphite-silk material, dark only.',
+                      '选择整体视觉风格。「经典」沿用线上外观；「GPT 风格」为深色现代化设计；「液镜」为深灰镜面金属材质 + 活壳（光标跟随、卡片联动），仅深色；「丝镜」与液镜同款材质但走经典壳，无反馈特效，仅深色。',
+                      'Pick the overall visual style. "Classic" keeps the current look; "GPT Style" is a modern dark theme; "Liquid Mirror" is a graphite-silk material with a live shell (cursor tracking + card coupling), dark only; "Silky Mirror" shares the same material skin on the classic shell — no reactive cursor / coupling / pour effects, dark only.',
                     )}
                   </div>
                 </div>
                 <div className="segmented" role="tablist" aria-label={t('主题风格', 'Theme Style')}>
-                  {(['classic', 'gpt', 'mirror'] as const).map((base) => (
+                  {(['classic', 'gpt', 'mirror', 'silky'] as const).map((base) => (
                     <button
                       key={base}
                       className={'seg' + (baseProfile === base ? ' active' : '')}
@@ -1681,17 +1681,19 @@ export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
                         ? t('经典', 'Classic')
                         : base === 'gpt'
                           ? t('GPT 风格', 'GPT Style')
-                          : t('液镜', 'Liquid Mirror')}
+                          : base === 'mirror'
+                            ? t('液镜', 'Liquid Mirror')
+                            : t('丝镜', 'Silky Mirror')}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Mirror (液镜) is dark-only — the colorScheme picker is
-                  hidden entirely instead of shown disabled. Other base
-                  profiles still see the picker; GPT locks dark via the
-                  existing tooltip path. */}
-              {baseProfile !== 'mirror' && (
+              {/* Mirror (液镜) and silky (丝镜) are both dark-only — the
+                  colorScheme picker is hidden entirely instead of shown
+                  disabled. Other base profiles still see the picker; GPT
+                  locks dark via the existing tooltip path. */}
+              {baseProfile !== 'mirror' && baseProfile !== 'silky' && (
               <div className="settings-row">
                 <div className="settings-row-label">
                   <div className="settings-row-title">{t('主题模式', 'Theme Mode')}</div>

@@ -51,6 +51,14 @@ describe('resolveProfileForBase', () => {
       expect(result.lockedColorScheme).toBe('dark')
     }
   })
+
+  it('silky is dark-only (same material constraint as mirror): returns silky-dark with lock', () => {
+    for (const scheme of ['dark', 'light', 'auto'] as const) {
+      const result = resolveProfileForBase('silky', scheme)
+      expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.silkyDark)
+      expect(result.lockedColorScheme).toBe('dark')
+    }
+  })
 })
 
 describe('resolveBaseFromProfile', () => {
@@ -69,9 +77,14 @@ describe('resolveBaseFromProfile', () => {
     expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.mirrorDark)).toBe('mirror')
   })
 
-  it('forward-compat: unknown gpt-* / mirror-* future builtin id still maps correctly', () => {
+  it('maps known builtin silky id to silky', () => {
+    expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.silkyDark)).toBe('silky')
+  })
+
+  it('forward-compat: unknown gpt-* / mirror-* / silky-* future builtin id still maps correctly', () => {
     expect(resolveBaseFromProfile('builtin:gpt-warm')).toBe('gpt')
     expect(resolveBaseFromProfile('builtin:mirror-auto')).toBe('mirror')
+    expect(resolveBaseFromProfile('builtin:silky-warm')).toBe('silky')
   })
 
   it('falls back to classic for unknown profile ids (e.g. user-created)', () => {
@@ -81,10 +94,11 @@ describe('resolveBaseFromProfile', () => {
 })
 
 describe('isKnownBuiltinProfile', () => {
-  it('recognizes the three v1 builtin ids (mirror is dark-only)', () => {
+  it('recognizes the four v1 builtin ids (mirror + silky are dark-only)', () => {
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.gptDark)).toBe(true)
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.gptLight)).toBe(true)
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.mirrorDark)).toBe(true)
+    expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.silkyDark)).toBe(true)
   })
 
   it('rejects null / unknown / future builtin ids', () => {
@@ -93,6 +107,7 @@ describe('isKnownBuiltinProfile', () => {
     expect(isKnownBuiltinProfile('')).toBe(false)
     expect(isKnownBuiltinProfile('builtin:gpt-warm')).toBe(false)
     expect(isKnownBuiltinProfile('builtin:mirror-light')).toBe(false)
+    expect(isKnownBuiltinProfile('builtin:silky-light')).toBe(false)
     expect(isKnownBuiltinProfile('user-created-uuid')).toBe(false)
   })
 })

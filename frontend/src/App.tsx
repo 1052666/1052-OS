@@ -33,7 +33,15 @@ export default function App() {
   const onboarding = useOnboarding()
   const { baseProfile } = useTheme()
 
-  if (baseProfile === 'mirror') {
+  // Codex review #3 — abstract the shell decision so the App.tsx route branch
+  // is open to future shells without poking at every `baseProfile === 'mirror'`
+  // call site. Only 'mirror' uses MirrorChrome (with cursor tracking, cross-
+  // card coupling, liquid pour). 'silky' shares the mirror material skin via
+  // mirror-theme.css but renders through the classic shell, so it falls
+  // through to the classic branch below alongside 'classic' and 'gpt'.
+  const usesMirrorShell = baseProfile === 'mirror'
+
+  if (usesMirrorShell) {
     return (
       <>
         <ThemeEffectLayer />
