@@ -1,6 +1,6 @@
 services:
   app:
-    build: .
+    image: 1052666/1052-os:latest
     container_name: 1052-os
     restart: unless-stopped
     ports:
