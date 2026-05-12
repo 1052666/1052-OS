@@ -48,9 +48,12 @@ type ThemeContextValue = {
   setBaseProfile: (base: BaseThemeProfile) => Promise<void>
 
   /**
-   * When the active base locks the colorScheme (e.g. GPT → dark), this
-   * carries the locked value. Settings.appearance.theme is NOT mutated;
-   * the lock only affects rendering.
+   * When the active base locks the colorScheme, this carries the locked
+   * value and Settings.appearance.theme is NOT mutated by stray writes;
+   * the lock only affects rendering. **No v1 base locks today** (decision
+   * #6 was reversed — GPT now has both dark and light variants), but the
+   * field is preserved as the resolver's contract for any future locking
+   * base.
    */
   lockedColorScheme: ResolvedColorScheme | undefined
 }
@@ -76,14 +79,40 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     Promise.all([SettingsApi.get(), AppearanceApi.listThemes()])
-      .then(([settings, themes]) => {
-        setThemeState(settings.appearance.theme)
-        const next = applicableThemeProfile(themes.activeProfile)
-        setActiveThemeProfile(next)
-        lastResolvedProfileIdRef.current = next?.id ?? null
+      .then(async ([settings, themes]) => {
+        if (cancelled) return
+        const userTheme = settings.appearance.theme
+        const initial = applicableThemeProfile(themes.activeProfile)
+        setThemeState(userTheme)
+        setActiveThemeProfile(initial)
+        lastResolvedProfileIdRef.current = initial?.id ?? null
+
+        // Initialization sync (Codex P4a feedback): when colorScheme=auto and
+        // the persisted variant disagrees with the current system signal, the
+        // user would otherwise see e.g. gpt-dark until the OS flips. Eagerly
+        // re-resolve once on boot. Skipped when there's no active profile or
+        // the user explicitly chose dark/light.
+        if (!initial || userTheme !== 'auto') return
+        const base = resolveBaseFromProfile(initial.id)
+        if (base !== 'gpt' && base !== 'mirror') return
+        const resolution = resolveProfileForBase(base, 'auto', resolveSystemColorScheme)
+        if (!resolution.profileId || resolution.profileId === initial.id) return
+
+        await AppearanceApi.applyTheme(resolution.profileId, { confirmed: true })
+        const refreshed = await AppearanceApi.listThemes()
+        if (cancelled) return
+        const synced = applicableThemeProfile(refreshed.activeProfile)
+        setActiveThemeProfile(synced)
+        lastResolvedProfileIdRef.current = synced?.id ?? null
       })
-      .catch(() => setThemeState('dark'))
+      .catch(() => {
+        if (!cancelled) setThemeState('dark')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Derive: which base profile does the switcher consider "selected"?
@@ -113,16 +142,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [effectiveScheme, activeThemeProfile])
 
   // (2) Listen for system color-scheme changes when the system signal is
-  // actually relevant (classic + auto, mirror + auto). Locked schemes and
-  // non-auto modes skip listener registration. See decideMediaListener.
+  // actually relevant. Dual-variant bases (gpt, mirror) re-apply the matching
+  // builtin on flip; classic just updates the data-theme attribute.
   useEffect(() => {
     const decision = decideMediaListener(baseProfile, theme, lockedColorScheme)
     if (!decision.shouldListen) return
 
     const media = window.matchMedia('(prefers-color-scheme: light)')
     const sync = async () => {
-      if (decision.mirrorReapplyOnSystemFlip) {
-        const resolution = resolveProfileForBase('mirror', 'auto', resolveSystemColorScheme)
+      if (decision.reapplyVariantOnSystemFlip) {
+        const resolution = resolveProfileForBase(baseProfile, 'auto', resolveSystemColorScheme)
         if (
           resolution.profileId &&
           resolution.profileId !== lastResolvedProfileIdRef.current
@@ -152,9 +181,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme, refreshAppearanceTheme],
   )
 
-  // setTheme wrapper: persist user preference AND, when the active base
-  // depends on colorScheme (mirror), re-apply the matching builtin variant.
-  // Locked schemes are silently dropped (UI should disable those segments).
+  // setTheme wrapper: persist user preference AND, when the active base is
+  // a dual-variant base (gpt or mirror), re-apply the matching builtin variant
+  // so dark↔light actually swaps the gradient. Locked schemes (no v1 base
+  // uses this today) drop stray writes silently.
   // Decision logic lives in theme-context-logic.ts for unit-test coverage.
   const setTheme = useCallback(
     (next: ThemeMode) => {
@@ -162,10 +192,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (!decision.acceptStateUpdate) return
       setThemeState(next)
       if (
-        decision.reapplyMirrorProfileId &&
-        decision.reapplyMirrorProfileId !== lastResolvedProfileIdRef.current
+        decision.reapplyVariantProfileId &&
+        decision.reapplyVariantProfileId !== lastResolvedProfileIdRef.current
       ) {
-        void AppearanceApi.applyTheme(decision.reapplyMirrorProfileId, { confirmed: true })
+        void AppearanceApi.applyTheme(decision.reapplyVariantProfileId, { confirmed: true })
           .then(() => refreshAppearanceTheme())
           .catch(() => undefined)
       }

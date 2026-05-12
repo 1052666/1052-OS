@@ -7,11 +7,19 @@
  * applyTheme()'s internal behavior and contains no DOM side effects.
  *
  * Canonical mapping (§1.1):
- *   - classic           ↔ activeProfileId === null
- *   - gpt               ↔ 'builtin:gpt-dark'    (GPT is locked to dark mode)
- *   - mirror + dark     ↔ 'builtin:mirror-dark'
- *   - mirror + light    ↔ 'builtin:mirror-light'
- *   - mirror + auto     → resolves to mirror-dark or mirror-light via system query
+ *   - classic              ↔ activeProfileId === null
+ *   - gpt + dark           ↔ 'builtin:gpt-dark'
+ *   - gpt + light          ↔ 'builtin:gpt-light'
+ *   - gpt + auto           → resolves to gpt-dark or gpt-light via system query
+ *   - mirror + dark        ↔ 'builtin:mirror-dark'
+ *   - mirror + light       ↔ 'builtin:mirror-light'
+ *   - mirror + auto        → resolves to mirror-dark or mirror-light via system query
+ *
+ * Decision history: GPT was originally locked to dark (Codex decision #6) on
+ * the assumption that ChatGPT.html only exposed the dark palette. That decision
+ * was reverted after visual validation showed GPT-dark and the existing
+ * default-dark were too close to feel like a switch. Light tokens come from
+ * the same ChatGPT design system export.
  */
 
 export type BaseThemeProfile = 'classic' | 'gpt' | 'mirror'
@@ -20,12 +28,14 @@ export type ResolvedColorScheme = 'dark' | 'light'
 
 export const BUILTIN_PROFILE_IDS = {
   gptDark: 'builtin:gpt-dark',
+  gptLight: 'builtin:gpt-light',
   mirrorDark: 'builtin:mirror-dark',
   mirrorLight: 'builtin:mirror-light',
 } as const
 
 export type BuiltinProfileId =
   | typeof BUILTIN_PROFILE_IDS.gptDark
+  | typeof BUILTIN_PROFILE_IDS.gptLight
   | typeof BUILTIN_PROFILE_IDS.mirrorDark
   | typeof BUILTIN_PROFILE_IDS.mirrorLight
 
@@ -72,18 +82,18 @@ export function resolveProfileForBase(
     return { profileId: null }
   }
 
+  // gpt and mirror both have dark + light variants; auto follows the system.
+  const resolved = colorScheme === 'auto' ? resolveAuto() : colorScheme
+
   if (baseProfileName === 'gpt') {
-    // GPT is locked to dark for the v1 release (spec §5.1, §6.4).
-    // Even when user's colorScheme is light or auto, render dark; do not write
-    // back to settings.appearance.theme.
     return {
-      profileId: BUILTIN_PROFILE_IDS.gptDark,
-      lockedColorScheme: 'dark',
+      profileId:
+        resolved === 'light'
+          ? BUILTIN_PROFILE_IDS.gptLight
+          : BUILTIN_PROFILE_IDS.gptDark,
     }
   }
 
-  // mirror — has both dark and light variants.
-  const resolved = colorScheme === 'auto' ? resolveAuto() : colorScheme
   return {
     profileId:
       resolved === 'light'
@@ -106,7 +116,12 @@ export function resolveProfileForBase(
  */
 export function resolveBaseFromProfile(profileId: string | null | undefined): BaseThemeProfile {
   if (!profileId) return 'classic'
-  if (profileId === BUILTIN_PROFILE_IDS.gptDark) return 'gpt'
+  if (
+    profileId === BUILTIN_PROFILE_IDS.gptDark ||
+    profileId === BUILTIN_PROFILE_IDS.gptLight
+  ) {
+    return 'gpt'
+  }
   if (
     profileId === BUILTIN_PROFILE_IDS.mirrorDark ||
     profileId === BUILTIN_PROFILE_IDS.mirrorLight

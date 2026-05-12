@@ -20,12 +20,28 @@ describe('resolveProfileForBase', () => {
     expect(resolveProfileForBase('classic', 'dark').lockedColorScheme).toBeUndefined()
   })
 
-  it('returns gpt-dark with locked dark mode for any colorScheme', () => {
-    for (const scheme of ['dark', 'light', 'auto'] as const) {
-      const result = resolveProfileForBase('gpt', scheme)
-      expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.gptDark)
-      expect(result.lockedColorScheme).toBe('dark')
-    }
+  it('returns gpt-dark for gpt + dark, no lock', () => {
+    const result = resolveProfileForBase('gpt', 'dark')
+    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.gptDark)
+    expect(result.lockedColorScheme).toBeUndefined()
+  })
+
+  it('returns gpt-light for gpt + light, no lock', () => {
+    const result = resolveProfileForBase('gpt', 'light')
+    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.gptLight)
+    expect(result.lockedColorScheme).toBeUndefined()
+  })
+
+  it('resolves gpt + auto via injected resolver (light)', () => {
+    const result = resolveProfileForBase('gpt', 'auto', () => 'light')
+    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.gptLight)
+    expect(result.lockedColorScheme).toBeUndefined()
+  })
+
+  it('resolves gpt + auto via injected resolver (dark)', () => {
+    const result = resolveProfileForBase('gpt', 'auto', () => 'dark')
+    expect(result.profileId).toBe(BUILTIN_PROFILE_IDS.gptDark)
+    expect(result.lockedColorScheme).toBeUndefined()
   })
 
   it('returns mirror-dark for mirror + dark, no lock', () => {
@@ -59,8 +75,9 @@ describe('resolveBaseFromProfile', () => {
     expect(resolveBaseFromProfile('')).toBe('classic')
   })
 
-  it('maps known builtin gpt id to gpt', () => {
+  it('maps known builtin gpt ids to gpt', () => {
     expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.gptDark)).toBe('gpt')
+    expect(resolveBaseFromProfile(BUILTIN_PROFILE_IDS.gptLight)).toBe('gpt')
   })
 
   it('maps known builtin mirror ids to mirror', () => {
@@ -69,7 +86,7 @@ describe('resolveBaseFromProfile', () => {
   })
 
   it('forward-compat: unknown gpt-* / mirror-* future builtin id still maps correctly', () => {
-    expect(resolveBaseFromProfile('builtin:gpt-light')).toBe('gpt')
+    expect(resolveBaseFromProfile('builtin:gpt-warm')).toBe('gpt')
     expect(resolveBaseFromProfile('builtin:mirror-auto')).toBe('mirror')
   })
 
@@ -80,8 +97,9 @@ describe('resolveBaseFromProfile', () => {
 })
 
 describe('isKnownBuiltinProfile', () => {
-  it('recognizes the three v1 builtin ids', () => {
+  it('recognizes the four v1 builtin ids', () => {
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.gptDark)).toBe(true)
+    expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.gptLight)).toBe(true)
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.mirrorDark)).toBe(true)
     expect(isKnownBuiltinProfile(BUILTIN_PROFILE_IDS.mirrorLight)).toBe(true)
   })
@@ -90,7 +108,7 @@ describe('isKnownBuiltinProfile', () => {
     expect(isKnownBuiltinProfile(null)).toBe(false)
     expect(isKnownBuiltinProfile(undefined)).toBe(false)
     expect(isKnownBuiltinProfile('')).toBe(false)
-    expect(isKnownBuiltinProfile('builtin:gpt-light')).toBe(false)
+    expect(isKnownBuiltinProfile('builtin:gpt-warm')).toBe(false)
     expect(isKnownBuiltinProfile('user-created-uuid')).toBe(false)
   })
 })

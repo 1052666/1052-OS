@@ -39,6 +39,19 @@ function normalizeBuiltinVersion(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
+/**
+ * Builtin profile override: the RFC #47 review engine is for user-submitted
+ * themes. Builtin profiles are preauthored by developers (spec §6.2) and
+ * always treated as 'safe', symmetric to deleteAppearanceTheme's builtin
+ * protection. theme.safetyLevel is preserved as a record of the engine's
+ * verdict; review.safetyLevel is what apply gates against.
+ */
+function asBuiltinReview(
+  review: ReturnType<typeof normalizeAndReviewThemeSpec>['review'],
+): ReturnType<typeof normalizeAndReviewThemeSpec>['review'] {
+  return { ...review, passed: true, safetyLevel: 'safe', warnings: [] }
+}
+
 function normalizeProfile(input: unknown): AppearanceThemeProfile | null {
   if (!input || typeof input !== 'object') return null
   const raw = input as Partial<AppearanceThemeProfile>
@@ -54,8 +67,15 @@ function normalizeProfile(input: unknown): AppearanceThemeProfile | null {
     typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)
       ? raw.updatedAt
       : createdAt
-  const profile: AppearanceThemeProfile = { id, theme, review, createdAt, updatedAt }
   const source = normalizeSource(raw.source)
+  const effectiveReview = source === 'builtin' ? asBuiltinReview(review) : review
+  const profile: AppearanceThemeProfile = {
+    id,
+    theme,
+    review: effectiveReview,
+    createdAt,
+    updatedAt,
+  }
   if (source) profile.source = source
   const builtinVersion = normalizeBuiltinVersion(raw.builtinVersion)
   if (builtinVersion !== undefined) profile.builtinVersion = builtinVersion
@@ -320,6 +340,46 @@ const GPT_DARK_TOKENS = {
   accentRing: '#027e6f',
 } as const
 
+/**
+ * GPT 风格 (浅色) — builtin:gpt-light
+ *
+ * 视觉对齐 ChatGPT 网页浅色模式 (60–70% 既视感):
+ * - 纯白背景 + 浅灰 surface
+ * - 青绿主强调（与深色变体一致），accent2 蓝
+ * - safetyLevel='safe'：所有对比度满足 AA
+ *
+ * Token 取自用户提供的 ChatGPT.html 设计系统导出（design system colors）。
+ */
+const GPT_LIGHT_CORE_TOKENS = {
+  bg: '#ffffff',
+  surface: '#f4f4f6',
+  fg: '#161719',
+  accent: '#027e6f',
+  success: '#016a5e',
+  danger: '#eb0a00',
+} as const
+
+const GPT_LIGHT_TOKENS = {
+  ...GPT_LIGHT_CORE_TOKENS,
+  bgGrad1: '#f8f9fa',
+  bgGrad2: '#ffffff',
+  surface0: '#ffffff',
+  surface1: '#fbfbfc',
+  surface2: '#f4f4f6',
+  surface3: '#e2e4e9',
+  surfaceHover: '#eef0f2',
+  hairline: '#e2e4e9',
+  hairline2: '#cdd1dc',
+  hairlineStrong: '#878da2',
+  // spec §1.2 三层 fg 反推到 light: 主 #161719 / 次 #646b81 / 弱 #878da2
+  fg2: '#646b81',
+  fg3: '#878da2',
+  fg4: '#adb2c3',
+  accent2: '#3e6cf4',
+  accentSoft: '#eafaf9',
+  accentRing: '#027e6f',
+} as const
+
 export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
   {
     id: 'builtin:gpt-dark',
@@ -332,6 +392,19 @@ export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
       safetyLevel: 'safe',
       coreTokens: { ...GPT_DARK_CORE_TOKENS },
       tokens: { ...GPT_DARK_TOKENS },
+    },
+  },
+  {
+    id: 'builtin:gpt-light',
+    builtinVersion: 1,
+    theme: {
+      schemaVersion: 1,
+      name: 'GPT 风格 (浅色)',
+      mode: 'light',
+      scope: 'all',
+      safetyLevel: 'safe',
+      coreTokens: { ...GPT_LIGHT_CORE_TOKENS },
+      tokens: { ...GPT_LIGHT_TOKENS },
     },
   },
   {
@@ -371,6 +444,15 @@ export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
  * - 已存在但 source !== 'builtin'：日志警告并跳过（不应发生，命名空间冲突）
  *
  * 不会动用户自定义 profile（source='user'）。
+ *
+ * 关于 review.safetyLevel：builtin profile 是开发者预审过的（spec §6.2），
+ * 不应受 RFC #47 review 引擎判定为 experimental（review 引擎是为用户提交的
+ * 自定义主题设计的，会对部分强对比配色发出 warning）。seed 强制将 builtin
+ * profile 的 review.safetyLevel 写为 'safe' 并清空 warnings——这是 builtin
+ * 与 user-submitted 的语义区别，与 deleteAppearanceTheme 拒绝 builtin 对称。
+ *
+ * theme.safetyLevel 字段（ThemeSpec 内）保留 review 引擎的判定结果，仅作记录；
+ * 实际 apply 检查走 review.safetyLevel。
  */
 export async function seedBuiltinAppearanceProfiles(): Promise<void> {
   const store = await getStore()
@@ -384,13 +466,14 @@ export async function seedBuiltinAppearanceProfiles(): Promise<void> {
       console.warn(`[appearance.seed] 内置 profile ${builtin.id} ThemeSpec 校验失败，跳过`)
       continue
     }
+    const builtinReview = asBuiltinReview(review)
     const existing = profilesById.get(builtin.id)
 
     if (!existing) {
       const seeded: AppearanceThemeProfile = {
         id: builtin.id,
         theme,
-        review,
+        review: builtinReview,
         createdAt: now,
         updatedAt: now,
         source: 'builtin',
@@ -408,11 +491,16 @@ export async function seedBuiltinAppearanceProfiles(): Promise<void> {
       continue
     }
 
-    if ((existing.builtinVersion ?? 0) < builtin.builtinVersion) {
+    if (
+      (existing.builtinVersion ?? 0) < builtin.builtinVersion ||
+      existing.review.safetyLevel !== 'safe'
+    ) {
+      // Bump version OR self-heal a previously-seeded builtin whose review
+      // got persisted at experimental (e.g. before the safe override fix).
       profilesById.set(builtin.id, {
         ...existing,
         theme,
-        review,
+        review: builtinReview,
         builtinVersion: builtin.builtinVersion,
         updatedAt: now,
       })

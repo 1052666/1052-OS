@@ -15,26 +15,37 @@ import {
  * 1. setTheme — given the current base profile and a candidate next
  *    colorScheme, decide:
  *      - whether to accept the user's intent (locked schemes drop stray writes)
- *      - whether the active mirror builtin needs to be swapped (dark ↔ light)
+ *      - if the active base has dark+light variants (gpt or mirror), which
+ *        builtin profileId must be re-applied via AppearanceApi to match the
+ *        new scheme.
  *
  * 2. system media change — given the current base + theme, decide whether
- *    the system color-scheme media listener should be registered, and what
- *    profileId to re-apply when the system flips.
+ *    the system color-scheme media listener should be registered, and on
+ *    flip, whether a builtin variant re-apply is needed.
+ *
+ * Note: after Codex decision #6 was reversed, both `gpt` and `mirror` are
+ * dual-variant bases. `classic` has neither variant nor lock.
  */
+
+const DUAL_VARIANT_BASES: ReadonlySet<BaseThemeProfile> = new Set<BaseThemeProfile>([
+  'gpt',
+  'mirror',
+])
 
 export type ThemeStateChangeDecision = {
   /**
    * Whether the user's intent should be persisted in `theme` state.
-   * False when a locked scheme rejects the write (e.g. GPT + light).
+   * False when a locked scheme rejects the write. No v1 base locks today,
+   * but the field is preserved for future bases that might want to.
    */
   acceptStateUpdate: boolean
   /**
-   * If non-null, the active mirror builtin should be re-applied via
-   * AppearanceApi.applyTheme to match the new scheme. Caller is
+   * If non-null, the active dual-variant base needs its builtin re-applied
+   * via AppearanceApi.applyTheme to match the new scheme. Caller is
    * responsible for skipping the call when this id matches the
    * already-applied id (no-op optimization).
    */
-  reapplyMirrorProfileId: string | null
+  reapplyVariantProfileId: string | null
 }
 
 export function decideThemeUpdate(
@@ -43,22 +54,21 @@ export function decideThemeUpdate(
   lockedColorScheme: ResolvedColorScheme | undefined,
   resolveAuto: () => ResolvedColorScheme = resolveSystemColorScheme,
 ): ThemeStateChangeDecision {
-  // Locked schemes drop ALL stray writes including 'auto'.
-  // Per spec §5.1: under GPT, the "follow system" segment is disabled too;
-  // only the locked scheme itself (e.g. dark) remains selectable.
+  // Locked schemes drop ALL stray writes including 'auto'. No v1 base locks,
+  // but if a future base does, this path is wired up correctly.
   if (lockedColorScheme && nextScheme !== lockedColorScheme) {
-    return { acceptStateUpdate: false, reapplyMirrorProfileId: null }
+    return { acceptStateUpdate: false, reapplyVariantProfileId: null }
   }
 
-  if (base === 'mirror') {
-    const resolution = resolveProfileForBase('mirror', nextScheme, resolveAuto)
+  if (DUAL_VARIANT_BASES.has(base)) {
+    const resolution = resolveProfileForBase(base, nextScheme, resolveAuto)
     return {
       acceptStateUpdate: true,
-      reapplyMirrorProfileId: resolution.profileId,
+      reapplyVariantProfileId: resolution.profileId,
     }
   }
 
-  return { acceptStateUpdate: true, reapplyMirrorProfileId: null }
+  return { acceptStateUpdate: true, reapplyVariantProfileId: null }
 }
 
 export type SystemMediaListenerDecision = {
@@ -68,12 +78,11 @@ export type SystemMediaListenerDecision = {
    */
   shouldListen: boolean
   /**
-   * When listener fires for mirror + auto, the profileId to re-apply.
-   * Caller compares against last-applied id to skip no-ops.
-   * Null means the listener only needs to update the data-theme
-   * attribute, not call AppearanceApi (classic + auto case).
+   * When listener fires for a dual-variant base + auto, the variant builtin
+   * needs to be re-applied via AppearanceApi. False when the base has no
+   * variants (classic) — listener only updates the data-theme attribute.
    */
-  mirrorReapplyOnSystemFlip: boolean
+  reapplyVariantOnSystemFlip: boolean
 }
 
 export function decideMediaListener(
@@ -82,10 +91,10 @@ export function decideMediaListener(
   lockedColorScheme: ResolvedColorScheme | undefined,
 ): SystemMediaListenerDecision {
   if (theme !== 'auto' || lockedColorScheme) {
-    return { shouldListen: false, mirrorReapplyOnSystemFlip: false }
+    return { shouldListen: false, reapplyVariantOnSystemFlip: false }
   }
   return {
     shouldListen: true,
-    mirrorReapplyOnSystemFlip: base === 'mirror',
+    reapplyVariantOnSystemFlip: DUAL_VARIANT_BASES.has(base),
   }
 }

@@ -41,9 +41,14 @@ function clearCustomThemeVariables() {
   root.removeAttribute('data-custom-theme')
 }
 
-function applyCustomThemeVariables(theme: ThemeSpec) {
+function applyCustomThemeVariables(mode: ThemeMode, theme: ThemeSpec) {
   const root = document.documentElement
-  root.dataset.theme = theme.mode
+  // The data-theme attribute should follow the user's chosen colorScheme
+  // (resolved against the system for `auto`), NOT the ThemeSpec's intrinsic
+  // mode. This is the spec §6.4 inner-bug fix: previously the active custom
+  // theme would pin data-theme to its own mode, breaking dark↔light switching
+  // for any active profile (builtin or user-created).
+  root.dataset.theme = resolveTheme(mode)
   root.dataset.customTheme = 'true'
   for (const [token, cssVar] of Object.entries(THEME_VAR_MAP)) {
     root.style.setProperty(cssVar, theme.tokens[token as keyof ThemeSpec['tokens']])
@@ -53,7 +58,7 @@ function applyCustomThemeVariables(theme: ThemeSpec) {
 
 export function applyTheme(mode: ThemeMode, customTheme?: ThemeSpec | null) {
   if (customTheme) {
-    applyCustomThemeVariables(customTheme)
+    applyCustomThemeVariables(mode, customTheme)
     return
   }
   clearCustomThemeVariables()
