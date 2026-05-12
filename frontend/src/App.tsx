@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import OnboardingModal from './components/OnboardingModal'
 import Sidebar from './components/Sidebar'
 import Chat from './pages/Chat'
 import Calendar from './pages/Calendar'
@@ -23,8 +24,11 @@ import SqlOrchestration from './pages/SqlOrchestration'
 import SqlLoads from './pages/SqlLoads'
 import SqlServers from './pages/SqlServers'
 import SqlShellFiles from './pages/SqlShellFiles'
+import { useOnboarding } from './use-onboarding'
 
 export default function App() {
+  const onboarding = useOnboarding()
+
   return (
     <div className="app">
       <Sidebar />
@@ -56,9 +60,10 @@ export default function App() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/search-sources" element={<SearchSources />} />
           <Route path="/skills" element={<Skills />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<Settings onRestartOnboarding={onboarding.restart} />} />
         </Routes>
       </main>
+      <OnboardingModal open={onboarding.shouldShow} onClose={onboarding.markCompleted} />
     </div>
   )
 }

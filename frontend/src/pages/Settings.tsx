@@ -202,7 +202,16 @@ function SettingsFoldout({
   )
 }
 
-export default function Settings() {
+type SettingsProps = {
+  /**
+   * Wired from App.tsx; the Settings page exposes a "重新开始引导" button
+   * that calls this to re-trigger the onboarding modal. Optional so the
+   * Settings page can still render in isolation (e.g. tests).
+   */
+  onRestartOnboarding?: () => void
+}
+
+export default function Settings({ onRestartOnboarding }: SettingsProps = {}) {
   const {
     theme,
     setTheme,
@@ -1821,6 +1830,27 @@ export default function Settings() {
                   })}
                 </div>
               </div>
+
+              {onRestartOnboarding ? (
+                <div className="settings-row">
+                  <div className="settings-row-label">
+                    <div className="settings-row-title">{t('新手引导', 'Onboarding')}</div>
+                    <div className="settings-row-desc">
+                      {t(
+                        '回到首次进入时的三步引导，包括 GPT 风格主题应用按钮。',
+                        'Replay the first-run three-step walkthrough, including the GPT-style apply button.',
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="chip ghost"
+                    onClick={onRestartOnboarding}
+                  >
+                    {t('重新开始引导', 'Restart onboarding')}
+                  </button>
+                </div>
+              ) : null}
 
               <div className="settings-row settings-row-stack">
                 <div className="settings-row-label">

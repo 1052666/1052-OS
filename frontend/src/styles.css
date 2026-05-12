@@ -5560,6 +5560,63 @@ textarea.settings-input {
   background: var(--surface-0);
 }
 
+/* Onboarding modal — extends the generic .modal-* layout */
+.onboarding-foot {
+  justify-content: space-between;
+}
+
+.onboarding-cta-group {
+  display: flex;
+  gap: 8px;
+}
+
+.onboarding-progress {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.onboarding-dot {
+  width: 18px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hairline);
+  transition: background 200ms ease;
+}
+
+.onboarding-dot.active {
+  background: var(--accent);
+}
+
+.onboarding-step h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.onboarding-step p {
+  margin: 0 0 10px;
+  color: var(--fg-2);
+  line-height: 1.6;
+}
+
+.onboarding-step p.muted {
+  color: var(--fg-3);
+  font-size: 13px;
+}
+
+.onboarding-bullets {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--fg-2);
+}
+
+.onboarding-bullets li {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
 .profile-hero {
   display: flex;
   align-items: center;
