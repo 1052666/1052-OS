@@ -37,7 +37,7 @@ const CHAT_COMMANDS: ChatCommand[] = [
   {
     command: '/new',
     title: '新对话',
-    description: '清空当前聊天并开始一个新会话。',
+    description: '备份当前上下文到 data/chat-history-backups 后开始新会话。',
     kind: 'action',
   },
   {

@@ -561,7 +561,7 @@ export function useChatModel(): UseChatModelReturn {
     setPendingUploads([])
     setUploadState('')
     try {
-      await AgentApi.saveHistory([], 'clear')
+      await AgentApi.saveHistory([], 'command-new')
     } catch {}
   }, [commitMessages])
 
