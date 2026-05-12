@@ -281,6 +281,45 @@ const PLACEHOLDER_TOKENS = {
   accentRing: '#ffffff',
 } as const
 
+/**
+ * GPT 风格 (深色) — builtin:gpt-dark
+ *
+ * 视觉对齐 ChatGPT 网页深色模式 (60-70% 既视感):
+ * - 深黑背景 + 渐变层
+ * - 青绿 (#027e6f) 主强调；蓝 (#3e6cf4) 次强调
+ * - 系统字体由全局 CSS 提供，token 不持有字体
+ * - safetyLevel='safe'：所有对比度满足 AA
+ */
+const GPT_DARK_CORE_TOKENS = {
+  bg: '#1c1c1c',
+  surface: '#27282e',
+  fg: '#ffffff',
+  accent: '#027e6f',
+  success: '#34d399',
+  danger: '#fb7185',
+} as const
+
+const GPT_DARK_TOKENS = {
+  ...GPT_DARK_CORE_TOKENS,
+  bgGrad1: '#27282e',
+  bgGrad2: '#0d0d0d',
+  surface0: '#1c1c1c',
+  surface1: '#232325',
+  surface2: '#27282e',
+  surface3: '#2d2e35',
+  surfaceHover: '#2a2b30',
+  hairline: '#2d2e35',
+  hairline2: '#27282e',
+  hairlineStrong: '#474b58',
+  // spec §1.2 checklist: 主 #fff / 次 #878da2 / 弱 #646b81
+  fg2: '#878da2',
+  fg3: '#646b81',
+  fg4: '#474b58',
+  accent2: '#3e6cf4',
+  accentSoft: '#02382f',
+  accentRing: '#027e6f',
+} as const
+
 export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
   {
     id: 'builtin:gpt-dark',
@@ -291,8 +330,8 @@ export const BUILTIN_PROFILES: readonly BuiltinProfileSeed[] = [
       mode: 'dark',
       scope: 'all',
       safetyLevel: 'safe',
-      coreTokens: { ...PLACEHOLDER_CORE_TOKENS },
-      tokens: { ...PLACEHOLDER_TOKENS },
+      coreTokens: { ...GPT_DARK_CORE_TOKENS },
+      tokens: { ...GPT_DARK_TOKENS },
     },
   },
   {

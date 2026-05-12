@@ -203,7 +203,15 @@ function SettingsFoldout({
 }
 
 export default function Settings() {
-  const { theme, setTheme, activeThemeProfile, refreshAppearanceTheme } = useTheme()
+  const {
+    theme,
+    setTheme,
+    activeThemeProfile,
+    refreshAppearanceTheme,
+    baseProfile,
+    setBaseProfile,
+    lockedColorScheme,
+  } = useTheme()
   const [uiLanguage, setUiLanguage] = useState<PublicSettings['appearance']['language']>('zh-CN')
   const t = (zh: string, en: string) => (uiLanguage === 'en-US' ? en : zh)
   const foldoutLabels = { collapseLabel: t('收起', 'Collapse'), expandLabel: t('展开', 'Expand') }
@@ -1725,26 +1733,92 @@ export default function Settings() {
 
               <div className="settings-row">
                 <div className="settings-row-label">
-                  <div className="settings-row-title">{t('主题模式', 'Theme Mode')}</div>
+                  <div className="settings-row-title">{t('主题风格', 'Theme Style')}</div>
                   <div className="settings-row-desc">
-                    {t('支持深色、浅色和自动跟随系统。', 'Supports dark, light, and system auto mode.')}
+                    {t(
+                      '选择整体视觉风格。「经典」沿用线上外观；「GPT 风格」为深色现代化设计；「水面」为灰度镜面带交互特效（开发中）。',
+                      'Pick the overall visual style. "Classic" keeps the current look; "GPT Style" is a modern dark theme; "Mirror" is a grayscale mirror surface with interaction effects (in progress).',
+                    )}
                   </div>
                 </div>
-                <div className="segmented" role="tablist" aria-label={t('主题模式', 'Theme Mode')}>
-                  {(['dark', 'light', 'auto'] as const).map((mode) => (
+                <div className="segmented" role="tablist" aria-label={t('主题风格', 'Theme Style')}>
+                  {(['classic', 'gpt', 'mirror'] as const).map((base) => (
                     <button
-                      key={mode}
-                      className={'seg' + (theme === mode ? ' active' : '')}
+                      key={base}
+                      className={'seg' + (baseProfile === base ? ' active' : '')}
                       type="button"
-                      onClick={() => setTheme(mode)}
+                      onClick={() => {
+                        void setBaseProfile(base)
+                      }}
+                      role="tab"
+                      aria-selected={baseProfile === base}
                     >
-                      {mode === 'dark'
-                        ? t('深色', 'Dark')
-                        : mode === 'light'
-                          ? t('浅色', 'Light')
-                          : t('自动', 'Auto')}
+                      {base === 'classic'
+                        ? t('经典', 'Classic')
+                        : base === 'gpt'
+                          ? t('GPT 风格', 'GPT Style')
+                          : t('水面', 'Mirror')}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-row-label">
+                  <div className="settings-row-title">{t('主题模式', 'Theme Mode')}</div>
+                  <div className="settings-row-desc">
+                    {lockedColorScheme
+                      ? t(
+                          'GPT 风格仅支持深色模式（计划中扩展浅色变体）。',
+                          'GPT Style supports dark mode only (light variant planned).',
+                        )
+                      : t(
+                          '支持深色、浅色和自动跟随系统。',
+                          'Supports dark, light, and system auto mode.',
+                        )}
+                  </div>
+                </div>
+                <div
+                  className={'segmented' + (lockedColorScheme ? ' segmented-locked' : '')}
+                  role="tablist"
+                  aria-label={t('主题模式', 'Theme Mode')}
+                >
+                  {(['dark', 'light', 'auto'] as const).map((mode) => {
+                    // GPT 锁 dark：light/auto 段 disabled，dark 段保持选中
+                    const isLocked = Boolean(lockedColorScheme)
+                    const isLockedActive = isLocked && mode === lockedColorScheme
+                    const isDisabled = isLocked && !isLockedActive
+                    const isSelected = isLocked ? isLockedActive : theme === mode
+                    return (
+                      <button
+                        key={mode}
+                        className={'seg' + (isSelected ? ' active' : '') + (isDisabled ? ' disabled' : '')}
+                        type="button"
+                        disabled={isDisabled}
+                        aria-disabled={isDisabled}
+                        title={
+                          isDisabled
+                            ? t(
+                                'GPT 风格暂不支持浅色模式（计划中）',
+                                'GPT Style does not support light mode yet (planned)',
+                              )
+                            : undefined
+                        }
+                        onClick={() => {
+                          if (isDisabled) return
+                          setTheme(mode)
+                        }}
+                        role="tab"
+                        aria-selected={isSelected}
+                      >
+                        {mode === 'dark'
+                          ? t('深色', 'Dark')
+                          : mode === 'light'
+                            ? t('浅色', 'Light')
+                            : t('自动', 'Auto')}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
