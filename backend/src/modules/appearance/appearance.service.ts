@@ -454,7 +454,10 @@ const MIRROR_LIGHT_CORE_TOKENS = {
   danger: '#eb0a00',
 } as const
 
-const MIRROR_LIGHT_TOKENS = {
+// Exported (rather than deleted) so tsc's noUnusedLocals doesn't fire — see
+// the "kept for reference / future revival" note below. Future mirror-light
+// work can import this directly without rediscovering the palette.
+export const MIRROR_LIGHT_TOKENS = {
   ...MIRROR_LIGHT_CORE_TOKENS,
   bgGrad1: '#F3F4F6',
   bgGrad2: '#DCDDE0',
