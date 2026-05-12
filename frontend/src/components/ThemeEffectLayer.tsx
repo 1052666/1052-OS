@@ -122,10 +122,18 @@ export default function ThemeEffectLayer() {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    // Hide canvas until shader inits successfully. Chromium paints the
+    // uncleared WebGL canvas as opaque mid-gray when shader compile fails,
+    // occluding the body bg gradient. WebKit defaults to transparent so
+    // works either way; this makes both engines behave consistently on
+    // the failure path. Opacity flips to 1 once createThemeEffect succeeds.
+    canvas.style.opacity = '0'
+
     // Start at idle intensity — luxury default is "near-silent until
     // engaged". Activity tracking below ramps to ACTIVE_INTENSITY.
     const instance = createThemeEffect(canvas, readUniforms(IDLE_INTENSITY))
-    if (!instance) return // WebGL unavailable — graceful static fallback.
+    if (!instance) return // WebGL/shader failed — body bg shows through.
+    canvas.style.opacity = '1'
     instanceRef.current = instance
 
     // Spec §2.2 lifecycle: pause on tab hide, resume on visible.
