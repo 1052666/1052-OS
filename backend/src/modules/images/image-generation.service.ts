@@ -177,11 +177,58 @@ function isOpenAIGeminiImageProvider(configured: ImageGenerationSettings) {
   return /generativelanguage\.googleapis\.com/i.test(configured.baseUrl)
 }
 
+export function isMiniMaxImageProvider(provider: string, url: string): boolean {
+  const normalizedProvider = provider.trim().toLowerCase()
+  const normalizedUrl = url.trim().toLowerCase()
+  const matchesProvider =
+    normalizedProvider === 'minimax' ||
+    normalizedProvider === 'minimaxi' ||
+    normalizedUrl.includes('minimax') ||
+    normalizedUrl.includes('minimaxi')
+
+  return (
+    matchesProvider &&
+    (normalizedUrl.includes('minimaxi.com') ||
+      normalizedUrl.includes('minimax.io') ||
+      normalizedUrl.includes('minimax.com'))
+  )
+}
+
+function isConfiguredMiniMaxImageProvider(configured: ImageGenerationSettings) {
+  return isMiniMaxImageProvider(configured.modelId, configured.baseUrl)
+}
+
+function miniMaxImageGenerationUrl(base: string) {
+  const trimmed = base.trim().replace(/\/+$/, '')
+  try {
+    const url = new URL(trimmed)
+    const host = url.hostname.toLowerCase()
+    if (host === 'platform.minimax.io') {
+      url.hostname = 'api.minimax.io'
+    } else if (host === 'platform.minimaxi.com') {
+      url.hostname = 'api.minimaxi.com'
+    }
+
+    const normalized = url.toString().replace(/\/+$/, '')
+    if (/\/v1\/image_generation$/i.test(url.pathname)) return normalized
+    if (/\/v1\/?$/i.test(url.pathname)) return joinUrl(normalized, 'image_generation')
+    return joinUrl(normalized, 'v1/image_generation')
+  } catch {
+    if (/\/v1\/image_generation$/i.test(trimmed)) return trimmed
+    if (/\/v1$/i.test(trimmed)) return joinUrl(trimmed, 'image_generation')
+    return joinUrl(trimmed, 'v1/image_generation')
+  }
+}
+
 function geminiAspectRatio(size: ImageGenerationSettings['size']) {
   if (size === '1024x1024') return '1:1'
   if (size === '1536x1024') return '3:2'
   if (size === '1024x1536') return '2:3'
   return undefined
+}
+
+function miniMaxAspectRatio(size: ImageGenerationSettings['size']) {
+  return geminiAspectRatio(size)
 }
 
 function extractGeminiError(body: string) {
@@ -413,6 +460,103 @@ async function generateGeminiNativeImages(
   return { images, revisedPrompt }
 }
 
+function extractMiniMaxError(body: string) {
+  try {
+    const parsed = JSON.parse(body) as {
+      base_resp?: { status_code?: number; status_msg?: string }
+      error?: { message?: string } | string
+    }
+    const status = parsed.base_resp?.status_code
+    const statusMsg = parsed.base_resp?.status_msg
+    if (typeof status === 'number' && status !== 0) {
+      return statusMsg ? `MiniMax status ${status}: ${statusMsg}` : `MiniMax status ${status}`
+    }
+    if (typeof parsed.error === 'string') return parsed.error
+    if (parsed.error && typeof parsed.error.message === 'string') return parsed.error.message
+  } catch {}
+  return body
+}
+
+async function generateMiniMaxNativeImages(
+  configured: ImageGenerationSettings,
+  resolved: ResolvedImageRequest,
+) {
+  const payload: Record<string, unknown> = {
+    model: configured.modelId,
+    prompt: resolved.prompt,
+    n: resolved.count,
+    response_format: 'url',
+  }
+  const aspectRatio = miniMaxAspectRatio(resolved.size)
+  if (aspectRatio) payload.aspect_ratio = aspectRatio
+
+  let response: Response
+  try {
+    response = await fetch(miniMaxImageGenerationUrl(configured.baseUrl), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${configured.apiKey}`,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(90_000),
+    })
+  } catch (error) {
+    const msg = (error as Error).message
+    throw new HttpError(
+      502,
+      msg.includes('timed out') || msg.includes('abort')
+        ? `MiniMax 图片生成请求超时（90s），请检查图片 API 配置或稍后重试。`
+        : `Unable to reach the MiniMax image provider: ${msg}`,
+    )
+  }
+
+  const body = await response.text().catch(() => '')
+  if (!response.ok) {
+    throw new HttpError(
+      response.status,
+      `MiniMax image provider returned ${response.status}: ${extractMiniMaxError(body).slice(0, 500)}`,
+    )
+  }
+
+  const parsed = body
+    ? (JSON.parse(body) as {
+        data?: {
+          image_urls?: string[]
+          image_base64?: string[]
+        }
+        base_resp?: { status_code?: number; status_msg?: string }
+      })
+    : null
+
+  const status = parsed?.base_resp?.status_code
+  if (typeof status === 'number' && status !== 0) {
+    throw new HttpError(502, extractMiniMaxError(body).slice(0, 500))
+  }
+
+  const images: GeneratedImage[] = []
+  const urls = parsed?.data?.image_urls ?? []
+  const base64Images = parsed?.data?.image_base64 ?? []
+
+  for (const url of urls) {
+    if (typeof url !== 'string' || !url.trim()) continue
+    const remote = await fetchRemoteImage(url.trim())
+    images.push(await persistImage(remote.bytes, remote.format ?? 'jpeg', images.length))
+  }
+
+  for (const image of base64Images) {
+    if (typeof image !== 'string' || !image.trim()) continue
+    const buffer = Buffer.from(ensureBase64(image.trim()), 'base64')
+    images.push(await persistImage(buffer, 'jpeg', images.length))
+  }
+
+  if (images.length === 0) {
+    throw new HttpError(502, 'MiniMax image provider did not return any image data.')
+  }
+
+  return { images, revisedPrompt: '' }
+}
+
 export async function generateImages(input: Record<string, unknown>) {
   const settings = await getSettings()
   const configured = settings.imageGeneration
@@ -431,8 +575,9 @@ export async function generateImages(input: Record<string, unknown>) {
     throw new HttpError(400, 'Image generation prompt cannot be empty.')
   }
 
-  const { images, revisedPrompt } =
-    configured.apiFormat === 'gemini-native'
+  const { images, revisedPrompt } = isConfiguredMiniMaxImageProvider(configured)
+    ? await generateMiniMaxNativeImages(configured, resolved)
+    : configured.apiFormat === 'gemini-native'
       ? await generateGeminiNativeImages(configured, resolved)
       : await generateOpenAICompatibleImages(configured, resolved)
 

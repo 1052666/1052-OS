@@ -1,7 +1,12 @@
+import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { config } from '../../config.js'
 import { readJson, writeJson } from '../../storage.js'
 import type { ChatHistory, StoredChatMessage } from './agent.types.js'
 
 const FILE = 'chat-history.json'
+const BACKUP_DIR = 'chat-history-backups'
 const historyListeners = new Set<(event: ChatHistoryEvent) => void>()
 
 // ── Auto-compaction ────────────────────────────────────────────────
@@ -128,6 +133,53 @@ export function subscribeChatHistory(listener: (event: ChatHistoryEvent) => void
   }
 }
 
+function timestamp() {
+  const date = new Date()
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    '-',
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    pad(date.getSeconds()),
+    '-',
+    String(date.getMilliseconds()).padStart(3, '0'),
+  ].join('')
+}
+
+function backupDirPath() {
+  return path.join(config.dataDir, BACKUP_DIR)
+}
+
+function backupFilePath(reason: string) {
+  const safeReason = reason.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'backup'
+  return path.join(
+    backupDirPath(),
+    `chat-history-${timestamp()}-${safeReason}-${randomUUID().slice(0, 8)}.json`,
+  )
+}
+
+export async function backupChatHistory(history: ChatHistory, reason = 'backup') {
+  await fs.mkdir(backupDirPath(), { recursive: true })
+  const filePath = backupFilePath(reason)
+  await fs.writeFile(
+    filePath,
+    JSON.stringify(
+      {
+        ...history,
+        backupReason: reason,
+        backedUpAt: Date.now(),
+      },
+      null,
+      2,
+    ),
+    'utf-8',
+  )
+  return filePath
+}
+
 function sanitizeStoredMessage(value: unknown): StoredChatMessage | null {
   if (!value || typeof value !== 'object') return null
 
@@ -236,6 +288,13 @@ export async function saveChatHistory(
         `[agent-history] ignored suspicious empty sync overwrite; current=${current.messages.length}`,
       )
       return current
+    }
+  }
+
+  if ((reason === 'clear' || reason === 'command-new') && messages.length === 0) {
+    const current = await getChatHistory()
+    if (current.messages.length > 0) {
+      await backupChatHistory(current, reason)
     }
   }
 

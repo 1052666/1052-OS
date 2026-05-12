@@ -308,11 +308,12 @@ http://localhost:10052
 
 ### 8. 配置图像生成
 
-图像生成支持三类接口：
+图像生成支持以下接口：
 
 | API 格式 | Base URL 示例 | 说明 |
 | --- | --- | --- |
 | OpenAI compatible | `https://api.openai.com/v1` | 自动拼接 `/images/generations` |
+| MiniMax image | `https://api.minimaxi.com` | 自动拼接 `/v1/image_generation`，也兼容用户填入 `/v1` 后缀 |
 | Gemini native | `https://generativelanguage.googleapis.com/v1beta` | 自动拼接 `generateContent` |
 | Gemini OpenAI compatible | `https://generativelanguage.googleapis.com/v1beta/openai` | 使用 Gemini 的 OpenAI 兼容图像接口 |
 

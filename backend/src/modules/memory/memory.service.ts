@@ -32,6 +32,11 @@ const SECURE_INDEX_FILE = 'index.json'
 const SECURE_PROFILE_FILE = 'secure-memory.md'
 const SECURE_ENTRIES_DIR = 'entries'
 
+type SaveMemoryVerification = {
+  requireId?: string
+  forbidId?: string
+}
+
 const MAX_TITLE_CHARS = 160
 const MAX_CONTENT_CHARS = 8_000
 const MAX_TAGS = 16
@@ -103,18 +108,90 @@ async function ensureMemoryDirs() {
   await fs.mkdir(secureEntriesRoot(), { recursive: true })
 }
 
+function storagePathLabel(filePath: string) {
+  return path.relative(config.dataDir, filePath).replace(/\\/g, '/')
+}
+
+function errorCode(error: unknown) {
+  return (error as NodeJS.ErrnoException | undefined)?.code
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function readJsonFile<T>(filePath: string, fallback: T): Promise<T> {
   try {
     const text = await fs.readFile(filePath, 'utf-8')
     return JSON.parse(text) as T
-  } catch {
-    return fallback
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return fallback
+    const label = storagePathLabel(filePath)
+    if (error instanceof SyntaxError) {
+      throw new HttpError(500, `Memory storage file contains invalid JSON: ${label}`)
+    }
+    throw new HttpError(500, `Unable to read memory storage file ${label}: ${errorMessage(error)}`)
+  }
+}
+
+async function readJsonArrayFile(filePath: string) {
+  const value = await readJsonFile<unknown>(filePath, [])
+  if (!Array.isArray(value)) {
+    throw new HttpError(500, `Memory storage file must contain a JSON array: ${storagePathLabel(filePath)}`)
+  }
+  return value
+}
+
+function tempPath(filePath: string) {
+  return `${filePath}.${process.pid}.${Date.now()}.${randomUUID().replace(/-/g, '')}.tmp`
+}
+
+async function replaceFile(tempFilePath: string, filePath: string) {
+  try {
+    await fs.rename(tempFilePath, filePath)
+  } catch (error) {
+    const code = errorCode(error)
+    if (code !== 'EEXIST' && code !== 'EPERM') throw error
+    await fs.rm(filePath, { force: true })
+    await fs.rename(tempFilePath, filePath)
+  }
+}
+
+async function writeTextFile(filePath: string, value: string) {
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+  const nextTempPath = tempPath(filePath)
+  try {
+    await fs.writeFile(nextTempPath, value, 'utf-8')
+    await replaceFile(nextTempPath, filePath)
+    await fs.access(filePath)
+  } catch (error) {
+    throw new HttpError(
+      500,
+      `Unable to write memory storage file ${storagePathLabel(filePath)}: ${errorMessage(error)}`,
+    )
+  } finally {
+    await fs.rm(nextTempPath, { force: true }).catch(() => {})
   }
 }
 
 async function writeJsonFile(filePath: string, value: unknown) {
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, JSON.stringify(value, null, 2), 'utf-8')
+  await writeTextFile(filePath, JSON.stringify(value, null, 2))
+}
+
+async function ensureJsonArrayFile(filePath: string) {
+  await ensureMemoryDirs()
+  try {
+    await fs.access(filePath)
+  } catch (error) {
+    if (errorCode(error) !== 'ENOENT') {
+      throw new HttpError(
+        500,
+        `Unable to access memory storage file ${storagePathLabel(filePath)}: ${errorMessage(error)}`,
+      )
+    }
+    await writeJsonFile(filePath, [])
+  }
+  await readJsonArrayFile(filePath)
 }
 
 async function appendEvent(type: string, payload: Record<string, unknown>) {
@@ -125,6 +202,30 @@ async function appendEvent(type: string, payload: Record<string, unknown>) {
     ...payload,
   })
   await fs.appendFile(eventsFilePath(), line + '\n', 'utf-8')
+}
+
+export async function initMemoryStorage() {
+  await ensureMemoryDirs()
+  await ensureJsonArrayFile(memoriesFilePath())
+  await ensureJsonArrayFile(suggestionsFilePath())
+  await ensureJsonArrayFile(secureIndexPath())
+  await fs.appendFile(eventsFilePath(), '', 'utf-8')
+
+  let profilesMissing = false
+  for (const filePath of [profileFilePath(), secureProfilePath()]) {
+    try {
+      await fs.access(filePath)
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') {
+        throw new HttpError(
+          500,
+          `Unable to access memory profile ${storagePathLabel(filePath)}: ${errorMessage(error)}`,
+        )
+      }
+      profilesMissing = true
+    }
+  }
+  if (profilesMissing) await rebuildProfiles()
 }
 
 function normalizeString(value: unknown) {
@@ -296,17 +397,24 @@ function normalizeSecureIndexRecord(value: unknown): SecureMemoryIndexItem | nul
 
 async function readMemories() {
   await ensureMemoryDirs()
-  const raw = await readJsonFile<unknown[]>(memoriesFilePath(), [])
+  const raw = await readJsonArrayFile(memoriesFilePath())
   return raw.map((item) => normalizeMemoryRecord(item)).filter((item): item is MemoryItem => item !== null)
 }
 
-async function saveMemories(items: MemoryItem[]) {
+async function saveMemories(items: MemoryItem[], verification: SaveMemoryVerification = {}) {
   await writeJsonFile(memoriesFilePath(), items)
+  const persisted = await readMemories()
+  if (verification.requireId && !persisted.some((item) => item.id === verification.requireId)) {
+    throw new HttpError(500, `Memory write verification failed for id: ${verification.requireId}`)
+  }
+  if (verification.forbidId && persisted.some((item) => item.id === verification.forbidId)) {
+    throw new HttpError(500, `Memory delete verification failed for id: ${verification.forbidId}`)
+  }
 }
 
 async function readSuggestions() {
   await ensureMemoryDirs()
-  const raw = await readJsonFile<unknown[]>(suggestionsFilePath(), [])
+  const raw = await readJsonArrayFile(suggestionsFilePath())
   return raw
     .map((item) => normalizeSuggestionRecord(item))
     .filter((item): item is MemorySuggestion => item !== null)
@@ -318,7 +426,7 @@ async function saveSuggestions(items: MemorySuggestion[]) {
 
 async function readSecureIndex() {
   await ensureMemoryDirs()
-  const raw = await readJsonFile<unknown[]>(secureIndexPath(), [])
+  const raw = await readJsonArrayFile(secureIndexPath())
   return raw
     .map((item) => normalizeSecureIndexRecord(item))
     .filter((item): item is SecureMemoryIndexItem => item !== null)
@@ -444,7 +552,7 @@ function parseSecureMemoryMarkdown(text: string, fallbackPath: string): SecureMe
 
 async function writeSecureEntry(entry: SecureMemoryDetail) {
   await ensureMemoryDirs()
-  await fs.writeFile(secureEntryPath(entry.id), buildSecureMemoryMarkdown(entry), 'utf-8')
+  await writeTextFile(secureEntryPath(entry.id), buildSecureMemoryMarkdown(entry))
 }
 
 async function rebuildProfiles() {
@@ -501,8 +609,8 @@ async function rebuildProfiles() {
     secureLines.push(`- 文件：${item.path}`, '')
   }
 
-  await fs.writeFile(profileFilePath(), profileLines.join('\n'), 'utf-8')
-  await fs.writeFile(secureProfilePath(), secureLines.join('\n'), 'utf-8')
+  await writeTextFile(profileFilePath(), profileLines.join('\n'))
+  await writeTextFile(secureProfilePath(), secureLines.join('\n'))
 }
 
 function buildMemoryRecord(input: MemoryInput, fallback?: Partial<MemoryItem>): MemoryItem {
@@ -605,7 +713,7 @@ export async function createMemory(input: MemoryInput) {
   const item = buildMemoryRecord(input)
   const items = await readMemories()
   items.unshift(item)
-  await saveMemories(items)
+  await saveMemories(items, { requireId: item.id })
   await rebuildProfiles()
   await appendEvent('memory.create', { id: item.id, title: item.title, category: item.category })
   schedulePkmReindex()
@@ -620,7 +728,7 @@ export async function updateMemory(idInput: unknown, input: MemoryInput) {
 
   const next = buildMemoryRecord(input, items[index])
   items[index] = next
-  await saveMemories(items)
+  await saveMemories(items, { requireId: next.id })
   await rebuildProfiles()
   await appendEvent('memory.update', { id: next.id, title: next.title })
   schedulePkmReindex()
@@ -633,7 +741,7 @@ export async function deleteMemory(idInput: unknown) {
   const item = items.find((memory) => memory.id === id)
   if (!item) throw new HttpError(404, 'Memory not found')
 
-  await saveMemories(items.filter((memory) => memory.id !== id))
+  await saveMemories(items.filter((memory) => memory.id !== id), { forbidId: id })
   await rebuildProfiles()
   await appendEvent('memory.delete', { id: item.id, title: item.title })
   schedulePkmReindex()
@@ -698,7 +806,7 @@ export async function confirmMemorySuggestion(idInput: unknown, patch: MemoryInp
   )
 
   memories.unshift(confirmed)
-  await saveMemories(memories)
+  await saveMemories(memories, { requireId: confirmed.id })
   await saveSuggestions(suggestions.filter((item) => item.id !== id))
   await rebuildProfiles()
   await appendEvent('memory.confirm', {
@@ -809,7 +917,13 @@ export async function readMemoryProfile() {
   await ensureMemoryDirs()
   try {
     return await fs.readFile(profileFilePath(), 'utf-8')
-  } catch {
+  } catch (error) {
+    if (errorCode(error) !== 'ENOENT') {
+      throw new HttpError(
+        500,
+        `Unable to read memory profile ${storagePathLabel(profileFilePath())}: ${errorMessage(error)}`,
+      )
+    }
     await rebuildProfiles()
     return await fs.readFile(profileFilePath(), 'utf-8')
   }
@@ -819,7 +933,13 @@ export async function readSecureMemoryProfile() {
   await ensureMemoryDirs()
   try {
     return await fs.readFile(secureProfilePath(), 'utf-8')
-  } catch {
+  } catch (error) {
+    if (errorCode(error) !== 'ENOENT') {
+      throw new HttpError(
+        500,
+        `Unable to read memory profile ${storagePathLabel(secureProfilePath())}: ${errorMessage(error)}`,
+      )
+    }
     await rebuildProfiles()
     return await fs.readFile(secureProfilePath(), 'utf-8')
   }

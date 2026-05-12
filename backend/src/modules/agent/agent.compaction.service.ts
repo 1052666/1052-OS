@@ -1,10 +1,8 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { config } from '../../config.js'
 import { HttpError } from '../../http-error.js'
 import { getSettings, resolveLlmConfigForTask } from '../settings/settings.service.js'
 import { chatCompletion } from './llm.client.js'
 import {
+  backupChatHistory,
   getChatHistory,
   saveChatHistory,
   sanitizeStoredMessages,
@@ -12,30 +10,7 @@ import {
 import type { ChatHistory, StoredChatMessage } from './agent.types.js'
 import { sanitizeStoredMessageForCompaction } from './agent.context-sanitizer.service.js'
 
-const BACKUP_DIR = 'chat-history-backups'
 const CHUNK_CHAR_LIMIT = 32_000
-
-function timestamp() {
-  const date = new Date()
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-    '-',
-    pad(date.getHours()),
-    pad(date.getMinutes()),
-    pad(date.getSeconds()),
-  ].join('')
-}
-
-function backupDirPath() {
-  return path.join(config.dataDir, BACKUP_DIR)
-}
-
-function backupFilePath() {
-  return path.join(backupDirPath(), `chat-history-${timestamp()}.json`)
-}
 
 function compactDisplayText(
   backupPath: string,
@@ -93,13 +68,6 @@ function chunkMessages(messages: StoredChatMessage[]) {
 
   if (current) chunks.push(current)
   return chunks
-}
-
-async function backupHistory(history: ChatHistory) {
-  await fs.mkdir(backupDirPath(), { recursive: true })
-  const filePath = backupFilePath()
-  await fs.writeFile(filePath, JSON.stringify(history, null, 2), 'utf-8')
-  return filePath
 }
 
 async function summarizeChunk(
@@ -224,7 +192,7 @@ export async function compactChatHistory(inputMessages?: unknown): Promise<
     throw new HttpError(400, '当前没有可压缩的聊天上下文')
   }
 
-  const backupPath = await backupHistory(currentHistory)
+  const backupPath = await backupChatHistory(currentHistory, 'compact')
   const chunks = chunkMessages(messages)
   const chunkSummaries: string[] = []
   let finalUsage: StoredChatMessage['usage']
