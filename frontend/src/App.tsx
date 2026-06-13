@@ -27,6 +27,7 @@ import SqlOrchestration from './pages/SqlOrchestration'
 import SqlLoads from './pages/SqlLoads'
 import SqlServers from './pages/SqlServers'
 import SqlShellFiles from './pages/SqlShellFiles'
+import IndustrialGateway from './pages/IndustrialGateway'
 import { useOnboarding } from './use-onboarding'
 
 export default function App() {
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="/sql/loads" element={<SqlLoads />} />
           <Route path="/sql/servers" element={<SqlServers />} />
           <Route path="/sql/shell-files" element={<SqlShellFiles />} />
+          <Route path="/industrial-gateway" element={<IndustrialGateway />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/search-sources" element={<SearchSources />} />
           <Route path="/skills" element={<Skills />} />
