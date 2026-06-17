@@ -170,3 +170,65 @@ After ack:
          address: 100, value: false
        }
 ```
+
+## §10 Building a Node-RED Dashboard (mirror)
+
+Generate a Node-RED Dashboard that visualizes all collector tags automatically.
+
+### One-time setup
+
+1. Install `node-red-dashboard` in your Node-RED instance:
+   - Open Node-RED → top-right menu → **Manage palette** → **Install** tab
+   - Search for `node-red-dashboard` → click **Install**
+   - Restart Node-RED when prompted
+2. Verify: open `http://localhost:1880/ui` — you should see a blank dashboard tab.
+
+### Export the dashboard
+
+1. In the gateway frontend, open **§01 NR Bridge panel**
+2. Click **⬇ Export dashboard.json**
+3. Browser downloads `1052os-dashboard.json`
+4. In Node-RED → top-right menu → **Import** → select the file → **Import**
+5. Click **Deploy**
+
+### View
+
+Open `http://localhost:1880/ui` in a browser. You should see a single
+**"1052-OS Industrial"** tab with five groups:
+
+| Group | Contents |
+|---|---|
+| **Overview** | Gateway status (live, from `1052os/events/status`) |
+| **Modbus Tags** | One gauge + one trend chart per numeric Modbus tag |
+| **OPC UA Tags** | Same for OPC UA tags |
+| **Anomalies** | Live feed of anomaly events (red/yellow severity) |
+| **Recent Writes** | Audit feed of writes (green ok / red error) |
+
+For non-numeric tags (bit / bool / ascii / utf8), only a text widget is shown.
+
+### Threshold colors
+
+For tags with anomaly channels configured (low/high limits), the gauge uses:
+
+- **Green** segment: below `low`
+- **Yellow** segment: between `low` and `high`
+- **Red** segment: above `high`
+
+Configure thresholds via the gateway REST API:
+
+```bash
+curl -X POST 'http://localhost:8765/api/anomaly/channel/add' \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"TI-101","table":"raw_data","col":"v0","low":10,"high":90}'
+```
+
+### Tips
+
+- **First deploy shows no data**: ensure MQTT broker is running and the collector
+  is publishing to `1052os/+/+/+/value`.
+- **Tags not appearing**: check `/api/tags` to confirm the tag catalog.
+- **Dashboard 2.0 users**: this export is for legacy `node-red-dashboard`
+  (v2.x). Dashboard 2.0 uses different node types (`@flowfuse/node-red-dashboard`)
+  and is not yet supported.
+- **Customize in NR**: after Import, you can rearrange, resize, or remove
+  widgets in the NR editor. Re-exporting will overwrite your changes.
