@@ -5,7 +5,9 @@ Exposes Modbus / OPC UA / MQTT via HTTP for the 1052-OS frontend.
 
 from contextlib import asynccontextmanager
 from typing import Any
+import json
 
+import paho.mqtt.client as mqtt
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -60,6 +62,8 @@ async def lifespan(app: FastAPI):
         _td.close()
     if _collector:
         _collector.stop_all()
+    if _mqtt_publisher:
+        _mqtt_publisher.stop()
 
 
 app = FastAPI(title="1052-OS Industrial Gateway", version="0.4.0", lifespan=lifespan)
@@ -446,7 +450,7 @@ class CollectTaskIn(BaseModel):
 
 @app.post("/api/td/connect")
 def td_connect(config: TdConfigIn | None = None):
-    global _td, _td_config, _collector, _anomaly, _predictor, _reporter
+    global _td, _td_config, _collector, _anomaly, _predictor, _reporter, _mqtt_publisher
     try:
         if config:
             _td_config = TdConfig(
@@ -460,6 +464,13 @@ def td_connect(config: TdConfigIn | None = None):
         _anomaly = AnomalyEngine(_td)
         _predictor = TrendPredictor(_td)
         _reporter = ReportGenerator(_anomaly, _predictor)
+        global _mqtt_publisher
+        if _mqtt_publisher is None:
+            _mqtt_publisher = MqttPublisher(MqttPublisherConfig())
+            _mqtt_publisher.start()
+        # Wire publisher into collector so its pollers can publish
+        if _collector and _collector.mqtt_publisher is None:
+            _collector.mqtt_publisher = _mqtt_publisher
         return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
     except Exception as e:
         raise HTTPException(503, str(e))
@@ -564,6 +575,19 @@ def nodered_status():
                 "publish_count": 0, "publish_errors": 0, "last_publish_at": None,
                 "last_error": None, "last_topics": []}
     return {"ok": True, **_mqtt_publisher.status()}
+
+
+class NoderedPublishIn(BaseModel):
+    topic: str
+    payload: dict
+    retain: bool = False
+
+@app.post("/api/nodered/publish")
+def nodered_publish(body: NoderedPublishIn):
+    if not _mqtt_publisher:
+        raise HTTPException(503, "Publisher not initialized")
+    info = _mqtt_publisher._client.publish(body.topic, json.dumps(body.payload), qos=0, retain=body.retain)
+    return {"ok": info.rc == mqtt.MQTT_ERR_SUCCESS, "rc": info.rc}
 
 
 # ═══════════════════════════════════════════════════════
