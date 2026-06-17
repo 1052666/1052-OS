@@ -21,6 +21,7 @@ from gateway.modbus_decoder import dtype_catalog, endian_catalog, DTYPES, ENDIAN
 
 from gateway.nodered_tags import build_tag_catalog
 from gateway.mqtt_publisher import MqttPublisher, MqttPublisherConfig
+from gateway.status_heartbeat import StatusHeartbeat
 
 from gateway.anomaly import AnomalyEngine, ChannelConfig, Anomaly
 from datetime import datetime, timezone
@@ -47,6 +48,7 @@ _anomaly: AnomalyEngine | None = None
 _predictor: TrendPredictor | None = None
 _reporter: ReportGenerator | None = None
 _mqtt_publisher: MqttPublisher | None = None
+_heartbeat: StatusHeartbeat | None = None
 
 
 @asynccontextmanager
@@ -64,6 +66,8 @@ async def lifespan(app: FastAPI):
         _collector.stop_all()
     if _mqtt_publisher:
         _mqtt_publisher.stop()
+    if _heartbeat:
+        _heartbeat.stop()
 
 
 app = FastAPI(title="1052-OS Industrial Gateway", version="0.4.0", lifespan=lifespan)
@@ -473,6 +477,11 @@ def td_connect(config: TdConfigIn | None = None):
             _collector.mqtt_publisher = _mqtt_publisher
         if _mqtt_publisher:
             _anomaly.mqtt_publisher = _mqtt_publisher
+        # Start status heartbeat (5s) once publisher is alive
+        global _heartbeat
+        if _heartbeat is None:
+            _heartbeat = StatusHeartbeat(_mqtt_publisher, lambda: health(), interval=5.0)
+            _heartbeat.start()
         return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
     except Exception as e:
         raise HTTPException(503, str(e))
