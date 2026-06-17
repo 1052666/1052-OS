@@ -15,19 +15,19 @@
 ## File Structure
 
 **New files:**
-- `gateway/mqtt_publisher.py` — publisher-only Mosquitto client (~120 LoC)
-- `gateway/nodered_tags.py` — tag catalog builder for `/api/tags` (~50 LoC)
-- `gateway/status_heartbeat.py` — 5s background status publisher (~60 LoC)
+- `gateway_python/gateway/mqtt_publisher.py` — publisher-only Mosquitto client (~120 LoC)
+- `gateway_python/gateway/nodered_tags.py` — tag catalog builder for `/api/tags` (~50 LoC)
+- `gateway_python/gateway/status_heartbeat.py` — 5s background status publisher (~60 LoC)
 - `mosquitto/config/mosquitto.conf` — broker config (~25 LoC)
 - `mosquitto/Dockerfile` — eclipse-mosquitto:2.0 with our config (~5 LoC)
-- `tests/test_mqtt_publisher.py` — unit tests for publisher (~150 LoC)
-- `tests/test_nodered_e2e.py` — E2E with testcontainers (~120 LoC)
+- `gateway_python/tests/test_mqtt_publisher.py` — unit tests for publisher (~150 LoC)
+- `gateway_python/tests/test_nodered_e2e.py` — E2E with testcontainers (~120 LoC)
 - `docs/node-red-integration.md` — user docs (~150 LoC)
 
 **Modified files:**
-- `gateway/collector.py` — add `site`/`device` fields, call `_publish_mqtt` after decode
-- `gateway/server.py` — `_mqtt_publisher` global, `/api/tags`, `/api/nodered/status`, lifespan
-- `gateway/anomaly.py` — accept optional `MqttPublisher`, publish on `scan()`
+- `gateway_python/gateway/collector.py` — add `site`/`device` fields, call `_publish_mqtt` after decode
+- `gateway_python/gateway/server.py` — `_mqtt_publisher` global, `/api/tags`, `/api/nodered/status`, lifespan
+- `gateway_python/gateway/anomaly.py` — accept optional `MqttPublisher`, publish on `scan()`
 - `docker-compose.yml` — add `mosquitto` service
 - `frontend/public/industrial-gateway/index.html` — §01 Node-RED Bridge panel
 
@@ -107,12 +107,12 @@ git commit -m "feat(nodered-sub1): add embedded mosquitto broker container"
 ## Task 2: MqttPublisher module — core class
 
 **Files:**
-- Create: `gateway/mqtt_publisher.py`
-- Create: `tests/test_mqtt_publisher.py`
+- Create: `gateway_python/gateway/mqtt_publisher.py`
+- Create: `gateway_python/tests/test_mqtt_publisher.py`
 
 - [ ] **Step 1: Write failing test for topic building**
 
-In `tests/test_mqtt_publisher.py`:
+In `gateway_python/tests/test_mqtt_publisher.py`:
 
 ```python
 """Unit tests for mqtt_publisher — no broker required for these."""
@@ -164,7 +164,7 @@ Expected: ImportError or ModuleNotFoundError (gateway.mqtt_publisher not yet cre
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `gateway/mqtt_publisher.py`:
+Create `gateway_python/gateway/mqtt_publisher.py`:
 
 ```python
 """
@@ -334,7 +334,7 @@ Expected: 5 tests pass.
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/mqtt_publisher.py tests/test_mqtt_publisher.py
+git add gateway_python/gateway/mqtt_publisher.py gateway_python/tests/test_mqtt_publisher.py
 git commit -m "feat(nodered-sub1): add MqttPublisher module with topic building and status"
 ```
 
@@ -343,11 +343,11 @@ git commit -m "feat(nodered-sub1): add MqttPublisher module with topic building 
 ## Task 3: MqttPublisher integration test (live broker)
 
 **Files:**
-- Modify: `tests/test_mqtt_publisher.py`
+- Modify: `gateway_python/tests/test_mqtt_publisher.py`
 
 - [ ] **Step 1: Add live-broker test**
 
-Append to `tests/test_mqtt_publisher.py`:
+Append to `gateway_python/tests/test_mqtt_publisher.py`:
 
 ```python
 import json
@@ -431,7 +431,7 @@ Expected: 2 tests pass (or skip if broker not running).
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add tests/test_mqtt_publisher.py
+git add gateway_python/tests/test_mqtt_publisher.py
 git commit -m "test(nodered-sub1): add live broker integration tests for MqttPublisher"
 ```
 
@@ -440,12 +440,12 @@ git commit -m "test(nodered-sub1): add live broker integration tests for MqttPub
 ## Task 4: Extend CollectTask with site/device fields
 
 **Files:**
-- Modify: `gateway/collector.py`
-- Create: `tests/test_collector_meta.py`
+- Modify: `gateway_python/gateway/collector.py`
+- Create: `gateway_python/tests/test_collector_meta.py`
 
 - [ ] **Step 1: Write failing test for site/device defaulting**
 
-Create `tests/test_collector_meta.py`:
+Create `gateway_python/tests/test_collector_meta.py`:
 
 ```python
 import sys
@@ -484,7 +484,7 @@ def test_collecttask_to_dict_roundtrip():
 Run: `cd /Users/easonliu/1052-OS/gateway_python && python -m pytest tests/test_collector_meta.py -v`
 Expected: AttributeError / KeyError (site/device fields not yet on CollectTask).
 
-- [ ] **Step 3: Modify `gateway/collector.py`**
+- [ ] **Step 3: Modify `gateway_python/gateway/collector.py`**
 
 In `CollectTask` (around line 21), add two new fields after `interval`:
 
@@ -521,7 +521,7 @@ Expected: all green (existing tests still pass).
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/collector.py tests/test_collector_meta.py
+git add gateway_python/gateway/collector.py gateway_python/tests/test_collector_meta.py
 git commit -m "feat(nodered-sub1): add site/device fields to CollectTask for MQTT topic"
 ```
 
@@ -530,7 +530,7 @@ git commit -m "feat(nodered-sub1): add site/device fields to CollectTask for MQT
 ## Task 5: Wire collector → MqttPublisher (publish after decode)
 
 **Files:**
-- Modify: `gateway/collector.py`
+- Modify: `gateway_python/gateway/collector.py`
 
 - [ ] **Step 1: Add publisher injection to `DataCollector`**
 
@@ -656,7 +656,7 @@ Expected: all green.
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/collector.py
+git add gateway_python/gateway/collector.py
 git commit -m "feat(nodered-sub1): wire collector to MqttPublisher on each successful read"
 ```
 
@@ -665,13 +665,13 @@ git commit -m "feat(nodered-sub1): wire collector to MqttPublisher on each succe
 ## Task 6: Build tag catalog and /api/tags endpoint
 
 **Files:**
-- Create: `gateway/nodered_tags.py`
-- Modify: `gateway/server.py`
-- Create: `tests/test_nodered_tags.py`
+- Create: `gateway_python/gateway/nodered_tags.py`
+- Modify: `gateway_python/gateway/server.py`
+- Create: `gateway_python/tests/test_nodered_tags.py`
 
 - [ ] **Step 1: Write failing test**
 
-Create `tests/test_nodered_tags.py`:
+Create `gateway_python/tests/test_nodered_tags.py`:
 
 ```python
 import sys
@@ -721,7 +721,7 @@ def test_build_tag_catalog_opcua():
 Run: `cd /Users/easonliu/1052-OS/gateway_python && python -m pytest tests/test_nodered_tags.py -v`
 Expected: ImportError (gateway.nodered_tags not yet created).
 
-- [ ] **Step 3: Create `gateway/nodered_tags.py`**
+- [ ] **Step 3: Create `gateway_python/gateway/nodered_tags.py`**
 
 ```python
 """
@@ -758,7 +758,7 @@ def build_tag_catalog(tasks: dict) -> list[dict]:
 Run: `cd /Users/easonliu/1052-OS/gateway_python && python -m pytest tests/test_nodered_tags.py -v`
 Expected: 3 tests pass.
 
-- [ ] **Step 5: Add `/api/tags` and `/api/nodered/status` to `gateway/server.py`**
+- [ ] **Step 5: Add `/api/tags` and `/api/nodered/status` to `gateway_python/gateway/server.py`**
 
 In `server.py`, add these imports near top:
 
@@ -806,7 +806,7 @@ Expected: both return JSON, /api/tags returns empty list when no tasks, /api/nod
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/nodered_tags.py gateway/server.py tests/test_nodered_tags.py
+git add gateway_python/gateway/nodered_tags.py gateway_python/gateway/server.py gateway_python/tests/test_nodered_tags.py
 git commit -m "feat(nodered-sub1): add /api/tags and /api/nodered/status endpoints"
 ```
 
@@ -815,7 +815,7 @@ git commit -m "feat(nodered-sub1): add /api/tags and /api/nodered/status endpoin
 ## Task 7: Initialize MqttPublisher in /api/td/connect
 
 **Files:**
-- Modify: `gateway/server.py`
+- Modify: `gateway_python/gateway/server.py`
 
 - [ ] **Step 1: Update `/api/td/connect` to start MqttPublisher**
 
@@ -879,7 +879,7 @@ Expected: `{"hello": "world"}` appears.
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/server.py
+git add gateway_python/gateway/server.py
 git commit -m "feat(nodered-sub1): initialize MqttPublisher in td_connect and lifespan"
 ```
 
@@ -888,12 +888,12 @@ git commit -m "feat(nodered-sub1): initialize MqttPublisher in td_connect and li
 ## Task 8: Anomaly event publishing
 
 **Files:**
-- Modify: `gateway/anomaly.py`
-- Modify: `gateway/server.py`
+- Modify: `gateway_python/gateway/anomaly.py`
+- Modify: `gateway_python/gateway/server.py`
 
 - [ ] **Step 1: Add optional publisher to AnomalyEngine**
 
-In `gateway/anomaly.py`, add a publisher attribute on the engine class (find `class AnomalyEngine`):
+In `gateway_python/gateway/anomaly.py`, add a publisher attribute on the engine class (find `class AnomalyEngine`):
 
 ```python
     def __init__(self, td: TdClient, mqtt_publisher=None):
@@ -928,7 +928,7 @@ Use existing `Anomaly` attribute names (verify by reading `anomaly.py` — if na
 
 - [ ] **Step 3: Wire anomaly publisher in `td_connect`**
 
-In `gateway/server.py` `td_connect`, after `_anomaly = AnomalyEngine(_td)`, add:
+In `gateway_python/gateway/server.py` `td_connect`, after `_anomaly = AnomalyEngine(_td)`, add:
 
 ```python
         if _mqtt_publisher:
@@ -947,7 +947,7 @@ Expected: subscriber receives `{"ts": ..., "channel": "ch1", "type": "high", "va
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/anomaly.py gateway/server.py
+git add gateway_python/gateway/anomaly.py gateway_python/gateway/server.py
 git commit -m "feat(nodered-sub1): publish anomaly events to MQTT on scan()"
 ```
 
@@ -956,10 +956,10 @@ git commit -m "feat(nodered-sub1): publish anomaly events to MQTT on scan()"
 ## Task 9: 5s status heartbeat background task
 
 **Files:**
-- Create: `gateway/status_heartbeat.py`
-- Modify: `gateway/server.py`
+- Create: `gateway_python/gateway/status_heartbeat.py`
+- Modify: `gateway_python/gateway/server.py`
 
-- [ ] **Step 1: Create `gateway/status_heartbeat.py`**
+- [ ] **Step 1: Create `gateway_python/gateway/status_heartbeat.py`**
 
 ```python
 """
@@ -1001,7 +1001,7 @@ async def status_heartbeat_loop(mqtt_publisher, get_health_fn, interval: float =
 
 - [ ] **Step 2: Start heartbeat task in `lifespan`**
 
-In `gateway/server.py`, modify `lifespan`:
+In `gateway_python/gateway/server.py`, modify `lifespan`:
 
 ```python
 from gateway.status_heartbeat import status_heartbeat_loop
@@ -1051,7 +1051,7 @@ Expected: status JSON appears every 5s, with `retain=true` (after first message,
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add gateway/status_heartbeat.py gateway/server.py
+git add gateway_python/gateway/status_heartbeat.py gateway_python/gateway/server.py
 git commit -m "feat(nodered-sub1): publish 5s retained status heartbeat"
 ```
 
@@ -1205,7 +1205,7 @@ git commit -m "docs(nodered-sub1): add user-facing Node-RED integration guide"
 ## Task 12: End-to-end smoke test
 
 **Files:**
-- Create: `tests/test_nodered_e2e.py`
+- Create: `gateway_python/tests/test_nodered_e2e.py`
 
 - [ ] **Step 1: Write E2E test**
 
@@ -1304,7 +1304,7 @@ Expected: all green (existing tests + new ones).
 
 ```bash
 cd /Users/easonliu/1052-OS
-git add tests/test_nodered_e2e.py
+git add gateway_python/tests/test_nodered_e2e.py
 git commit -m "test(nodered-sub1): add end-to-end smoke tests for broker + stack"
 ```
 
