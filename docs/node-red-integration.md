@@ -43,6 +43,26 @@ You should see lines like:
 2. `debug` node — show complete msg
 3. `mqtt out` node — for control actions (Sub-3, not yet)
 
+## Exporting flows.json (one-click onboarding)
+
+Click the **"⬇ Export flows.json"** button in the gateway §01 System Overview panel, or hit the API directly: `curl -O -J http://localhost:8765/api/nodered/flows`.
+
+This downloads `1052os-flows.json` containing one `mqtt in` + `debug` pair per collector task, grouped by protocol into tabs (`Modbus` / `OPC UA`).
+
+### Importing into Node-RED
+
+1. Open Node-RED editor (`http://localhost:1880`)
+2. Click the hamburger menu (top right) → **Import** → **select a file to import**
+3. Choose `1052os-flows.json`
+4. Click **Import** to drop the nodes onto the canvas
+5. Click **Deploy** (red button, top right)
+
+All `mqtt in` nodes are pre-wired to `debug` nodes — you should immediately see realtime values appearing in the debug sidebar.
+
+### Regenerating after adding tags
+
+The exported `flows.json` is a snapshot of the tag catalog at the time of download. After adding new collect tasks via `/api/collector/task/add` (or the configure drawer), click the export button again and re-import. New `mqtt in` nodes will be added; old ones are unaffected (Node-RED de-duplicates by `id`).
+
 ## Troubleshooting
 
 | Symptom | Check |
