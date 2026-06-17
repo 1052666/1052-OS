@@ -26,6 +26,7 @@ from gateway.mqtt_publisher import MqttPublisher, MqttPublisherConfig
 from gateway.status_heartbeat import StatusHeartbeat
 from gateway.command_handler import CommandHandler
 from gateway.write_audit import WriteAuditLogger
+from gateway.dashboard_flows import build_dashboard_flows
 
 from gateway.anomaly import AnomalyEngine, ChannelConfig, Anomaly
 from datetime import datetime, timezone
@@ -629,6 +630,42 @@ def nodered_flows():
         media_type="application/json",
         headers={
             "Content-Disposition": 'attachment; filename="1052os-flows.json"',
+        },
+    )
+
+
+@app.get("/api/nodered/dashboard")
+def nodered_dashboard():
+    """Generate and serve a Node-RED Dashboard flows.json (Sub-4)."""
+    tasks = _collector.tasks if _collector else {}
+    channels = _anomaly.channels if _anomaly else {}
+    recent_audit: list = []
+    recent_anomalies: list = []
+    if _td:
+        try:
+            recent_audit = _td._query(
+                "SELECT ts, protocol, target, cmd, result FROM write_audit "
+                "ORDER BY ts DESC LIMIT 10"
+            )
+        except Exception:
+            pass
+        try:
+            recent_anomalies = _td._query(
+                "SELECT ts, channel_id, severity, message FROM anomaly_log "
+                "ORDER BY ts DESC LIMIT 10"
+            )
+        except Exception:
+            pass
+    flows = build_dashboard_flows(
+        tasks, channels,
+        recent_audit=recent_audit, recent_anomalies=recent_anomalies,
+    )
+    body = json.dumps(flows, ensure_ascii=False, indent=2)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": 'attachment; filename="1052os-dashboard.json"',
         },
     )
 
