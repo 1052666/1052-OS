@@ -279,6 +279,21 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .export-btn {
+      margin-top: 6px;
+      display: block;
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--ok-soft);
+      color: var(--ok);
+      border: 1px solid currentColor;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .export-btn:hover { opacity: 0.85; }
+    .export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ─────────────────────────────────────────
        Protocol table
@@ -714,6 +729,7 @@
             <div class="kpi-meta" id="kpi-nodered-meta">broker: —</div>
             <div class="kpi-foot"><div class="bar" id="kpi-nodered-bar"></div></div>
             <div class="kpi-recent" id="kpi-nodered-topics"></div>
+            <button class="export-btn" id="export-flows-btn" type="button">⬇ Export flows.json</button>
           </div>
         </div>
       </section>
@@ -1575,6 +1591,37 @@
 
     refresh()
     setInterval(refresh, 5000)
+
+    // ─────────────────────────────────────────
+    // Export flows.json (Node-RED)
+    // ─────────────────────────────────────────
+    document.getElementById('export-flows-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('export-flows-btn')
+      btn.disabled = true
+      btn.textContent = '⏳ Generating...'
+      try {
+        const r = await fetch('/industrial-gateway/api/nodered/flows')
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const blob = await r.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = '1052os-flows.json'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        btn.textContent = '✓ Downloaded'
+      } catch (e) {
+        btn.textContent = '✗ Failed'
+        console.error('Export flows failed:', e)
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false
+          btn.textContent = '⬇ Export flows.json'
+        }, 2000)
+      }
+    })
 
     // ─────────────────────────────────────────
     // Configure drawer
