@@ -82,13 +82,7 @@ Add this service (find the existing `services:` block and add):
     restart: unless-stopped
 ```
 
-Also find the `gateway` service and add a dependency on mosquitto:
-
-```yaml
-    depends_on:
-      mosquitto:
-        condition: service_healthy
-```
+**Note:** The current `docker-compose.yml` has only the `app` (frontend) service. The FastAPI gateway runs locally as `uvicorn gateway.server:app --port 8765`, so there is no `gateway` service to add a `depends_on` to. The dependency between broker and gateway is at the operator level: when starting the stack, start `mosquitto` first (or both at once) and the gateway will connect. No `depends_on` change is needed for the existing `app` service.
 
 - [ ] **Step 4: Verify build + start**
 
