@@ -3,6 +3,7 @@
 Three detectors: threshold, step (rate-of-change), drift.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -81,11 +82,40 @@ class AnomalyEngine:
         self._ensure_log_table()
 
     def _ensure_log_table(self):
+        # Idempotent: try to add the acked column for legacy DBs (Sub-3 upgrade).
+        try:
+            self.td._exec("ALTER STABLE anomaly_log ADD COLUMN acked BOOL")
+        except Exception:
+            pass  # Column already exists (or table missing — CREATE below handles it)
+        # CREATE STABLE with acked BOOL included for fresh DBs.
         self.td._exec(
             "CREATE STABLE IF NOT EXISTS anomaly_log "
-            "(ts TIMESTAMP, a_type BINARY(16), severity BINARY(16), `value` DOUBLE, threshold_val DOUBLE, message BINARY(256)) "
+            "(ts TIMESTAMP, a_type BINARY(16), severity BINARY(16), `value` DOUBLE, threshold_val DOUBLE, message BINARY(256), acked BOOL) "
             "TAGS (channel_id BINARY(64))"
         )
+
+    def ack_one(self, channel_id: str, ts: str, by: str = "gateway") -> bool:
+        """Mark a single anomaly as acked. Returns True if a row was found & updated.
+
+        Looks up by channel_id + ts, then UPDATE anomaly_log SET acked=1.
+        Returns False if no matching row exists or TDengine errors.
+        """
+        log = logging.getLogger("gateway.anomaly")
+        try:
+            rows = self.td._query(
+                f"SELECT ts FROM anomaly_log WHERE channel_id = '{channel_id}' "
+                f"AND ts = '{ts}' LIMIT 1"
+            )
+            if not rows:
+                return False
+            self.td._exec(
+                f"UPDATE anomaly_log SET acked = 1 "
+                f"WHERE channel_id = '{channel_id}' AND ts = '{ts}'"
+            )
+            return True
+        except Exception as e:
+            log.warning(f"ack_one failed: {e}")
+            return False
 
     # ── Config management ──────────────────────────────
 
