@@ -24,6 +24,8 @@ from gateway.nodered_tags import build_tag_catalog
 from gateway.nodered_flows import build_flows_json
 from gateway.mqtt_publisher import MqttPublisher, MqttPublisherConfig
 from gateway.status_heartbeat import StatusHeartbeat
+from gateway.command_handler import CommandHandler
+from gateway.write_audit import WriteAuditLogger
 
 from gateway.anomaly import AnomalyEngine, ChannelConfig, Anomaly
 from datetime import datetime, timezone
@@ -51,6 +53,8 @@ _predictor: TrendPredictor | None = None
 _reporter: ReportGenerator | None = None
 _mqtt_publisher: MqttPublisher | None = None
 _heartbeat: StatusHeartbeat | None = None
+_command_handler: CommandHandler | None = None
+_audit_logger: WriteAuditLogger | None = None
 
 
 @asynccontextmanager
@@ -457,6 +461,7 @@ class CollectTaskIn(BaseModel):
 @app.post("/api/td/connect")
 def td_connect(config: TdConfigIn | None = None):
     global _td, _td_config, _collector, _anomaly, _predictor, _reporter, _mqtt_publisher
+    global _heartbeat, _audit_logger, _command_handler
     try:
         if config:
             _td_config = TdConfig(
@@ -480,10 +485,20 @@ def td_connect(config: TdConfigIn | None = None):
         if _mqtt_publisher:
             _anomaly.mqtt_publisher = _mqtt_publisher
         # Start status heartbeat (5s) once publisher is alive
-        global _heartbeat
         if _heartbeat is None:
             _heartbeat = StatusHeartbeat(_mqtt_publisher, lambda: health(), interval=5.0)
             _heartbeat.start()
+        # Initialize WriteAuditLogger for Sub-3 (TDengine write_audit stable)
+        if _audit_logger is None and _td:
+            _audit_logger = WriteAuditLogger(_td)
+            _audit_logger.ensure_table()
+        # Initialize CommandHandler for Sub-3 (MQTT subscriber for NR writes)
+        if _command_handler is None and _audit_logger:
+            _command_handler = CommandHandler(
+                mqtt_client=_mqtt_publisher,  # publisher is also a paho mqtt client
+                audit=_audit_logger,
+            )
+            _command_handler.start()
         return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
     except Exception as e:
         raise HTTPException(503, str(e))
@@ -616,6 +631,47 @@ def nodered_flows():
             "Content-Disposition": 'attachment; filename="1052os-flows.json"',
         },
     )
+
+
+# ── Sub-3: Anomaly ack + Write audit ─────────────────
+
+
+@app.post("/api/anomaly/ack")
+def anomaly_ack(channel: str, ts: str, by: str = "gateway"):
+    """Mark a single anomaly as acked. Returns ok=true if updated.
+
+    After ack, publishes a retained event to 1052os/events/ack/{channel}
+    so Node-RED subscribers see the state change immediately.
+    """
+    if not _anomaly:
+        raise HTTPException(503, "anomaly engine not initialized")
+    ok = _anomaly.ack_one(channel, ts, by=by)
+    if not ok:
+        raise HTTPException(404, f"anomaly not found: channel={channel} ts={ts}")
+    if _mqtt_publisher:
+        _mqtt_publisher.publish_event("ack", channel, {
+            "ts": ts, "channel": channel, "acked": True, "acked_by": by,
+        })
+    return {"ok": True, "channel": channel, "ts": ts, "acked_by": by}
+
+
+@app.get("/api/audit/writes")
+def audit_writes(limit: int = 20):
+    """Return recent write audit records (newest first)."""
+    if not _td:
+        return {"ok": True, "writes": []}
+    try:
+        rows = _td._query(
+            f"SELECT ts, request_id, source, protocol, target, cmd, value_str, result, error_msg "
+            f"FROM write_audit ORDER BY ts DESC LIMIT {int(limit)}"
+        )
+        # Normalize for JSON
+        for r in rows:
+            if "ts" in r and hasattr(r["ts"], "isoformat"):
+                r["ts"] = r["ts"].isoformat()
+        return {"ok": True, "writes": rows}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "writes": []}
 
 
 # ═══════════════════════════════════════════════════════

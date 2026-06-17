@@ -143,6 +143,15 @@ class MqttPublisher:
             log.warning(f"MqttPublisher publish_event({event_type}) failed: {e}")
             return False
 
+    def subscribe(self, topic: str, qos: int = 0) -> bool:
+        """Subscribe to a topic. Used by Sub-3 CommandHandler to receive NR writes."""
+        try:
+            result = self._client.subscribe(topic, qos=qos)
+            return result[0] == mqtt.MQTT_ERR_SUCCESS if isinstance(result, tuple) else True
+        except Exception as e:
+            log.warning(f"MqttPublisher subscribe({topic}) failed: {e}")
+            return False
+
     def status(self) -> dict:
         with self._lock:
             return {
