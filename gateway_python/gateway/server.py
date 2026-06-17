@@ -471,6 +471,8 @@ def td_connect(config: TdConfigIn | None = None):
         # Wire publisher into collector so its pollers can publish
         if _collector and _collector.mqtt_publisher is None:
             _collector.mqtt_publisher = _mqtt_publisher
+        if _mqtt_publisher:
+            _anomaly.mqtt_publisher = _mqtt_publisher
         return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
     except Exception as e:
         raise HTTPException(503, str(e))
