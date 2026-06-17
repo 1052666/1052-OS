@@ -783,6 +783,7 @@
             </div>
             <button class="export-btn" id="export-flows-btn" type="button">⬇ Export flows.json</button>
             <button class="export-btn" id="export-dashboard-btn" type="button">⬇ Export dashboard.json</button>
+            <button class="export-btn" id="export-dashboard-controls-btn" type="button">⬇ Export control dashboard.json</button>
           </div>
         </div>
       </section>
@@ -1756,6 +1757,35 @@
         setTimeout(() => {
           btn.disabled = false
           btn.textContent = '⬇ Export dashboard.json'
+        }, 2000)
+      }
+    })
+
+    // Export control dashboard.json (Sub-5: with ui_switch/ui_numeric widgets)
+    document.getElementById('export-dashboard-controls-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('export-dashboard-controls-btn')
+      btn.disabled = true
+      btn.textContent = '⏳ Generating...'
+      try {
+        const r = await fetch('/industrial-gateway/api/nodered/dashboard?controls=true')
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const blob = await r.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = '1052os-dashboard-controls.json'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        btn.textContent = '✓ Downloaded'
+      } catch (e) {
+        btn.textContent = '✗ Failed'
+        console.error('Export control dashboard failed:', e)
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false
+          btn.textContent = '⬇ Export control dashboard.json'
         }, 2000)
       }
     })

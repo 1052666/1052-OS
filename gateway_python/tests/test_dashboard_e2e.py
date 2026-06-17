@@ -122,3 +122,53 @@ def test_dashboard_endpoint_returns_200_with_attachment():
     assert "ui_tab" in types
     assert "ui_base" in types
     assert "ui_group" in types
+
+
+# ── Sub-5: control widgets endpoint ──────────────────
+
+
+@pytest.mark.skipif(not _gateway_up(), reason="Gateway not running on :8765")
+def test_dashboard_with_controls_returns_200_and_attachment():
+    """GET /api/nodered/dashboard?controls=true returns valid flows with control widgets."""
+    try:
+        with urllib.request.urlopen(
+            "http://localhost:8765/api/nodered/dashboard?controls=true", timeout=3
+        ) as r:
+            data = json.loads(r.read().decode())
+            content_disp = r.headers.get("Content-Disposition", "")
+    except (urllib.error.URLError, urllib.error.HTTPError) as e:
+        pytest.skip(f"Gateway not reachable: {e}")
+    assert "attachment" in content_disp
+    assert "1052os-dashboard-controls.json" in content_disp
+    # Base structure always present
+    types = {n["type"] for n in data}
+    assert "ui_tab" in types
+    assert "ui_base" in types
+    # If there are function nodes, expect at least one mqtt out wired from one
+    fns = [n for n in data if n["type"] == "function"]
+    outs = [n for n in data if n["type"] == "mqtt out"]
+    if fns:
+        assert len(outs) >= 1
+        out_ids = {o["id"] for o in outs}
+        for fn in fns:
+            assert len(fn["wires"]) == 1
+            assert fn["wires"][0][0] in out_ids
+
+
+@pytest.mark.skipif(not _gateway_up(), reason="Gateway not running on :8765")
+def test_dashboard_default_no_controls_unchanged():
+    """Backward compat: GET /api/nodered/dashboard (no param) has no control widgets."""
+    try:
+        with urllib.request.urlopen(
+            "http://localhost:8765/api/nodered/dashboard", timeout=3
+        ) as r:
+            data = json.loads(r.read().decode())
+    except (urllib.error.URLError, urllib.error.HTTPError) as e:
+        pytest.skip(f"Gateway not reachable: {e}")
+    # No function / mqtt out nodes in default mode
+    assert not any(n["type"] == "function" for n in data)
+    assert not any(n["type"] == "mqtt out" for n in data)
+    # No Commands group
+    group_names = {n["name"] for n in data if n["type"] == "ui_group"}
+    assert "Modbus Commands" not in group_names
+    assert "OPC UA Commands" not in group_names

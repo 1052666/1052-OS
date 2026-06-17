@@ -232,3 +232,70 @@ curl -X POST 'http://localhost:8765/api/anomaly/channel/add' \
   and is not yet supported.
 - **Customize in NR**: after Import, you can rearrange, resize, or remove
   widgets in the NR editor. Re-exporting will overwrite your changes.
+
+## §11 Building a Control Dashboard (write widgets)
+
+Generate a Node-RED Dashboard that exposes **control widgets** (switch /
+numeric input) which fire write commands to your Modbus / OPC UA devices.
+
+### What you get
+
+In addition to the read-only widgets from §10, the "control" version adds:
+
+- **Modbus Commands** group: a `ui_switch` (for `bit` tags) or `ui_numeric`
+  (for numeric tags) per writable task
+- **OPC UA Commands** group: same for OPC UA tasks
+- Each widget is wired to a `function` node → `mqtt out` → write command topic
+  (`1052os/cmd/write/{modbus,opcua}`)
+- The gateway's CommandHandler (Sub-3) receives the message and writes the
+  value to the device, then logs the attempt to `write_audit`
+
+### One-time setup
+
+Same as §10 (install `node-red-dashboard`).
+
+### Export control dashboard
+
+1. In §01 NR Bridge panel, click "⬇ Export control dashboard.json"
+2. Browser downloads `1052os-dashboard-controls.json`
+3. In Node-RED → Import → select file
+4. Deploy
+5. Visit `http://localhost:1880/ui`
+
+### What gets written for each dtype
+
+| Tag `dtype` | Modbus cmd | OPC UA cmd | UI Widget |
+|---|---|---|---|
+| `bit` | `write_coil` | `write_node` | `ui_switch` (1/0) |
+| `u16`, `i16` | `write_register` | `write_node` | `ui_numeric` (integer) |
+| `u32`, `i32`, `f32` | `write_float32` | `write_node` | `ui_numeric` (float) |
+| `u64`, `i64` | `write_registers` (v0.2) | `write_node` | `ui_numeric` (float; v0.2 split) |
+| `ascii`, `utf8` | — | — | (no widget) |
+
+### Request ID format
+
+Each write generates a `request_id` of the form `<TAG_ID>-<timestamp-ms>`,
+which appears in the `write_audit` table. Use it to correlate writes with
+dashboard actions.
+
+### Safety
+
+> v0.1 has no Set/Execute two-step confirmation. Changing a widget value
+> fires a write immediately. In production environments, restrict access
+> to the Node-RED UI, train operators, and consider a separate "operator"
+> dashboard with limited write surface.
+
+### Min/Max ranges
+
+- If an anomaly channel is configured for the tag, the widget's min/max use
+  `channel.low` / `channel.high`.
+- Otherwise the widget uses the dtype's default range (e.g., `f32` → 0..100).
+- Edit ranges in NR after import, or set anomaly channels via
+  `/api/anomaly/channel/add`.
+
+### Verifying writes
+
+After triggering a write, check:
+- §05 **Recent writes** panel in the gateway frontend (live audit feed)
+- The `write_audit` table in TDengine
+- The `Recent Writes` group on the Node-RED dashboard

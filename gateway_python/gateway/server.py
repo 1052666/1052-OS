@@ -635,8 +635,12 @@ def nodered_flows():
 
 
 @app.get("/api/nodered/dashboard")
-def nodered_dashboard():
-    """Generate and serve a Node-RED Dashboard flows.json (Sub-4)."""
+def nodered_dashboard(controls: bool = False):
+    """Generate and serve a Node-RED Dashboard flows.json (Sub-4).
+
+    Sub-5: when controls=True, include ui_switch/ui_numeric widgets that fire
+    write commands through Sub-3 CommandHandler.
+    """
     tasks = _collector.tasks if _collector else {}
     channels = _anomaly.channels if _anomaly else {}
     recent_audit: list = []
@@ -659,13 +663,15 @@ def nodered_dashboard():
     flows = build_dashboard_flows(
         tasks, channels,
         recent_audit=recent_audit, recent_anomalies=recent_anomalies,
+        include_controls=controls,
     )
+    filename = "1052os-dashboard-controls.json" if controls else "1052os-dashboard.json"
     body = json.dumps(flows, ensure_ascii=False, indent=2)
     return Response(
         content=body,
         media_type="application/json",
         headers={
-            "Content-Disposition": 'attachment; filename="1052os-dashboard.json"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
 

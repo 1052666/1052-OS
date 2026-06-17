@@ -6,11 +6,22 @@ anomaly channel configs, and recent audit/anomaly history.
 Output is a flat list of Node-RED nodes ready for Import. Compatible with
 node-red-dashboard v2.x (legacy Angular-based dashboard) on NR 3.x/4.x/5.x.
 
-Widget mapping (per tag dtype):
+Read-only widgets (per tag dtype):
     u16/u32/u64/i16/i32/i64/f32 → ui_gauge + ui_chart
     bit/bool/ascii/utf8          → ui_text
 
 Anomaly channels override gauge min/max/seg1/seg2 with their low/high values.
+
+Control widgets (Sub-5, include_controls=True):
+    bit          → ui_switch      (Modbus write_coil / OPC UA write_node)
+    u16/i16      → ui_numeric     (Modbus write_register)
+    u32/i32/f32  → ui_numeric     (Modbus write_float32)
+    u64/i64      → ui_numeric     (Modbus write_registers, v0.2 split; OPC UA write_node)
+    ascii/utf8   → (skipped)
+
+Each control widget is wired to a per-task function node that wraps the raw
+value into a CommandHandler-compatible JSON payload, then to an mqtt out node
+publishing to 1052os/cmd/write/{modbus,opcua}.
 """
 import re
 
@@ -33,6 +44,30 @@ TEXT_DTYPES = {"bit", "bool", "ascii", "utf8"}
 
 # Default gauge segments + colors (green/yellow/red)
 DEFAULT_COLORS = ["#00B500", "#E6E600", "#CA3838"]
+
+# Sub-5: control widget write topics (matches CommandHandler subscriptions)
+CONTROL_WRITE_TOPIC = {
+    "modbus": "1052os/cmd/write/modbus",
+    "opcua":  "1052os/cmd/write/opcua",
+}
+
+# dtype → (modbus_cmd, JS expression that extracts `value:` from msg.payload)
+# u64 / i64 → write_registers is a v0.2 TODO; we still generate a function node
+# that calls write_registers so the user can see it; v0.2 will implement proper
+# 2-register split (high word / low word).
+MODBUS_CMD_BY_DTYPE = {
+    "bit":  ("write_coil",     "msg.payload === '1' || msg.payload === 1 || msg.payload === true"),
+    "u16":  ("write_register", "parseInt(msg.payload, 10)"),
+    "i16":  ("write_register", "parseInt(msg.payload, 10)"),
+    "u32":  ("write_float32",  "parseFloat(msg.payload)"),
+    "i32":  ("write_float32",  "parseFloat(msg.payload)"),
+    "f32":  ("write_float32",  "parseFloat(msg.payload)"),
+    "u64":  ("write_registers", "parseFloat(msg.payload)"),  # v0.2 TODO: split 2 registers
+    "i64":  ("write_registers", "parseFloat(msg.payload)"),  # v0.2 TODO: split 2 registers
+}
+
+# dtpes that get a control widget
+WRITABLE_DTYPES = {"bit", "u16", "i16", "u32", "i32", "f32", "u64", "i64"}
 
 
 def _safe_id(prefix: str, *parts: str, _seen: set | None = None) -> str:
@@ -116,9 +151,10 @@ def _ui_base_node() -> dict:
     }
 
 
-def _ui_group_node(name: str, order: int, width: int = 12) -> dict:
+def _ui_group_node(name: str, order: int, width: int = 12,
+                   group_id: str | None = None) -> dict:
     return {
-        "id": f"grp_{name.lower().replace(' ', '_')}",
+        "id": group_id or f"grp_{name.lower().replace(' ', '_')}",
         "type": "ui_group",
         "name": name,
         "tab": "tab_1052os",
@@ -244,6 +280,242 @@ def _mqtt_in_node(node_id: str, name: str, topic: str, tab_id: str,
     }
 
 
+# ═══════════════════════════════════════════════════════
+#  Sub-5: Control widget helpers (ui_switch / ui_numeric)
+# ═══════════════════════════════════════════════════════
+
+
+def _ui_numeric_node(node_id: str, label: str, group_id: str, order: int,
+                     min_v, max_v, step, topic: str,
+                     x: int, y: int, wires: list) -> dict:
+    return {
+        "id": node_id,
+        "type": "ui_numeric",
+        "z": "tab_1052os",
+        "g": group_id,
+        "group": group_id,
+        "name": label,
+        "label": label,
+        "order": order,
+        "width": 6,
+        "height": 1,
+        "min": min_v,
+        "max": max_v,
+        "step": step,
+        "format": "{{value}}",
+        "wrap": False,
+        "topic": topic,
+        "topicType": "str",
+        "x": x,
+        "y": y,
+        "wires": wires,
+    }
+
+
+def _ui_switch_node(node_id: str, label: str, group_id: str, order: int,
+                    topic: str, x: int, y: int, wires: list) -> dict:
+    return {
+        "id": node_id,
+        "type": "ui_switch",
+        "z": "tab_1052os",
+        "g": group_id,
+        "group": group_id,
+        "name": label,
+        "label": label,
+        "order": order,
+        "width": 6,
+        "height": 1,
+        "onvalue": "1",
+        "onvalueType": "str",
+        "offvalue": "0",
+        "offvalueType": "str",
+        "topic": topic,
+        "topicType": "str",
+        "x": x,
+        "y": y,
+        "wires": wires,
+    }
+
+
+def _function_node(node_id: str, name: str, func: str,
+                   x: int, y: int, wires: list) -> dict:
+    return {
+        "id": node_id,
+        "type": "function",
+        "z": "tab_1052os",
+        "name": name,
+        "func": func,
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": x,
+        "y": y,
+        "wires": wires,
+    }
+
+
+def _mqtt_out_node(node_id: str, name: str, topic: str,
+                   x: int, y: int) -> dict:
+    return {
+        "id": node_id,
+        "type": "mqtt out",
+        "z": "tab_1052os",
+        "name": name,
+        "topic": topic,
+        "qos": "",
+        "retain": "",
+        "broker": "brk_1052os",
+        "x": x,
+        "y": y,
+        "wires": [],
+    }
+
+
+def _build_function_body_modbus(tag_id: str, host: str, port, unit_id,
+                                address, dtype: str) -> str:
+    """Build the JS body for the per-task function node (modbus writes)."""
+    cmd, value_expr = MODBUS_CMD_BY_DTYPE.get(
+        dtype, MODBUS_CMD_BY_DTYPE["f32"],
+    )
+    note = ""
+    if dtype in ("u64", "i64"):
+        note = "// TODO v0.2: split 64-bit into 2 Modbus registers\n"
+    return (
+        f"// 1052-OS: wrap raw value into CommandHandler write payload for {tag_id}\n"
+        f"{note}"
+        f"msg.payload = JSON.stringify({{\n"
+        f"    request_id: '{tag_id}-' + Date.now(),\n"
+        f"    cmd: '{cmd}',\n"
+        f"    host: '{host}', port: {port}, unit_id: {unit_id},\n"
+        f"    address: {address},\n"
+        f"    value: {value_expr}\n"
+        f"}});\n"
+        f"return msg;\n"
+    )
+
+
+def _build_function_body_opcua(tag_id: str, url: str, node_id: str) -> str:
+    """Build the JS body for the per-task function node (OPC UA writes)."""
+    return (
+        f"// 1052-OS: wrap raw value into CommandHandler write payload for {tag_id}\n"
+        f"msg.payload = JSON.stringify({{\n"
+        f"    request_id: '{tag_id}-' + Date.now(),\n"
+        f"    cmd: 'write_node',\n"
+        f"    url: '{url}',\n"
+        f"    node_id: '{node_id}',\n"
+        f"    value: msg.payload\n"
+        f"}});\n"
+        f"return msg;\n"
+    )
+
+
+def _emit_control_widgets(tasks: dict, channels: dict,
+                          seen_ids: set) -> list[dict]:
+    """For each writable task, generate ui_switch/ui_numeric + function + mqtt out.
+
+    Layout:
+        Modbus Commands group (order=6, id=grp_modbus_cmd)
+        OPC UA  Commands group (order=7, id=grp_opcua_cmd)
+        Per-task: widget (x=140) → function (x=340) → mqtt out (x=540)
+
+    Idempotent: returns [] when no writable tasks exist (no Commands group
+    is generated in that case).
+    """
+    nodes: list[dict] = []
+    # First pass: collect writable tasks, split by protocol
+    modbus_writable = []
+    opcua_writable = []
+    for tid in sorted(tasks.keys()):
+        t = tasks[tid]
+        if t.dtype not in WRITABLE_DTYPES:
+            continue
+        if getattr(t, "protocol", "modbus") == "opcua":
+            opcua_writable.append(t)
+        else:
+            modbus_writable.append(t)
+    if not modbus_writable and not opcua_writable:
+        return nodes  # no Commands group at all
+
+    # Per-protocol gating: each Commands group is emitted only if there is at
+    # least one writable task of that protocol (spec §Data flow / "没有可控制
+    # task 时 不生成 Commands group").
+    modbus_gid = None
+    opcua_gid = None
+    if modbus_writable:
+        modbus_gid = _safe_id("grp", "modbus", "cmd", _seen=seen_ids)
+        nodes.append(_ui_group_node(
+            "Modbus Commands", order=6, width=12, group_id=modbus_gid,
+        ))
+    if opcua_writable:
+        opcua_gid = _safe_id("grp", "opcua", "cmd", _seen=seen_ids)
+        nodes.append(_ui_group_node(
+            "OPC UA Commands", order=7, width=12, group_id=opcua_gid,
+        ))
+
+    def _emit_series(task_list, group_id, y_base):
+        for i, t in enumerate(task_list):
+            is_bit = t.dtype == "bit"
+            wid = _safe_id(
+                ("sw" if is_bit else "num"), t.id, _seen=seen_ids,
+            )
+            fn_id = _safe_id("fn", t.id, _seen=seen_ids)
+            out_id = _safe_id("out", t.id, _seen=seen_ids)
+            topic = CONTROL_WRITE_TOPIC[
+                "opcua" if getattr(t, "protocol", "modbus") == "opcua"
+                else "modbus"
+            ]
+            x_w, x_f, x_o = 140, 340, 540
+            y = y_base + (i // 2) * 80
+
+            if is_bit:
+                nodes.append(_ui_switch_node(
+                    wid, t.id, group_id, order=i + 1, topic=topic,
+                    x=x_w, y=y, wires=[[fn_id]],
+                ))
+            else:
+                ch = channels.get(t.id) if channels else None
+                if ch is not None:
+                    min_v, max_v = ch.low, ch.high
+                else:
+                    min_v, max_v = DEFAULT_RANGE.get(t.dtype, (0, 100))
+                step = 1 if t.dtype in ("u16", "i16", "u32", "i32") else 0.1
+                nodes.append(_ui_numeric_node(
+                    wid, t.id, group_id, order=i + 1,
+                    min_v=min_v, max_v=max_v, step=step, topic=topic,
+                    x=x_w, y=y, wires=[[fn_id]],
+                ))
+
+            # Function body: per-protocol
+            if getattr(t, "protocol", "modbus") == "opcua":
+                func_body = _build_function_body_opcua(
+                    t.id, t.ua_url, t.ua_node_id,
+                )
+            else:
+                func_body = _build_function_body_modbus(
+                    t.id, t.mb_host, t.mb_port, t.mb_unit,
+                    t.mb_address, t.dtype,
+                )
+            nodes.append(_function_node(
+                fn_id, name=f"wrap: {t.id} {t.protocol}",
+                func=func_body, x=x_f, y=y, wires=[[out_id]],
+            ))
+
+            # MQTT out
+            nodes.append(_mqtt_out_node(
+                out_id, name=f"mqtt: {t.protocol} write",
+                topic=topic, x=x_o, y=y,
+            ))
+
+    if modbus_writable and modbus_gid is not None:
+        _emit_series(modbus_writable, modbus_gid, y_base=680)
+    if opcua_writable and opcua_gid is not None:
+        _emit_series(opcua_writable, opcua_gid, y_base=1080)
+    return nodes
+
+
 def _emit_tag_widgets(t, group_id: str, x: int, y: int, order: int,
                       anomaly_channels: dict, seen_ids: set) -> list[dict]:
     """Generate mqtt_in + ui_gauge/ui_chart (numeric) or + ui_text (text) for a tag."""
@@ -290,6 +562,7 @@ def _emit_tag_widgets(t, group_id: str, x: int, y: int, order: int,
 def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
                           recent_audit: list | None = None,
                           recent_anomalies: list | None = None,
+                          include_controls: bool = False,
                           broker: str = "localhost", port: int = 1883) -> list[dict]:
     """Generate a Node-RED Dashboard flows.json array.
 
@@ -303,6 +576,10 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
         Recent write audit rows (currently informational; not emitted as separate widgets).
     recent_anomalies : list, optional
         Recent anomaly rows (informational; not emitted as separate widgets).
+    include_controls : bool, default False
+        Sub-5: when True, also emit ui_switch / ui_numeric + function + mqtt out
+        that fire write commands through CommandHandler. When False (default),
+        the dashboard is read-only and backward-compatible with Sub-4.
     broker : str, default "localhost"
         MQTT broker host for the in-flow mqtt nodes (cosmetic; uses brk_1052os which
         user can reconfigure in NR).
@@ -387,5 +664,15 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
                           height=6)
     text["x"], text["y"] = 340, 640
     flows.append(text)
+
+    # Sub-5: optional control widgets (ui_switch / ui_numeric + function + mqtt out)
+    if include_controls:
+        control_nodes = _emit_control_widgets(tasks, channels, seen_ids)
+        flows.extend(control_nodes)
+        # Track new IDs so subsequent calls (if any) remain collision-safe
+        for n in control_nodes:
+            nid = n.get("id")
+            if nid:
+                seen_ids.add(nid)
 
     return flows
