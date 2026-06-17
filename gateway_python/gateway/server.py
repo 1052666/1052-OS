@@ -10,6 +10,7 @@ import json
 import paho.mqtt.client as mqtt
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from gateway.modbus_client import ModbusClient, ModbusConfig, ModbusMode
@@ -20,6 +21,7 @@ from gateway.collector import DataCollector, CollectTask
 from gateway.modbus_decoder import dtype_catalog, endian_catalog, DTYPES, ENDIANS
 
 from gateway.nodered_tags import build_tag_catalog
+from gateway.nodered_flows import build_flows_json
 from gateway.mqtt_publisher import MqttPublisher, MqttPublisherConfig
 from gateway.status_heartbeat import StatusHeartbeat
 
@@ -599,6 +601,21 @@ def nodered_publish(body: NoderedPublishIn):
         raise HTTPException(503, "Publisher not initialized")
     info = _mqtt_publisher._client.publish(body.topic, json.dumps(body.payload), qos=0, retain=body.retain)
     return {"ok": info.rc == mqtt.MQTT_ERR_SUCCESS, "rc": info.rc}
+
+
+@app.get("/api/nodered/flows")
+def nodered_flows():
+    """Generate and serve a Node-RED flows.json for all collector tasks."""
+    tasks = _collector.tasks if _collector else {}
+    flows = build_flows_json(tasks)
+    body = json.dumps(flows, ensure_ascii=False, indent=2)
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": 'attachment; filename="1052os-flows.json"',
+        },
+    )
 
 
 # ═══════════════════════════════════════════════════════
