@@ -279,6 +279,54 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .kpi-recent-title {
+      color: var(--ink-2);
+      font-weight: 500;
+      margin-bottom: 2px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      font-size: 9px;
+    }
+    .audit-row {
+      display: grid;
+      grid-template-columns: 56px 90px 1fr 50px;
+      gap: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      line-height: 1.5;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .audit-row .audit-time { color: var(--ink-3); }
+    .audit-row .audit-cmd { color: var(--ink-2); }
+    .audit-row .audit-val {
+      color: var(--ink-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .audit-row .audit-result { font-weight: 600; }
+    .audit-row.ok .audit-result { color: var(--ok); }
+    .audit-row.err .audit-result { color: var(--signal-red); }
+    .ack-btn {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      padding: 1px 6px;
+      background: var(--bg-2);
+      color: var(--ok);
+      border: 1px solid var(--ok);
+      border-radius: 2px;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+    .ack-btn:hover { background: var(--ok); color: var(--bg-1); }
+    .ack-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ack-ok {
+      color: var(--ok);
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      margin-left: 4px;
+    }
     .export-btn {
       margin-top: 6px;
       display: block;
@@ -729,6 +777,10 @@
             <div class="kpi-meta" id="kpi-nodered-meta">broker: —</div>
             <div class="kpi-foot"><div class="bar" id="kpi-nodered-bar"></div></div>
             <div class="kpi-recent" id="kpi-nodered-topics"></div>
+            <div class="kpi-recent" id="kpi-nodered-writes">
+              <div class="kpi-recent-title">Recent writes</div>
+              <div id="kpi-nodered-writes-list"></div>
+            </div>
             <button class="export-btn" id="export-flows-btn" type="button">⬇ Export flows.json</button>
           </div>
         </div>
@@ -1376,15 +1428,46 @@
         const sev = (e.severity || 'info').toLowerCase()
         const type = e.type || ''
         const typeLabel = type === 'threshold' ? '· 越限' : type === 'step' ? '· 突变' : type === 'drift' ? '· 漂移' : ''
+        const ackBadge = e.acked
+          ? '<span class="ack-ok">✓ acked</span>'
+          : `<button class="ack-btn" data-channel="${e.channel_id || ''}" data-ts="${e.ts || ''}">Ack</button>`
         return `
           <div class="event">
             <div class="ts">${formatTs(e.ts)}</div>
             <div class="sev sev-${sev}">${sev}${typeLabel}</div>
-            <div class="msg">${e.message || e.msg || '—'}</div>
+            <div class="msg">${e.message || e.msg || '—'}${ackBadge}</div>
             <div class="ch">${e.channel_id || '—'}</div>
           </div>
         `
       }).join('')
+
+      // Wire up Ack buttons (event delegation)
+      el.querySelectorAll('.ack-btn').forEach((btn) => {
+        btn.addEventListener('click', async (ev) => {
+          ev.preventDefault()
+          const ch = btn.dataset.channel
+          const ts = btn.dataset.ts
+          if (!ch || !ts) return
+          btn.disabled = true
+          btn.textContent = '…'
+          try {
+            const r = await fetch(
+              `/industrial-gateway/api/anomaly/ack?channel=${encodeURIComponent(ch)}&ts=${encodeURIComponent(ts)}`,
+              { method: 'POST' }
+            )
+            if (r.ok) {
+              btn.outerHTML = '<span class="ack-ok">✓ acked</span>'
+              setTimeout(refresh, 1000)
+            } else {
+              btn.textContent = '✗'
+              btn.disabled = false
+            }
+          } catch (_) {
+            btn.textContent = '✗'
+            btn.disabled = false
+          }
+        })
+      })
     }
 
     // ─────────────────────────────────────────
@@ -1575,6 +1658,30 @@
         const topicsEl = document.getElementById('kpi-nodered-topics')
         if (topicsEl) topicsEl.innerHTML = ''
       }
+
+      // Recent writes (Sub-3: write audit)
+      try {
+        const audit = await api('/industrial-gateway/api/audit/writes?limit=5')
+        const writesList = document.getElementById('kpi-nodered-writes-list')
+        if (writesList) {
+          if (audit && audit.writes && audit.writes.length > 0) {
+            writesList.innerHTML = audit.writes.map((w) => {
+              const cls = (w.result === 'ok') ? 'ok' : 'err'
+              const time = (w.ts || '').slice(11, 19)
+              const cmd = w.cmd || '?'
+              const val = w.value_str || '—'
+              return `<div class="audit-row ${cls}">` +
+                `<span class="audit-time">${time}</span>` +
+                `<span class="audit-cmd">${cmd}</span>` +
+                `<span class="audit-val">${val}</span>` +
+                `<span class="audit-result">${w.result || '?'}</span>` +
+                `</div>`
+            }).join('')
+          } else {
+            writesList.innerHTML = '<div class="empty-state">no writes yet</div>'
+          }
+        }
+      } catch (_) { /* non-fatal */ }
 
       // Events
       renderEvents(anomalyHistory)
