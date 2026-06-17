@@ -1,0 +1,2647 @@
+<!doctype html>
+<!--
+  Industrial Gateway · Swiss Industrial Print Dashboard
+  Standalone HTML — served by Vite at /industrial-gateway/
+  Data proxied to gateway python (8765) via vite.config.ts /industrial-gateway proxy
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Industrial Gateway · Swiss Industrial Print</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <!-- SheetJS for Excel import/export (xlsx) — ~870KB, MIT, single file -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    /* ─────────────────────────────────────────
+       Design tokens — Swiss Industrial Print
+       ───────────────────────────────────────── */
+    :root {
+      --paper:        #f5f1e8;
+      --paper-warm:   #ede8d8;
+      --ink:          #0a0a0a;
+      --ink-2:        #2b2b2b;
+      --ink-3:        #5a5a55;
+      --ink-4:        #8b8680;
+      --rule:         #8b8680;
+      --rule-soft:    #c8c1b3;
+      --signal-red:   #c8102e;
+      --industrial:   #003049;
+      --caution:      #fcbf49;
+      --ok:           #2a6f3a;
+      --ok-soft:      #d9e7d5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-feature-settings: 'tnum' 1, 'cv11' 1;
+      font-variant-numeric: tabular-nums;
+      font-size: 14px;
+      line-height: 1.55;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─────────────────────────────────────────
+       Layout — 12-column grid + marginalia
+       ───────────────────────────────────────── */
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    .marginalia {
+      width: 64px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--rule);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 24px 0;
+    }
+
+    .marginalia-cell {
+      flex: 1;
+      border-bottom: 1px solid var(--rule-soft);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+      position: relative;
+    }
+    .marginalia-cell:last-child { border-bottom: none; }
+    .marginalia-cell::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1px;
+      height: 6px;
+      background: var(--rule);
+    }
+
+    .main {
+      flex: 1;
+      padding: 32px 48px 48px 48px;
+      min-width: 0;
+    }
+
+    /* ─────────────────────────────────────────
+       Top metadata bar — 装订式
+       ───────────────────────────────────────── */
+    .topbar {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 48px;
+      align-items: baseline;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--ink);
+      margin-bottom: 32px;
+    }
+
+    .topbar-edition {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.15em;
+    }
+    .topbar-edition strong { color: var(--ink); font-weight: 700; }
+
+    .topbar-title h1 {
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .topbar-title .subtitle {
+      font-size: 13px;
+      color: var(--ink-3);
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    .topbar-clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      text-align: right;
+      color: var(--ink-2);
+    }
+    .topbar-clock .time {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .topbar-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+    }
+    .topbar-status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--ink-4);
+      box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--rule-soft);
+    }
+    .topbar-status.online .dot {
+      background: var(--ok);
+      box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--ok);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .topbar-status.offline .dot {
+      background: var(--signal-red);
+      box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--signal-red);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ─────────────────────────────────────────
+       Section heading
+       ───────────────────────────────────────── */
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin: 40px 0 16px 0;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .section-head .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+    }
+    .section-head h2 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .section-head .meta {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+    }
+
+    /* ─────────────────────────────────────────
+       3 big numbers — KPIs
+       ───────────────────────────────────────── */
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 32px;
+    }
+    .kpi {
+      position: relative;
+      padding-right: 24px;
+    }
+    .kpi + .kpi {
+      border-left: 1px solid var(--rule-soft);
+      padding-left: 24px;
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--ink-3);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .kpi-value {
+      font-size: 72px;
+      font-weight: 300;
+      line-height: 1;
+      margin-top: 8px;
+      letter-spacing: -0.03em;
+    }
+    .kpi-value .unit {
+      font-size: 24px;
+      color: var(--ink-3);
+      font-weight: 400;
+      margin-left: 4px;
+    }
+    .kpi-meta {
+      font-size: 12px;
+      color: var(--ink-3);
+      margin-top: 12px;
+    }
+    .kpi-foot {
+      margin-top: 12px;
+      height: 4px;
+      background: var(--rule-soft);
+      position: relative;
+    }
+    .kpi-foot .bar {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      background: var(--ink);
+      width: 0%;
+      transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .kpi.healthy .kpi-foot .bar { background: var(--ok); }
+    .kpi.warning .kpi-foot .bar { background: var(--caution); }
+    .kpi.danger  .kpi-foot .bar { background: var(--signal-red); }
+    .kpi-recent {
+      margin-top: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      line-height: 1.4;
+      color: var(--ink-3);
+      min-height: 14px;
+    }
+    .kpi-recent:empty { display: none; }
+    .kpi-recent > div {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ─────────────────────────────────────────
+       Protocol table
+       ───────────────────────────────────────── */
+    table.protocols {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    table.protocols thead th {
+      text-align: left;
+      font-weight: 500;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--ink);
+    }
+    table.protocols tbody td {
+      padding: 14px 12px;
+      border-bottom: 1px solid var(--rule-soft);
+      vertical-align: top;
+    }
+    table.protocols tbody tr {
+      transition: background 0.15s;
+    }
+    table.protocols tbody tr:hover {
+      background: var(--paper-warm);
+    }
+    table.protocols .col-num { color: var(--ink-4); font-family: 'JetBrains Mono', monospace; font-size: 11px; width: 40px; }
+    table.protocols .col-name { font-weight: 500; }
+    table.protocols .col-name .tag { display: block; font-size: 11px; color: var(--ink-3); font-weight: 400; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+    table.protocols .col-state { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    table.protocols .col-state .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid currentColor;
+      letter-spacing: 0.1em;
+    }
+    .pill-on  { color: var(--ok); }
+    .pill-off { color: var(--signal-red); }
+
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      border: 1px solid currentColor;
+    }
+    .status-pill.ok      { color: var(--ok); }
+    .status-pill.offline { color: var(--ink-4); }
+
+    table.protocols .col-rtt, table.protocols .col-points {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--ink-2);
+    }
+
+    /* ── Collector table: type / live value cells ── */
+    table.protocols .type-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--ink);
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    table.protocols .type-badge.opcua     { border-color: #1a4f8a; color: #1a4f8a; }
+    table.protocols .type-badge.modbus    { border-color: #1a8a4f; color: #1a8a4f; }
+    table.protocols .type-badge.modbus.float  { border-color: #c8102e; color: #c8102e; }
+    table.protocols .type-badge.modbus.string { border-color: #8a4f1a; color: #8a4f1a; }
+    table.protocols .type-badge.modbus.bit    { border-color: #6a6a6a; color: #6a6a6a; }
+    table.protocols .type-badge.modbus.bcd    { border-color: #8a1a8a; color: #8a1a8a; }
+    table.protocols .type-badge.endian   { border-color: var(--ink-3); color: var(--ink-3); margin-left: 4px; }
+    table.protocols .col-liveval {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--industrial);
+    }
+    table.protocols .col-lasterr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--signal-red);
+      cursor: help;
+    }
+
+    /* ─────────────────────────────────────────
+       Event log — 印刷式时间线
+       ───────────────────────────────────────── */
+    .events {
+      display: grid;
+      gap: 0;
+    }
+    .event {
+      display: grid;
+      grid-template-columns: 140px 80px 1fr 100px;
+      gap: 24px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--rule-soft);
+      font-size: 12px;
+      align-items: baseline;
+    }
+    .event .ts { font-family: 'JetBrains Mono', monospace; color: var(--ink-3); }
+    .event .sev {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .event .sev-warning { color: var(--caution); }
+    .event .sev-critical { color: var(--signal-red); }
+    .event .sev-info { color: var(--industrial); }
+    .event .msg { color: var(--ink-2); }
+    .event .ch { font-family: 'JetBrains Mono', monospace; color: var(--ink-3); text-align: right; font-size: 11px; }
+
+    .empty-state {
+      padding: 40px 0;
+      text-align: center;
+      color: var(--ink-3);
+      font-style: italic;
+    }
+
+    /* ─────────────────────────────────────────
+       Footer signature
+       ───────────────────────────────────────── */
+    .footer-rule {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 2px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+    }
+
+    /* Print styling — Swiss design is print-first */
+    @media print {
+      body { background: white; }
+      .marginalia { display: none; }
+      .main { padding: 16px; }
+    }
+
+    /* ─────────────────────────────────────────
+       Configure drawer
+       ───────────────────────────────────────── */
+    .configure-btn {
+      appearance: none;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--ink);
+      padding: 6px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .configure-btn:hover { background: var(--ink); color: var(--paper); }
+    .configure-btn::before {
+      content: '⚙';
+      font-size: 12px;
+    }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 10, 10, 0.4);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .drawer-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0; right: 0; bottom: 0;
+      width: 520px;
+      max-width: 90vw;
+      background: var(--paper);
+      border-left: 2px solid var(--ink);
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+      z-index: 101;
+      display: flex;
+      flex-direction: column;
+    }
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-head {
+      padding: 24px 32px 16px;
+      border-bottom: 2px solid var(--ink);
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .drawer-head .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+    }
+    .drawer-head h2 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      flex: 1;
+    }
+    .drawer-close {
+      appearance: none;
+      background: transparent;
+      border: 1px solid var(--ink);
+      width: 28px; height: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .drawer-close:hover { background: var(--ink); color: var(--paper); }
+
+    .drawer-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--rule);
+      padding: 0 32px;
+    }
+    .drawer-tab {
+      appearance: none;
+      background: transparent;
+      border: none;
+      padding: 12px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--ink-3);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .drawer-tab:hover { color: var(--ink); }
+    .drawer-tab.active {
+      color: var(--ink);
+      border-bottom-color: var(--ink);
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+    }
+    .drawer-section { display: none; }
+    .drawer-section.active { display: block; }
+
+    .field {
+      margin-bottom: 16px;
+    }
+    .field label {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .field input, .field select {
+      width: 100%;
+      background: var(--paper);
+      border: 1px solid var(--ink);
+      padding: 8px 10px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--ink);
+      border-radius: 0;
+      transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--industrial);
+      box-shadow: 0 0 0 1px var(--industrial);
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .field-help {
+      font-size: 11px;
+      color: var(--ink-3);
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    .drawer-foot {
+      padding: 16px 32px;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .btn {
+      appearance: none;
+      border: 1px solid var(--ink);
+      background: var(--paper);
+      color: var(--ink);
+      padding: 8px 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: var(--ink); color: var(--paper); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .btn-primary:hover { background: var(--signal-red); border-color: var(--signal-red); }
+    .btn-secondary { background: transparent; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--ink);
+      color: var(--paper);
+      padding: 10px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s;
+      z-index: 200;
+      border: 1px solid var(--ink);
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.error { background: var(--signal-red); border-color: var(--signal-red); }
+    .toast.success { background: var(--ok); border-color: var(--ok); }
+
+    .config-status {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 6px 10px;
+      margin-bottom: 16px;
+      letter-spacing: 0.08em;
+    }
+    .config-status.connected { background: var(--ok-soft); color: var(--ok); }
+    .config-status.disconnected { background: rgba(200, 16, 46, 0.08); color: var(--signal-red); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- 装订式 marginalia 列 -->
+    <aside class="marginalia" aria-label="marginalia">
+      <div class="marginalia-cell">ED.<br><strong>1052</strong></div>
+      <div class="marginalia-cell">N°<br><strong>07</strong></div>
+      <div class="marginalia-cell" id="margin-clock">06:48</div>
+      <div class="marginalia-cell">P.</div>
+      <div class="marginalia-cell">LIVE</div>
+    </aside>
+
+    <main class="main">
+      <!-- Top metadata bar -->
+      <header class="topbar">
+        <div class="topbar-edition">
+          EDITION <strong>1052</strong> · N°<strong>07</strong>
+        </div>
+        <div class="topbar-title">
+          <h1>Industrial Gateway</h1>
+          <div class="subtitle">Live process monitor · field instrumentation layer</div>
+        </div>
+        <div class="topbar-clock">
+          <div class="time" id="clock">--:--:--</div>
+          <div id="date">—</div>
+        </div>
+        <div class="topbar-status" id="status-pill">
+          <span class="dot"></span>
+          <span class="label">INIT</span>
+        </div>
+        <a class="configure-btn" id="data-view-btn" href="./data-view.html" style="text-decoration:none;display:inline-block;">📊 LIVE DATA</a>
+        <button class="configure-btn" id="configure-btn" type="button">CONFIGURE</button>
+      </header>
+
+      <!-- Section 01: System overview -->
+      <section>
+        <div class="section-head">
+          <span class="num">§ 01</span>
+          <h2>System Overview</h2>
+          <span class="meta" id="refresh-time">— · last refresh</span>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi" id="kpi-health">
+            <div class="kpi-label">System Health</div>
+            <div class="kpi-value">—<span class="unit">/100</span></div>
+            <div class="kpi-meta" id="kpi-health-meta">awaiting data</div>
+            <div class="kpi-foot"><div class="bar" id="kpi-health-bar"></div></div>
+          </div>
+          <div class="kpi" id="kpi-anomaly">
+            <div class="kpi-label">Anomalies · 24h</div>
+            <div class="kpi-value">—</div>
+            <div class="kpi-meta" id="kpi-anomaly-meta">—</div>
+            <div class="kpi-foot"><div class="bar" id="kpi-anomaly-bar"></div></div>
+          </div>
+          <div class="kpi" id="kpi-channels">
+            <div class="kpi-label">Active Channels</div>
+            <div class="kpi-value">—</div>
+            <div class="kpi-meta" id="kpi-channels-meta">—</div>
+            <div class="kpi-foot"><div class="bar" id="kpi-channels-bar"></div></div>
+          </div>
+          <div class="kpi" id="kpi-nodered">
+            <div class="kpi-label">Node-RED Bridge</div>
+            <div class="kpi-value" id="kpi-nodered-value">—</div>
+            <div class="kpi-meta" id="kpi-nodered-meta">broker: —</div>
+            <div class="kpi-foot"><div class="bar" id="kpi-nodered-bar"></div></div>
+            <div class="kpi-recent" id="kpi-nodered-topics"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 02: Protocol matrix -->
+      <section>
+        <div class="section-head">
+          <span class="num">§ 02</span>
+          <h2>Protocol Matrix</h2>
+          <span class="meta">5 protocols · live</span>
+        </div>
+
+        <table class="protocols">
+          <thead>
+            <tr>
+              <th class="col-num">№</th>
+              <th>Protocol</th>
+              <th>State</th>
+              <th>Endpoint</th>
+              <th>Uptime</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody id="protocol-tbody">
+            <tr><td colspan="6" class="empty-state">fetching…</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 03: Event log -->
+      <section>
+        <div class="section-head">
+          <span class="num">§ 03</span>
+          <h2>Event Log</h2>
+          <span class="meta" id="event-count">— recent</span>
+        </div>
+
+        <div class="events" id="events">
+          <div class="empty-state">no events</div>
+        </div>
+      </section>
+
+      <!-- Section 04: Collector Tasks -->
+      <section>
+        <div class="section-head">
+          <span class="num">§ 04</span>
+          <h2>Collector Tasks</h2>
+          <span class="meta" id="collector-count">— registered</span>
+        </div>
+
+        <table class="protocols">
+          <thead>
+            <tr>
+              <th class="col-num">№</th>
+              <th>Task ID</th>
+              <th>Protocol</th>
+              <th>Endpoint</th>
+              <th>Type</th>
+              <th>Last value</th>
+              <th>Interval</th>
+              <th>Points</th>
+              <th>State</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="collector-tbody">
+            <tr><td colspan="8" class="empty-state">fetching…</td></tr>
+          </tbody>
+        </table>
+        <div class="field-help" style="margin-top: 8px;">⚠ Collector 任务由配置抽屉「MODBUS / OPC UA」tab 添加；此处只显示运行状态</div>
+      </section>
+
+      <!-- Section 05: MQTT Messages -->
+      <section>
+        <div class="section-head">
+          <span class="num">§ 05</span>
+          <h2>MQTT Message Stream</h2>
+          <span class="meta" id="mqtt-msg-count">— live</span>
+          <button class="btn btn-secondary" id="mqtt-clear-btn" type="button" style="margin-left:auto; padding:2px 10px; font-size:10px;">CLEAR</button>
+        </div>
+
+        <div id="mqtt-messages" style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--ink-4);min-height:80px;max-height:240px;overflow-y:auto;">
+          <div class="empty-state">no messages yet — connect MQTT broker and subscribe topics to receive</div>
+        </div>
+      </section>
+
+      <footer class="footer-rule">
+        <span>1052-OS · INDUSTRIAL GATEWAY v0.4</span>
+        <span id="footer-stamp">printed in process · live wire</span>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Configure drawer -->
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawer-title">
+    <header class="drawer-head">
+      <span class="num">§ CFG</span>
+      <h2 id="drawer-title">Configure Drivers</h2>
+      <button class="drawer-close" id="drawer-close" type="button" aria-label="close">×</button>
+    </header>
+
+    <div class="drawer-tabs" role="tablist">
+      <button class="drawer-tab active" data-tab="modbus" type="button">MODBUS</button>
+      <button class="drawer-tab" data-tab="opcua" type="button">OPC UA</button>
+      <button class="drawer-tab" data-tab="mqtt" type="button">MQTT</button>
+      <button class="drawer-tab" data-tab="tdengine" type="button">TDENGINE</button>
+      <button class="drawer-tab" data-tab="anomaly" type="button">ANOMALY</button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- ═══ Modbus form ═══ -->
+      <section class="drawer-section active" data-section="modbus">
+        <div class="config-status disconnected" id="mb-status">○ 未连接</div>
+        <div class="section-head" style="margin: 0 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ A</span><h2 style="font-size:13px;">连接参数</h2>
+        </div>
+        <div class="field">
+          <label for="mb-host">从站 IP 地址</label>
+          <input id="mb-host" type="text" placeholder="例如 192.168.1.50" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mb-port">端口</label>
+            <input id="mb-port" type="number" min="1" max="65535" placeholder="502" />
+          </div>
+          <div class="field">
+            <label for="mb-unit">从站号 (Unit ID)</label>
+            <input id="mb-unit" type="number" min="0" max="255" placeholder="1" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="mb-timeout">超时（秒）</label>
+          <input id="mb-timeout" type="number" min="0.1" step="0.1" placeholder="3.0" />
+          <div class="field-help">Modbus TCP 默认端口 502；串口模式（RTU）需直接编辑 gateway 配置文件</div>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ B</span><h2 style="font-size:13px;">寄存器采集</h2>
+        </div>
+        <div class="field">
+          <label for="mb-task-id">采集任务 ID</label>
+          <input id="mb-task-id" type="text" placeholder="例如 task-001" />
+          <div class="field-help">用于标识这个采集任务；同 ID 会替换</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mb-addr">起始寄存器地址</label>
+            <input id="mb-addr" type="number" min="0" placeholder="0" />
+          </div>
+          <div class="field">
+            <label for="mb-count">寄存器数量</label>
+            <input id="mb-count" type="number" min="1" max="64" placeholder="4" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mb-register">寄存器类型</label>
+            <select id="mb-register">
+              <option value="holding">保持寄存器 (Holding, FC3)</option>
+              <option value="input">输入寄存器 (Input, FC4)</option>
+              <option value="coils">线圈 (Coils, FC1)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mb-interval">采集间隔（秒）</label>
+            <input id="mb-interval" type="number" min="0.1" step="0.1" placeholder="1.0" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="mb-table">TDengine 目标表</label>
+          <input id="mb-table" type="text" placeholder="raw_data" />
+          <div class="field-help">寄存器 0→v0, 1→v1, 2→v2, 3→v3 写入此表</div>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ C</span><h2 style="font-size:13px;">批量添加点位</h2>
+        </div>
+        <div class="field">
+          <label for="mb-bulk">点位清单（每行一个）</label>
+          <textarea id="mb-bulk" rows="6" style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:6px 8px;background:var(--paper);border:1px solid var(--ink-4);resize:vertical;min-height:80px;" placeholder="格式: TAG  ADDR  COUNT  REGISTER  INTERVAL  TABLE&#10;# 例:&#10;TI-101  40001  1  holding  1.0  raw_data&#10;PI-201  40010  2  holding  2.0  raw_data&#10;FT-301  40020  1  input    1.0  raw_data"></textarea>
+          <div class="field-help">列以空格/Tab 分隔，省略列用默认值（COUNT=1, REGISTER=holding, INTERVAL=1.0, TABLE=raw_data）。以 <code>#</code> 开头为注释</div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="display:flex;align-items:center;gap:6px;">
+            <input id="mb-bulk-autostart" type="checkbox" checked style="width:auto;margin:0;" />
+            <label for="mb-bulk-autostart" style="margin:0;cursor:pointer;">添加后立即启动</label>
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:6px;">
+            <input id="mb-bulk-shared-table" type="checkbox" checked style="width:auto;margin:0;" />
+            <label for="mb-bulk-shared-table" style="margin:0;cursor:pointer;">使用连接表（忽略行内 TABLE）</label>
+          </div>
+        </div>
+        <div class="field-row">
+          <button class="btn btn-primary" id="mb-bulk-go" type="button" style="flex:1;">BULK ADD</button>
+          <button class="btn" id="mb-bulk-template" type="button" style="flex:0 0 auto;">模板</button>
+        </div>
+        <div class="field-row" style="margin-top:6px;">
+          <button class="btn" id="mb-bulk-import" type="button" style="flex:1;padding:2px 8px;font-size:10px;">📥 导入Excel</button>
+          <button class="btn" id="mb-bulk-export" type="button" style="flex:1;padding:2px 8px;font-size:10px;">📤 导出Excel</button>
+          <button class="btn" id="mb-bulk-tpl-xlsx" type="button" style="flex:1;padding:2px 8px;font-size:10px;">📋 下载模板</button>
+          <input id="mb-bulk-file" type="file" accept=".xlsx,.xls,.csv" style="display:none;" />
+        </div>
+        <div id="mb-bulk-progress" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);margin-top:4px;min-height:14px;"></div>
+
+        <div class="section-head" style="margin: 28px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ D</span><h2 style="font-size:13px;">驱动测试（单次读写）</h2>
+        </div>
+        <div class="field-help" style="margin-bottom: 10px;">服务器：<code style="background:var(--paper);padding:0 4px;">192.168.10.254:502</code> · unit 1 · 9600 N 8 1 · 实时在线</div>
+
+        <div class="section-head" style="margin: 0 0 8px 0; padding-bottom: 2px; border: none;">
+          <span class="num" style="font-size:10px;">A</span><h3 style="font-size:11px;font-weight:500;color:var(--ink-3);">读操作</h3>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mb-test-fc">功能码</label>
+            <select id="mb-test-fc" style="font-family:'JetBrains Mono',monospace;font-size:11px;">
+              <option value="read_coils">0x01 读线圈 (Coils)</option>
+              <option value="read_discrete">0x02 读离散量 (Discrete)</option>
+              <option value="read_holding">0x03 读保持寄存器</option>
+              <option value="read_input">0x04 读输入寄存器</option>
+              <option value="read_float32">0x03 float32 (每 2 寄存)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mb-test-addr">起始地址</label>
+            <input id="mb-test-addr" type="text" placeholder="400001 / 40001 / 0" />
+            <div class="field-help">支持 5/6 位数字（如 400001、00001、10001）或纯数字 0-based</div>
+          </div>
+          <div class="field">
+            <label for="mb-test-count">长度</label>
+            <input id="mb-test-count" type="number" min="1" max="125" value="10" />
+          </div>
+        </div>
+        <button class="btn btn-primary" id="mb-test-read" type="button" style="width:100%; margin-top:4px;">▶ READ</button>
+        <div id="mb-test-read-out" style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--ink-4);min-height:32px;max-height:200px;overflow-y:auto;padding:6px 8px;margin-top:6px;white-space:pre-wrap;word-break:break-all;">—</div>
+
+        <div class="section-head" style="margin: 16px 0 8px 0; padding-bottom: 2px; border: none;">
+          <span class="num" style="font-size:10px;">B</span><h3 style="font-size:11px;font-weight:500;color:var(--ink-3);">写操作</h3>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mb-test-wfc">功能码</label>
+            <select id="mb-test-wfc" style="font-family:'JetBrains Mono',monospace;font-size:11px;">
+              <option value="write_coil">0x05 写单线圈</option>
+              <option value="write_coils">0x0F 写多线圈</option>
+              <option value="write_register">0x06 写单寄存器</option>
+              <option value="write_registers">0x10 写多寄存器</option>
+              <option value="write_float32">0x10 float32</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mb-test-waddr">起始地址</label>
+            <input id="mb-test-waddr" type="text" placeholder="00001 / 40001" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="mb-test-wval">值</label>
+          <input id="mb-test-wval" type="text" placeholder="单值: true / 1234 / 3.14   ·   多值: true,false,true,..." />
+          <div class="field-help">单值/多值逗号分隔；float32 单值即可</div>
+        </div>
+        <button class="btn btn-primary" id="mb-test-write" type="button" style="width:100%; margin-top:4px;">▶ WRITE</button>
+        <div id="mb-test-write-out" style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--ink-4);min-height:24px;padding:6px 8px;margin-top:6px;white-space:pre-wrap;">—</div>
+
+        <div class="section-head" style="margin: 16px 0 8px 0; padding-bottom: 2px; border: none;">
+          <span class="num" style="font-size:10px;">C</span><h3 style="font-size:11px;font-weight:500;color:var(--ink-3);">一键测试场景</h3>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <button class="btn" data-mb-preset="hr_float" type="button" style="text-align:left;font-size:10px;font-family:'JetBrains Mono',monospace;padding:4px 8px;">① 读保持 400001 长度 10 float32</button>
+          <button class="btn" data-mb-preset="coil_write" type="button" style="text-align:left;font-size:10px;font-family:'JetBrains Mono',monospace;padding:4px 8px;">② 写线圈 00001 长度 10 (10110 10110)</button>
+          <button class="btn" data-mb-preset="discrete_read" type="button" style="text-align:left;font-size:10px;font-family:'JetBrains Mono',monospace;padding:4px 8px;">③ 读离散量 10001 长度 10</button>
+        </div>
+      </section>
+
+      <!-- ═══ OPC UA form ═══ -->
+      <section class="drawer-section" data-section="opcua">
+        <div class="config-status disconnected" id="ua-status">○ 未连接</div>
+        <div class="section-head" style="margin: 0 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ A</span><h2 style="font-size:13px;">连接参数</h2>
+        </div>
+        <div class="field">
+          <label for="ua-url">服务器端点 URL</label>
+          <input id="ua-url" type="text" placeholder="opc.tcp://192.168.1.20:4840" />
+        </div>
+        <div class="field">
+          <label for="ua-timeout">超时（秒）</label>
+          <input id="ua-timeout" type="number" min="0.1" step="0.1" placeholder="5.0" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="ua-user">用户名（可选）</label>
+            <input id="ua-user" type="text" placeholder="" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="ua-pass">密码（可选）</label>
+            <input id="ua-pass" type="password" placeholder="" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ B</span><h2 style="font-size:13px;">节点采集</h2>
+        </div>
+        <div class="field">
+          <label for="ua-task-id">采集任务 ID</label>
+          <input id="ua-task-id" type="text" placeholder="例如 ua-task-001" />
+        </div>
+        <div class="field">
+          <label for="ua-node-id">Node ID</label>
+          <input id="ua-node-id" type="text" placeholder="ns=1;s=Temperature" />
+          <div class="field-help">OPC UA 节点标识符（命名空间 + 标识符）</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="ua-interval">采集间隔（秒）</label>
+            <input id="ua-interval" type="number" min="0.1" step="0.1" placeholder="1.0" />
+          </div>
+          <div class="field">
+            <label for="ua-table">TDengine 目标表</label>
+            <input id="ua-table" type="text" placeholder="raw_data" />
+          </div>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ C</span><h2 style="font-size:13px;">批量添加节点</h2>
+        </div>
+        <div class="field">
+          <label for="ua-bulk">节点清单（每行一个）</label>
+          <textarea id="ua-bulk" rows="6" style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:6px 8px;background:var(--paper);border:1px solid var(--ink-4);resize:vertical;min-height:80px;" placeholder="格式: TAG  NODE_ID  INTERVAL  TABLE&#10;# 例:&#10;TI-101  ns=2;s=Device1.Temp    1.0  raw_data&#10;PI-201  ns=2;s=Device1.Pressure  2.0  raw_data&#10;FT-301  ns=2;s=Device1.Flow      1.0  raw_data"></textarea>
+          <div class="field-help">列以空格/Tab 分隔，省略列用默认值（INTERVAL=1.0, TABLE=raw_data）。以 <code>#</code> 开头为注释</div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="display:flex;align-items:center;gap:6px;">
+            <input id="ua-bulk-autostart" type="checkbox" checked style="width:auto;margin:0;" />
+            <label for="ua-bulk-autostart" style="margin:0;cursor:pointer;">添加后立即启动</label>
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:6px;">
+            <input id="ua-bulk-shared-table" type="checkbox" checked style="width:auto;margin:0;" />
+            <label for="ua-bulk-shared-table" style="margin:0;cursor:pointer;">使用连接表（忽略行内 TABLE）</label>
+          </div>
+        </div>
+        <div class="field-row">
+          <button class="btn btn-primary" id="ua-bulk-go" type="button" style="flex:1;">BULK ADD</button>
+          <button class="btn" id="ua-bulk-template" type="button" style="flex:0 0 auto;">模板</button>
+        </div>
+        <div class="field-row" style="margin-top:6px;">
+          <button class="btn" id="ua-bulk-import" type="button" style="flex:1;padding:2px 8px;font-size:10px;">📥 导入Excel</button>
+          <button class="btn" id="ua-bulk-export" type="button" style="flex:1;padding:2px 8px;font-size:10px;">📤 导出Excel</button>
+          <button class="btn" id="ua-bulk-tpl-xlsx" type="button" style="flex:1;padding:2px 8px;font-size:10px;">📋 下载模板</button>
+          <input id="ua-bulk-file" type="file" accept=".xlsx,.xls,.csv" style="display:none;" />
+        </div>
+        <div id="ua-bulk-progress" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);margin-top:4px;min-height:14px;"></div>
+      </section>
+
+      <!-- ═══ MQTT form ═══ -->
+      <section class="drawer-section" data-section="mqtt">
+        <div class="config-status disconnected" id="mq-status">○ 未连接</div>
+        <div class="section-head" style="margin: 0 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ A</span><h2 style="font-size:13px;">Broker 配置</h2>
+        </div>
+        <div class="field">
+          <label for="mq-host">Broker 地址</label>
+          <input id="mq-host" type="text" placeholder="192.168.1.30" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mq-port">端口</label>
+            <input id="mq-port" type="number" min="1" max="65535" placeholder="1883" />
+          </div>
+          <div class="field">
+            <label for="mq-keepalive">心跳间隔（秒）</label>
+            <input id="mq-keepalive" type="number" min="5" max="3600" placeholder="60" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="mq-prefix">Topic 前缀</label>
+          <input id="mq-prefix" type="text" placeholder="1052os" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mq-user">用户名（可选）</label>
+            <input id="mq-user" type="text" placeholder="" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="mq-pass">密码（可选）</label>
+            <input id="mq-pass" type="password" placeholder="" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ B</span><h2 style="font-size:13px;">订阅 Topic</h2>
+        </div>
+        <div class="field">
+          <label for="mq-sub-topic">Topic 名称</label>
+          <input id="mq-sub-topic" type="text" placeholder="例如 sensors/+/temp" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mq-sub-qos">QoS 等级</label>
+            <select id="mq-sub-qos">
+              <option value="0">0 · 最多一次</option>
+              <option value="1">1 · 至少一次</option>
+              <option value="2">2 · 恰好一次</option>
+            </select>
+          </div>
+          <div class="field" style="display:flex; align-items:flex-end;">
+            <button class="btn" id="mq-sub-add" type="button" style="width:100%;">+ 订阅</button>
+          </div>
+        </div>
+        <div id="mq-sub-list" style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--ink-4);min-height:32px;padding:6px 8px;">
+          <span style="color:var(--ink-3);font-style:italic;">尚未订阅任何 topic</span>
+        </div>
+        <div class="field-help" style="margin-top:6px;">订阅消息会出现在下方 Event Log；取消订阅请点击 ✕</div>
+      </section>
+
+      <!-- ═══ TDengine form ═══ -->
+      <section class="drawer-section" data-section="tdengine">
+        <div class="config-status disconnected" id="td-status">○ 未连接</div>
+        <div class="section-head" style="margin: 0 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ A</span><h2 style="font-size:13px;">TDengine 时序库</h2>
+        </div>
+        <div class="field">
+          <label for="td-host">TDengine 服务器</label>
+          <input id="td-host" type="text" placeholder="localhost" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="td-port">REST 端口</label>
+            <input id="td-port" type="number" min="1" max="65535" placeholder="6041" />
+            <div class="field-help">默认 6041（REST）</div>
+          </div>
+          <div class="field">
+            <label for="td-user">用户名</label>
+            <input id="td-user" type="text" placeholder="root" autocomplete="off" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="td-pass">密码</label>
+            <input id="td-pass" type="password" placeholder="taosdata" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="td-db">数据库名</label>
+            <input id="td-db" type="text" placeholder="industrial" />
+            <div class="field-help">采集数据会写入此库</div>
+          </div>
+        </div>
+        <div class="field-help" style="margin-top: 8px;">⚠ TDengine 是 collector 任务的目标库，<b>必须先连接成功</b>，采集任务才能写入数据</div>
+      </section>
+
+      <!-- ═══ Anomaly form ═══ -->
+      <section class="drawer-section" data-section="anomaly">        <div class="config-status disconnected" id="an-status">○ 0 通道</div>
+        <div class="section-head" style="margin: 0 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ A</span><h2 style="font-size:13px;">报警通道</h2>
+        </div>
+        <div class="field">
+          <label for="an-id">通道位号（ID）</label>
+          <input id="an-id" type="text" placeholder="例如 TI-101 / TI-A01" />
+          <div class="field-help">通道唯一标识，建议用 ISA-5.1 位号规则（如 TI 温度指示）</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="an-table">数据表</label>
+            <input id="an-table" type="text" placeholder="raw_data" />
+          </div>
+          <div class="field">
+            <label for="an-col">列名</label>
+            <input id="an-col" type="text" placeholder="v0" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="an-low">报警下限</label>
+            <input id="an-low" type="number" step="0.01" placeholder="4.0" />
+          </div>
+          <div class="field">
+            <label for="an-high">报警上限</label>
+            <input id="an-high" type="number" step="0.01" placeholder="20.0" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="an-step">突变阈值（步跳）</label>
+            <input id="an-step" type="number" step="0.01" placeholder="2.0" />
+            <div class="field-help">相邻采样点差值超过此值告警</div>
+          </div>
+          <div class="field">
+            <label for="an-drift">漂移阈值</label>
+            <input id="an-drift" type="number" step="0.01" placeholder="0.5" />
+            <div class="field-help">与基线均值偏差超过此值告警</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="an-drift-window">漂移采样窗口（点数）</label>
+          <input id="an-drift-window" type="number" min="2" max="200" placeholder="20" />
+        </div>
+        <button class="btn btn-primary" id="an-add" type="button" style="width:100%; margin-top: 4px;">注册报警通道</button>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ B</span><h2 style="font-size:13px;">已注册通道</h2>
+        </div>
+        <div id="an-channels" style="font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--paper);border:1px solid var(--ink-4);min-height:32px;padding:6px 8px;max-height:180px;overflow-y:auto;">
+          <span style="color:var(--ink-3);font-style:italic;">加载中…</span>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ C</span><h2 style="font-size:13px;">手动操作</h2>
+        </div>
+        <div class="field-row">
+          <button class="btn" id="an-scan" type="button">立即扫描</button>
+          <button class="btn" id="an-clear" type="button">清空历史</button>
+        </div>
+      </section>
+    </div>
+
+    <footer class="drawer-foot">
+      <button class="btn btn-primary" id="apply-btn" type="button">APPLY &amp; CONNECT</button>
+      <button class="btn btn-secondary" id="disconnect-btn" type="button">DISCONNECT</button>
+      <span class="field-help" style="margin-left:auto;" id="drawer-hint">configure &amp; apply</span>
+    </footer>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─────────────────────────────────────────
+    // Clock + marginalia
+    // ─────────────────────────────────────────
+    const pad2 = (n) => String(n).padStart(2, '0')
+    const escHtml = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    const escAttr = (s) => escHtml(s)
+    const tickClock = () => {
+      const d = new Date()
+      const hh = pad2(d.getHours())
+      const mm = pad2(d.getMinutes())
+      const ss = pad2(d.getSeconds())
+      const time = `${hh}:${mm}:${ss}`
+      document.getElementById('clock').textContent = time
+      document.getElementById('margin-clock').innerHTML = `${hh}<br><strong>${mm}</strong>`
+      const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+      document.getElementById('date').textContent = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`
+    }
+    tickClock()
+    setInterval(tickClock, 1000)
+
+    // ─────────────────────────────────────────
+    // Data fetch — parallel, fail-soft
+    // ─────────────────────────────────────────
+    const api = async (path) => {
+      try {
+        const r = await fetch(path, { signal: AbortSignal.timeout(3000) })
+        if (!r.ok) return null
+        return await r.json()
+      } catch (e) {
+        return null
+      }
+    }
+
+    const formatTs = (raw) => {
+      // server may return "2026-06-13 19:05:33.909 +08:00" or epoch or ISO
+      if (typeof raw === 'string') {
+        // 截取到 HH:MM:SS
+        const m = raw.match(/(\d{2}):(\d{2}):(\d{2})/)
+        if (m) return m[0]
+        return raw.slice(0, 19)
+      }
+      if (typeof raw === 'number') {
+        const d = new Date(raw * 1000)
+        return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+      }
+      return String(raw || '')
+    }
+
+    const updateStatus = (online) => {
+      const el = document.getElementById('status-pill')
+      el.className = `topbar-status ${online ? 'online' : 'offline'}`
+      el.querySelector('.label').textContent = online ? 'ONLINE' : 'OFFLINE'
+    }
+
+    // ─────────────────────────────────────────
+    // Render — protocol matrix
+    // ─────────────────────────────────────────
+    const PROTOCOL_DEFS = [
+      { id: 'modbus',    label: 'Modbus',     desc: 'PLC / Field device telemetry' },
+      { id: 'opcua',     label: 'OPC UA',     desc: 'Industrial M2M protocol' },
+      { id: 'mqtt',      label: 'MQTT',       desc: 'Pub/Sub telemetry transport' },
+      { id: 'tdengine',  label: 'TDengine',   desc: 'Time-series data store' },
+      { id: 'anomaly',   label: 'Anomaly',    desc: 'Threshold / step / drift detection' },
+    ]
+
+    const renderProtocols = (health) => {
+      const tbody = document.getElementById('protocol-tbody')
+      if (!health) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">gateway offline</td></tr>'
+        return
+      }
+      tbody.innerHTML = PROTOCOL_DEFS.map((p, i) => {
+        const ok = !!health[p.id]
+        return `
+          <tr>
+            <td class="col-num">${pad2(i+1)}</td>
+            <td class="col-name">${p.label}<span class="tag">${p.desc}</span></td>
+            <td class="col-state"><span class="pill ${ok ? 'pill-on' : 'pill-off'}">${ok ? '● ON' : '○ OFF'}</span></td>
+            <td class="col-rtt" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);">—</td>
+            <td class="col-points" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);">—</td>
+            <td style="font-size:12px;color:var(--ink-3);">${ok ? 'telemetry streaming' : 'awaiting connection'}</td>
+          </tr>
+        `
+      }).join('')
+    }
+
+    // ─────────────────────────────────────────
+    // Render — KPIs
+    // ─────────────────────────────────────────
+    const setKpi = (id, value, unit, meta, footPercent, mood) => {
+      const kpi = document.getElementById(`kpi-${id}`)
+      kpi.classList.remove('healthy', 'warning', 'danger')
+      if (mood) kpi.classList.add(mood)
+      kpi.querySelector('.kpi-value').innerHTML = `${value}${unit ? `<span class="unit">${unit}</span>` : ''}`
+      kpi.querySelector(`#kpi-${id}-meta`).textContent = meta || ''
+      kpi.querySelector(`#kpi-${id}-bar`).style.width = `${Math.max(0, Math.min(100, footPercent || 0))}%`
+    }
+
+    const calcHealth = (health) => {
+      if (!health) return null
+      const on = ['modbus','opcua','mqtt','tdengine','anomaly'].filter(k => health[k]).length
+      return Math.round((on / 5) * 100)
+    }
+
+    // ─────────────────────────────────────────
+    // Render — events
+    // ─────────────────────────────────────────
+    const renderEvents = (history) => {
+      const el = document.getElementById('events')
+      const countEl = document.getElementById('event-count')
+      if (!history || !history.data || history.data.length === 0) {
+        el.innerHTML = '<div class="empty-state">no events recorded</div>'
+        countEl.textContent = '0 recent'
+        return
+      }
+      countEl.textContent = `${history.data.length} recent`
+      el.innerHTML = history.data.slice(0, 12).map((e) => {
+        const sev = (e.severity || 'info').toLowerCase()
+        const type = e.type || ''
+        const typeLabel = type === 'threshold' ? '· 越限' : type === 'step' ? '· 突变' : type === 'drift' ? '· 漂移' : ''
+        return `
+          <div class="event">
+            <div class="ts">${formatTs(e.ts)}</div>
+            <div class="sev sev-${sev}">${sev}${typeLabel}</div>
+            <div class="msg">${e.message || e.msg || '—'}</div>
+            <div class="ch">${e.channel_id || '—'}</div>
+          </div>
+        `
+      }).join('')
+    }
+
+    // ─────────────────────────────────────────
+    // Render — collector tasks
+    // ─────────────────────────────────────────
+    const renderCollector = (resp) => {
+      const tbody = document.getElementById('collector-tbody')
+      const countEl = document.getElementById('collector-count')
+      const tasks = resp?.tasks || []
+      if (tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">no collector tasks — add one via MODBUS / OPC UA tab</td></tr>'
+        countEl.textContent = '0 registered'
+        return
+      }
+      countEl.textContent = `${tasks.length} registered`
+      tbody.innerHTML = tasks.map((t, i) => {
+        const running = !!t.running
+        const proto = (t.protocol || 'modbus').toUpperCase()
+        const endpoint = t.protocol === 'opcua'
+          ? (t.ua_url || 'opc.tcp://—')
+          : `${t.mb_host || '—'}:${t.mb_port || 502}/${t.mb_register || 'holding'}@${t.mb_address ?? 0}#${t.mb_count ?? 1}`
+        // Type cell — modbus: dtype+endian badge; opcua: node id
+        let typeCell = '<span style="color:var(--ink-4);">—</span>'
+        if (t.protocol === 'opcua') {
+          const nid = t.ua_node_id || '—'
+          typeCell = `<span class="type-badge opcua" title="OPC UA node id">${nid.length > 28 ? nid.slice(0, 25) + '…' : nid}</span>`
+        } else {
+          // modbus: show dtype + endian as two adjacent badges
+          const dt = t.dtype || 'u16'
+          const en = t.endian || 'ABCD'
+          const isStr = dt === 'ascii' || dt === 'utf8'
+          const isBit = dt.startsWith('bit')
+          const isFloat = dt === 'f32' || dt === 'f64'
+          const isBcd = dt.startsWith('bcd')
+          const cls = isFloat ? 'modbus float' : isStr ? 'modbus string' : isBit ? 'modbus bit' : isBcd ? 'modbus bcd' : 'modbus'
+          typeCell = `<span class="type-badge ${cls}">${dt}</span><span class="type-badge endian">${en}</span>`
+        }
+        // Last value cell — colored by source; shows error if any
+        let lastCell = '<span style="color:var(--ink-4);">—</span>'
+        if (t.last_error) {
+          lastCell = `<span class="col-lasterr" title="${escAttr(t.last_error)}">✕ ${escHtml(t.last_error).slice(0, 24)}</span>`
+        } else if (t.last_value !== undefined && t.last_value !== null) {
+          const v = String(t.last_value)
+          const tp = t.last_type || ''
+          const cls = t.protocol === 'opcua' ? 'opcua' : (tp === 'f32' || tp === 'f64' || tp === 'duration') ? 'modbus float' : 'modbus'
+          lastCell = `<span class="col-liveval">${escHtml(v)}</span><span class="type-badge ${cls}" style="margin-left:4px;">${escHtml(tp)}</span>`
+        } else if (running) {
+          lastCell = '<span style="color:var(--ink-4);font-size:10px;">polling…</span>'
+        }
+        const interval = `${(t.interval ?? 1).toFixed(1)}s`
+        const points = t.points ?? 0
+        const stateLabel = running ? '● RUN' : '○ STOP'
+        const stateClass = running ? 'ok' : 'offline'
+        const action = running
+          ? `<button data-task="${t.id}" data-action="stop" class="col-stop-btn" type="button" style="appearance:none;background:transparent;border:1px solid var(--signal-red);color:var(--signal-red);padding:1px 8px;cursor:pointer;font-size:10px;">STOP</button>`
+          : `<button data-task="${t.id}" data-action="start" class="col-start-btn" type="button" style="appearance:none;background:transparent;border:1px solid var(--ok);color:var(--ok);padding:1px 8px;cursor:pointer;font-size:10px;">START</button>`
+        return `
+          <tr>
+            <td class="col-num">${pad2(i + 1)}</td>
+            <td><strong>${escHtml(t.id)}</strong></td>
+            <td>${escHtml(proto)}</td>
+            <td style="font-family:'JetBrains Mono',monospace;font-size:11px;">${escHtml(endpoint)}</td>
+            <td>${typeCell}</td>
+            <td>${lastCell}</td>
+            <td>${interval}</td>
+            <td>${points}</td>
+            <td><span class="status-pill ${stateClass}">${stateLabel}</span></td>
+            <td>${action}</td>
+          </tr>
+        `
+      }).join('')
+      // Bind actions
+      tbody.querySelectorAll('.col-start-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const tid = btn.dataset.task
+          btn.disabled = true
+          try {
+            await postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(tid)}`)
+            showToast(`✓ 任务 ${tid} 已启动`, 'success')
+            setTimeout(refresh, 500)
+          } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+          finally { btn.disabled = false }
+        })
+      })
+      tbody.querySelectorAll('.col-stop-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const tid = btn.dataset.task
+          btn.disabled = true
+          try {
+            await postJSON(`/industrial-gateway/api/collector/stop?task_id=${encodeURIComponent(tid)}`)
+            showToast(`✓ 任务 ${tid} 已停止`, '')
+            setTimeout(refresh, 500)
+          } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+          finally { btn.disabled = false }
+        })
+      })
+    }
+
+    // ─────────────────────────────────────────
+    // Render — MQTT message stream
+    // ─────────────────────────────────────────
+    const renderMqttMessages = (resp) => {
+      const el = document.getElementById('mqtt-messages')
+      const countEl = document.getElementById('mqtt-msg-count')
+      const msgs = resp?.messages || []
+      if (msgs.length === 0) {
+        el.innerHTML = '<div class="empty-state">no messages yet — connect MQTT broker and subscribe topics to receive</div>'
+        countEl.textContent = '0 live'
+        return
+      }
+      countEl.textContent = `${msgs.length} live · latest first`
+      // newest first
+      const ordered = [...msgs].reverse()
+      el.innerHTML = ordered.map((m) => {
+        const ts = formatTs(m.timestamp)
+        const payload = (m.payload || '').toString()
+        const payloadShort = payload.length > 80 ? payload.slice(0, 80) + '…' : payload
+        return `
+          <div style="display:grid;grid-template-columns:80px 1fr 1fr;gap:8px;padding:4px 6px;border-bottom:1px solid var(--rule-soft);align-items:baseline;">
+            <span style="color:var(--ink-3);font-size:10px;">${ts}</span>
+            <span style="color:var(--industrial);font-weight:700;">${m.topic || '—'}</span>
+            <span style="color:var(--ink-2);font-size:10px;word-break:break-all;">${payloadShort}</span>
+          </div>
+        `
+      }).join('')
+    }
+
+    // ─────────────────────────────────────────
+    // Master refresh
+    // ─────────────────────────────────────────
+    const refresh = async () => {
+      const [health, modbus, opcua, mqtt, td, anomalyChannels, anomalyHistory, collector, mqttMsgs, noderedStatus] = await Promise.all([
+        api('/industrial-gateway/api/health'),
+        api('/industrial-gateway/api/modbus/status'),
+        api('/industrial-gateway/api/opcua/status'),
+        api('/industrial-gateway/api/mqtt/status'),
+        api('/industrial-gateway/api/td/ping'),
+        api('/industrial-gateway/api/anomaly/channels'),
+        api('/industrial-gateway/api/anomaly/history?limit=12'),
+        api('/industrial-gateway/api/collector/status'),
+        api('/industrial-gateway/api/mqtt/messages?limit=20'),
+        api('/industrial-gateway/api/nodered/status'),
+      ])
+
+      const online = !!health && health.ok === true
+      updateStatus(online)
+      renderProtocols(health)
+
+      // KPIs
+      const sysHealth = calcHealth(health)
+      const anomalyCount = anomalyHistory?.count ?? (anomalyHistory?.data?.length || 0)
+      const channelCount = anomalyChannels?.channels?.length || 0
+
+      if (sysHealth !== null) {
+        const mood = sysHealth >= 80 ? 'healthy' : sysHealth >= 50 ? 'warning' : 'danger'
+        const meta = `${5 - Math.round(sysHealth/20)} protocol(s) offline`
+        setKpi('health', sysHealth, '/100', meta, sysHealth, mood)
+      } else {
+        setKpi('health', '—', '/100', 'gateway offline', 0, 'danger')
+      }
+
+      // Anomaly: 24h count, mood based on volume
+      const aMood = anomalyCount === 0 ? 'healthy' : anomalyCount < 5 ? 'warning' : 'danger'
+      setKpi('anomaly', anomalyCount, '', `${anomalyCount} events in window`, Math.min(100, anomalyCount * 4), aMood)
+
+      // Channels
+      const cMood = channelCount > 0 ? 'healthy' : 'warning'
+      setKpi('channels', channelCount, '', `${channelCount} monitoring channel(s)`, Math.min(100, channelCount * 10), cMood)
+
+      // Node-RED Bridge status
+      if (noderedStatus && noderedStatus.broker) {
+        const brokerState = noderedStatus.broker
+        const isOk = brokerState === 'connected'
+        const isWarn = brokerState === 'not_initialized'
+        const mood = isOk ? 'healthy' : isWarn ? 'warning' : 'danger'
+        const count = noderedStatus.publish_count || 0
+        const errors = noderedStatus.publish_errors || 0
+        setKpi('nodered', brokerState, '', `${count.toLocaleString()} published · ${errors} errors`, isOk ? 100 : 0, mood)
+        const topics = (noderedStatus.last_topics || []).slice(-3).reverse()
+        const topicsEl = document.getElementById('kpi-nodered-topics')
+        if (topicsEl) {
+          topicsEl.innerHTML = topics
+            .map(t => `<div>${t.split('/').slice(-3).join('/')}</div>`)
+            .join('')
+        }
+      } else {
+        setKpi('nodered', '—', '', 'gateway offline', 0, 'danger')
+        const topicsEl = document.getElementById('kpi-nodered-topics')
+        if (topicsEl) topicsEl.innerHTML = ''
+      }
+
+      // Events
+      renderEvents(anomalyHistory)
+
+      // Collector tasks + MQTT messages
+      renderCollector(collector)
+      renderMqttMessages(mqttMsgs)
+
+      // refresh-time stamp
+      const d = new Date()
+      document.getElementById('refresh-time').textContent =
+        `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())} · last refresh`
+    }
+
+    refresh()
+    setInterval(refresh, 5000)
+
+    // ─────────────────────────────────────────
+    // Configure drawer
+    // ─────────────────────────────────────────
+    const drawer = document.getElementById('drawer')
+    const drawerBackdrop = document.getElementById('drawer-backdrop')
+    const toast = document.getElementById('toast')
+
+    let openDrawer = async () => {
+      drawer.classList.add('open')
+      drawerBackdrop.classList.add('open')
+      // Pull current configs from /api/{proto}/status → fill forms
+      await loadConfigs()
+      // Also load anomaly channels (only visible on that tab, but cheap)
+      await loadAnomalyChannels()
+    }
+    const closeDrawer = () => {
+      drawer.classList.remove('open')
+      drawerBackdrop.classList.remove('open')
+    }
+    document.getElementById('configure-btn').addEventListener('click', openDrawer)
+    document.getElementById('drawer-close').addEventListener('click', closeDrawer)
+    drawerBackdrop.addEventListener('click', closeDrawer)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer()
+    })
+
+    // Tab switching
+    document.querySelectorAll('.drawer-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.drawer-tab').forEach((t) => t.classList.remove('active'))
+        document.querySelectorAll('.drawer-section').forEach((s) => s.classList.remove('active'))
+        tab.classList.add('active')
+        const target = tab.dataset.tab
+        document.querySelector(`.drawer-section[data-section="${target}"]`).classList.add('active')
+      })
+    })
+
+    const showToast = (msg, mood = '') => {
+      toast.textContent = msg
+      toast.className = 'toast show ' + mood
+      setTimeout(() => { toast.className = 'toast ' + mood }, 2400)
+    }
+
+    const setStatus = (proto, connected) => {
+      const el = document.getElementById(`${proto}-status`)
+      if (connected) {
+        el.className = 'config-status connected'
+        el.textContent = '● CONNECTED'
+      } else {
+        el.className = 'config-status disconnected'
+        el.textContent = '○ DISCONNECTED'
+      }
+    }
+
+    // Load current configs from gateway status endpoints
+    const loadConfigs = async () => {
+      const [mb, ua, mq, td] = await Promise.all([
+        api('/industrial-gateway/api/modbus/status'),
+        api('/industrial-gateway/api/opcua/status'),
+        api('/industrial-gateway/api/mqtt/status'),
+        api('/industrial-gateway/api/td/ping'),
+      ])
+      // Modbus
+      if (mb && mb.config) {
+        document.getElementById('mb-host').value = mb.config.host || ''
+        document.getElementById('mb-port').value = mb.config.port ?? ''
+        document.getElementById('mb-unit').value = mb.config.unit_id ?? ''
+        document.getElementById('mb-timeout').value = mb.config.timeout ?? ''
+        setStatus('mb', !!mb.connected)
+      }
+      // OPC UA
+      if (ua && ua.config) {
+        document.getElementById('ua-url').value = ua.config.url || ''
+        document.getElementById('ua-timeout').value = ua.config.timeout ?? ''
+        document.getElementById('ua-user').value = ua.config.username || ''
+        setStatus('ua', !!ua.connected)
+      }
+      // MQTT
+      if (mq && mq.config) {
+        document.getElementById('mq-host').value = mq.config.host || ''
+        document.getElementById('mq-port').value = mq.config.port ?? ''
+        document.getElementById('mq-keepalive').value = mq.config.keepalive ?? ''
+        document.getElementById('mq-prefix').value = mq.config.topic_prefix || ''
+        document.getElementById('mq-user').value = mq.config.username || ''
+        setStatus('mq', !!mq.connected)
+      }
+      // TDengine — config is in /api/td/ping response only if backend exposes it; fill only if present
+      const tdStatusEl = document.getElementById('td-status')
+      if (td && td.ok) {
+        if (tdStatusEl) {
+          tdStatusEl.className = 'config-status connected'
+          tdStatusEl.textContent = '● CONNECTED'
+        }
+        if (td.config) {
+          document.getElementById('td-host').value = td.config.host || ''
+          document.getElementById('td-port').value = td.config.port ?? ''
+          document.getElementById('td-user').value = td.config.user || ''
+          document.getElementById('td-db').value = td.config.database || ''
+        }
+      } else {
+        if (tdStatusEl) {
+          tdStatusEl.className = 'config-status disconnected'
+          tdStatusEl.textContent = '○ 未连接'
+        }
+      }
+    }
+
+    // APPLY & CONNECT — for current tab
+    const getActiveTab = () => document.querySelector('.drawer-tab.active').dataset.tab
+
+    const postJSON = async (path, body) => {
+      const r = await fetch(path, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.detail || d.message || `HTTP ${r.status}`)
+      return d
+    }
+
+    // ── Modbus: connect driver + add/start collector task ──
+    const applyModbus = async () => {
+      const host = document.getElementById('mb-host').value.trim() || '127.0.0.1'
+      const port = parseInt(document.getElementById('mb-port').value) || 502
+      const unit = parseInt(document.getElementById('mb-unit').value) || 1
+      const timeout = parseFloat(document.getElementById('mb-timeout').value) || 3.0
+
+      // 1. Driver config + connect
+      await postJSON('/industrial-gateway/api/modbus/config', { mode: 'tcp', host, port, unit_id: unit, timeout })
+      const conn = await postJSON('/industrial-gateway/api/modbus/connect')
+      setStatus('mb', conn.connected ?? true)
+
+      // 2. Collector task (optional — only if task ID is filled)
+      const taskId = document.getElementById('mb-task-id').value.trim()
+      if (taskId) {
+        const addr = parseInt(document.getElementById('mb-addr').value) || 0
+        const count = parseInt(document.getElementById('mb-count').value) || 1
+        const register = document.getElementById('mb-register').value
+        const interval = parseFloat(document.getElementById('mb-interval').value) || 1.0
+        const table = document.getElementById('mb-table').value.trim() || 'raw_data'
+        const col_map = {}
+        for (let i = 0; i < Math.min(count, 16); i++) col_map[String(i)] = `v${i}`
+
+        await postJSON('/industrial-gateway/api/collector/add', {
+          id: taskId, protocol: 'modbus',
+          mb_host: host, mb_port: port, mb_unit: unit,
+          mb_address: addr, mb_count: count, mb_register: register,
+          table, col_map, interval,
+        })
+        await postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(taskId)}`)
+        showToast(`✓ Modbus ${host}:${port} + 采集任务 ${taskId}`, 'success')
+      } else {
+        showToast(`✓ Modbus ${host}:${port} 已连接`, 'success')
+      }
+    }
+
+    // ── OPC UA: connect + collector task ──
+    const applyOpcua = async () => {
+      const url = document.getElementById('ua-url').value.trim() || 'opc.tcp://127.0.0.1:4840'
+      const timeout = parseFloat(document.getElementById('ua-timeout').value) || 5.0
+      const user = document.getElementById('ua-user').value.trim()
+      const pass = document.getElementById('ua-pass').value
+      const cfg = { url, timeout, ...(user ? { username: user } : {}), ...(pass ? { password: pass } : {}) }
+
+      await postJSON('/industrial-gateway/api/opcua/config', cfg)
+      const conn = await postJSON('/industrial-gateway/api/opcua/connect')
+      setStatus('ua', conn.connected ?? true)
+
+      const taskId = document.getElementById('ua-task-id').value.trim()
+      const nodeId = document.getElementById('ua-node-id').value.trim()
+      if (taskId && nodeId) {
+        const interval = parseFloat(document.getElementById('ua-interval').value) || 1.0
+        const table = document.getElementById('ua-table').value.trim() || 'raw_data'
+        await postJSON('/industrial-gateway/api/collector/add', {
+          id: taskId, protocol: 'opcua',
+          ua_url: url, ua_node_id: nodeId,
+          table, col_map: { '0': 'value' }, interval,
+        })
+        await postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(taskId)}`)
+        showToast(`✓ OPC UA ${url} + 采集任务 ${taskId}`, 'success')
+      } else {
+        showToast(`✓ OPC UA ${url} 已连接`, 'success')
+      }
+    }
+
+    // ── TDengine: connect storage backend (collector target) ──
+    const applyTdengine = async () => {
+      const host = document.getElementById('td-host').value.trim() || 'localhost'
+      const port = parseInt(document.getElementById('td-port').value) || 6041
+      const user = document.getElementById('td-user').value.trim() || 'root'
+      const password = document.getElementById('td-pass').value || 'taosdata'
+      const database = document.getElementById('td-db').value.trim() || 'industrial'
+
+      const r = await postJSON('/industrial-gateway/api/td/connect', { host, port, user, password, database })
+      setStatus('td', !!r.ok)
+      showToast(`✓ TDengine ${host}:${port} 已连接 (db=${database})`, 'success')
+    }
+
+    // ── MQTT: connect only (subscriptions added separately) ──
+    const applyMqtt = async () => {
+      const host = document.getElementById('mq-host').value.trim() || '127.0.0.1'
+      const port = parseInt(document.getElementById('mq-port').value) || 1883
+      const keepalive = parseInt(document.getElementById('mq-keepalive').value) || 60
+      const topic_prefix = document.getElementById('mq-prefix').value.trim() || '1052os'
+      const user = document.getElementById('mq-user').value.trim()
+      const pass = document.getElementById('mq-pass').value
+      const cfg = { host, port, keepalive, topic_prefix, ...(user ? { username: user } : {}), ...(pass ? { password: pass } : {}) }
+
+      await postJSON('/industrial-gateway/api/mqtt/config', cfg)
+      const conn = await postJSON('/industrial-gateway/api/mqtt/connect')
+      setStatus('mq', conn.connected ?? true)
+      showToast(`✓ MQTT ${host}:${port} 已连接`, 'success')
+    }
+
+    // ── Anomaly: register channel (no driver/connect) ──
+    const applyAnomaly = async () => {
+      const id = document.getElementById('an-id').value.trim()
+      if (!id) throw new Error('通道位号不能为空')
+      const table = document.getElementById('an-table').value.trim() || 'raw_data'
+      const col = document.getElementById('an-col').value.trim() || 'v0'
+      const low = parseFloat(document.getElementById('an-low').value)
+      const high = parseFloat(document.getElementById('an-high').value)
+      const step = parseFloat(document.getElementById('an-step').value) || 2.0
+      const drift = parseFloat(document.getElementById('an-drift').value) || 0.5
+      const drift_window = parseInt(document.getElementById('an-drift-window').value) || 20
+
+      await postJSON('/industrial-gateway/api/anomaly/channel/add', {
+        id, table, col,
+        low: isNaN(low) ? 4.0 : low,
+        high: isNaN(high) ? 20.0 : high,
+        step_threshold: step, drift_threshold: drift, drift_window,
+      })
+      showToast(`✓ 报警通道 ${id} 已注册`, 'success')
+      await loadAnomalyChannels()
+      // 清空表单 ID（保留阈值，方便连续加多个）
+      document.getElementById('an-id').value = ''
+    }
+
+    // ─────────────────────────────────────────
+    // Bulk-add: 解析文本 → 批量 POST /api/collector/add [+ start]
+    // ─────────────────────────────────────────
+
+    // 解析空白/制表符分隔的列，# 开头为注释
+    const parseBulkLines = (raw) => {
+      const out = []
+      raw.split(/\r?\n/).forEach((line, idx) => {
+        const trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) return
+        const cols = trimmed.split(/\s+/)
+        out.push({ lineNo: idx + 1, cols })
+      })
+      return out
+    }
+
+    const setBulkProgress = (id, text, mood) => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.textContent = text
+      el.style.color = mood === 'error' ? 'var(--signal-red)'
+                : mood === 'success' ? 'var(--ok)'
+                : 'var(--ink-3)'
+    }
+
+    // 通用串行执行器 + 进度回报
+    const runBulkAdd = async (items, buildTask, doAdd, doStart, progressId, label) => {
+      setBulkProgress(progressId, `准备 ${items.length} 个 ${label}…`, '')
+      let ok = 0, fail = 0
+      const errors = []
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]
+        const task = buildTask(it, i)
+        if (!task) {
+          fail++
+          errors.push(`#${it.lineNo} 参数错误`)
+          continue
+        }
+        setBulkProgress(progressId, `${i + 1}/${items.length} 添加中… ${task.id}`, '')
+        try {
+          await doAdd(task)
+          if (doStart) {
+            try {
+              await doStart(task)
+            } catch (e) {
+              errors.push(`${task.id} 启动失败: ${e.message}`)
+              fail++
+              continue
+            }
+          }
+          ok++
+        } catch (e) {
+          fail++
+          errors.push(`${task.id} 添加失败: ${e.message}`)
+        }
+      }
+      if (fail === 0) {
+        setBulkProgress(progressId, `✓ 成功添加 ${ok} 个 ${label}`, 'success')
+        showToast(`✓ 批量添加 ${ok} 个 ${label}`, 'success')
+      } else {
+        setBulkProgress(progressId, `✕ ${ok} 成功 / ${fail} 失败 · ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '…' : ''}`, 'error')
+        showToast(`✕ ${fail} 个 ${label} 失败（见进度条）`, 'error')
+      }
+      setTimeout(refresh, 500)
+    }
+
+    // ── Modbus 批量添加 ──
+    const bulkAddModbus = async () => {
+      const raw = document.getElementById('mb-bulk').value
+      const lines = parseBulkLines(raw)
+      if (lines.length === 0) {
+        setBulkProgress('mb-bulk-progress', '✕ 列表为空', 'error')
+        showToast('✕ 点位列表为空', 'error')
+        return
+      }
+      // 共享驱动参数（来自 § A）
+      const host = document.getElementById('mb-host').value.trim() || '127.0.0.1'
+      const port = parseInt(document.getElementById('mb-port').value) || 502
+      const unit = parseInt(document.getElementById('mb-unit').value) || 1
+      const timeout = parseFloat(document.getElementById('mb-timeout').value) || 3.0
+      const sharedTable = document.getElementById('mb-table').value.trim() || 'raw_data'
+      const useSharedTable = document.getElementById('mb-bulk-shared-table').checked
+      const autostart = document.getElementById('mb-bulk-autostart').checked
+
+      // 先连驱动（如果 § A 还没连）
+      try {
+        await postJSON('/industrial-gateway/api/modbus/config', { mode: 'tcp', host, port, unit_id: unit, timeout })
+        const conn = await postJSON('/industrial-gateway/api/modbus/connect')
+        setStatus('mb', conn.connected ?? true)
+      } catch (e) {
+        setBulkProgress('mb-bulk-progress', `✕ 驱动连接失败: ${e.message}`, 'error')
+        showToast(`✕ Modbus 连接失败: ${e.message}`, 'error')
+        return
+      }
+
+      // 解析 dtype: 接受 "f32" / "bit:0" / "ascii:8" / "u16" 等格式
+      // 解析 endian: 默认 "ABCD"
+      const parseDtype = (raw) => {
+        const s = String(raw || 'u16').trim()
+        const m = s.match(/^([a-z0-9]+)(?::(\d+))?$/i)
+        if (!m) return { dtype: 'u16', bit_index: 0, string_len: 1 }
+        const dtype = m[1].toLowerCase()
+        const arg = m[2] ? parseInt(m[2]) : 0
+        return {
+          dtype,
+          bit_index: dtype === 'bit' ? arg : 0,
+          string_len: (dtype === 'ascii' || dtype === 'utf8') ? Math.max(1, arg || 1) : 1,
+        }
+      }
+      // Modbus 字数表（与后端 modbus_decoder.REGISTER_FOOTPRINT 一致）
+      const MB_WORDS = { u8:1, i8:1, u16:1, i16:1, u32:2, i32:2, u64:4, i64:4,
+                         f32:2, f64:4, bcd16:1, bcd32:2, bit:1, time:2, duration:2 }
+      const buildTask = (it) => {
+        const [tag, addrStr, countStr, dtypeRaw, endianRaw, register, intervalStr, tableStr] = it.cols
+        if (!tag || !addrStr) return null
+        const addr = parseInt(addrStr)
+        if (isNaN(addr)) return null
+        const { dtype, bit_index, string_len } = parseDtype(dtypeRaw)
+        const endian = (endianRaw || 'ABCD').toUpperCase()
+        const validEndians = ['ABCD', 'CDAB', 'BADC', 'DCBA']
+        if (!validEndians.includes(endian)) return null
+        // 自动算 count
+        let count
+        if (countStr) {
+          count = parseInt(countStr) || 1
+        } else if (dtype === 'ascii' || dtype === 'utf8') {
+          count = Math.ceil(string_len / 2)
+        } else {
+          count = MB_WORDS[dtype] || 1
+        }
+        const interval = parseFloat(intervalStr) || 1.0
+        const table = (useSharedTable || !tableStr) ? sharedTable : tableStr
+        return {
+          id: tag,
+          protocol: 'modbus',
+          mb_host: host, mb_port: port, mb_unit: unit,
+          mb_address: addr, mb_count: count,
+          mb_register: register || 'holding',
+          dtype, endian, bit_index, string_len,
+          table, col_map: {}, interval,
+        }
+      }
+      const doAdd = (task) => postJSON('/industrial-gateway/api/collector/add', task)
+      const doStart = autostart
+        ? (task) => postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(task.id)}`)
+        : null
+
+      await runBulkAdd(lines, buildTask, doAdd, doStart, 'mb-bulk-progress', 'Modbus 点位')
+    }
+
+    // ── OPC UA 批量添加 ──
+    const bulkAddOpcua = async () => {
+      const raw = document.getElementById('ua-bulk').value
+      const lines = parseBulkLines(raw)
+      if (lines.length === 0) {
+        setBulkProgress('ua-bulk-progress', '✕ 列表为空', 'error')
+        showToast('✕ 节点列表为空', 'error')
+        return
+      }
+      // 共享驱动参数（来自 § A）
+      const url = document.getElementById('ua-url').value.trim() || 'opc.tcp://127.0.0.1:4840'
+      const timeout = parseFloat(document.getElementById('ua-timeout').value) || 5.0
+      const user = document.getElementById('ua-user').value.trim()
+      const pass = document.getElementById('ua-pass').value
+      const sharedTable = document.getElementById('ua-table').value.trim() || 'raw_data'
+      const useSharedTable = document.getElementById('ua-bulk-shared-table').checked
+      const autostart = document.getElementById('ua-bulk-autostart').checked
+
+      // 先连驱动
+      const cfg = { url, timeout, ...(user ? { username: user } : {}), ...(pass ? { password: pass } : {}) }
+      try {
+        await postJSON('/industrial-gateway/api/opcua/config', cfg)
+        const conn = await postJSON('/industrial-gateway/api/opcua/connect')
+        setStatus('ua', conn.connected ?? true)
+      } catch (e) {
+        setBulkProgress('ua-bulk-progress', `✕ 驱动连接失败: ${e.message}`, 'error')
+        showToast(`✕ OPC UA 连接失败: ${e.message}`, 'error')
+        return
+      }
+
+      const buildTask = (it) => {
+        const [tag, nodeId, intervalStr, tableStr] = it.cols
+        if (!tag || !nodeId) return null
+        const interval = parseFloat(intervalStr) || 1.0
+        const table = (useSharedTable || !tableStr) ? sharedTable : tableStr
+        return {
+          id: tag,
+          protocol: 'opcua',
+          ua_url: url, ua_node_id: nodeId,
+          table, col_map: { '0': 'value' }, interval,
+        }
+      }
+      const doAdd = (task) => postJSON('/industrial-gateway/api/collector/add', task)
+      const doStart = autostart
+        ? (task) => postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(task.id)}`)
+        : null
+
+      await runBulkAdd(lines, buildTask, doAdd, doStart, 'ua-bulk-progress', 'OPC UA 节点')
+    }
+
+    // 模板按钮
+    const MB_BULK_TEMPLATE = `# Modbus 批量点位模板
+# 服务器: 192.168.10.254:502 (unit 1, 9600 N 8 1)
+# 格式: TAG  ADDR  COUNT  DTYPE  ENDIAN  REGISTER  INTERVAL  TABLE
+# DTYPE  : u8/i8/u16/i16/u32/i32/u64/i64/f32/f64/bcd16/bcd32/bit/ascii:N/utf8:N/time/duration
+# ENDIAN : ABCD (大端) | CDAB (字节交换) | BADC (字交换) | DCBA (全反转)
+# REGISTER ∈ {holding, input, coils}
+# 地址支持 5/6 位数字（400001=0、00001=0）或纯 0-based
+# COUNT 缺省时按 DTYPE 自动算（u16=1, f32=2, f64=4, ascii:N=ceil(N/2)）
+# 注释行以 # 开头
+#
+# 已知服务器特性:
+#   - HR @ 0..9 只读 (count 必须=10, count=2/5 报 illegal)
+#   - Coils 0..199 可读可写
+#   - Discrete 0..199 只读
+TI-101  400001  10  u16   ABCD  holding  1.0  raw_data
+PI-201  400001  5   f32   ABCD  holding  1.0  raw_data
+TI-301  400001  1   i32   CDAB  holding  2.0  raw_data
+DI-101  00001   10  bit:0 ABCD  coils    1.0  raw_data
+DI-102  00002   10  bit:0 ABCD  coils    1.0  raw_data
+DI-103  00003   10  bit:0 ABCD  coils    1.0  raw_data
+DI-104  00004   10  bit:0 ABCD  coils    1.0  raw_data
+DI-105  00005   10  bit:0 ABCD  coils    1.0  raw_data
+`
+    const UA_BULK_TEMPLATE = `# OPC UA 批量节点模板
+# 格式: TAG  NODE_ID  INTERVAL  TABLE
+TI-101  ns=2;s=Device1.Temp      1.0  raw_data
+PI-201  ns=2;s=Device1.Pressure  1.0  raw_data
+FT-301  ns=2;s=Device1.Flow      2.0  raw_data
+LI-401  ns=2;s=Device1.Level     5.0  raw_data
+`
+
+    document.getElementById('mb-bulk-go').addEventListener('click', async () => {
+      const btn = document.getElementById('mb-bulk-go')
+      btn.disabled = true
+      const orig = btn.textContent
+      btn.textContent = '批量添加中…'
+      try { await bulkAddModbus() }
+      catch (e) { setBulkProgress('mb-bulk-progress', `✕ ${e.message}`, 'error'); showToast(`✕ ${e.message}`, 'error') }
+      finally { btn.disabled = false; btn.textContent = orig }
+    })
+    document.getElementById('mb-bulk-template').addEventListener('click', () => {
+      document.getElementById('mb-bulk').value = MB_BULK_TEMPLATE
+      showToast('✓ 已填充 Modbus 模板（请改 ADDR/COUNT）', '')
+    })
+    document.getElementById('ua-bulk-go').addEventListener('click', async () => {
+      const btn = document.getElementById('ua-bulk-go')
+      btn.disabled = true
+      const orig = btn.textContent
+      btn.textContent = '批量添加中…'
+      try { await bulkAddOpcua() }
+      catch (e) { setBulkProgress('ua-bulk-progress', `✕ ${e.message}`, 'error'); showToast(`✕ ${e.message}`, 'error') }
+      finally { btn.disabled = false; btn.textContent = orig }
+    })
+    document.getElementById('ua-bulk-template').addEventListener('click', () => {
+      document.getElementById('ua-bulk').value = UA_BULK_TEMPLATE
+      showToast('✓ 已填充 OPC UA 模板（请改 NODE_ID）', '')
+    })
+
+    // ─────────────────────────────────────────
+    // Excel I/O — SheetJS (xlsx.full.min.js)
+    // ─────────────────────────────────────────
+
+    // 已知表头集合（用于智能识别 header 行）
+    const MB_HEADERS = ['TAG', 'ADDR', 'COUNT', 'DTYPE', 'ENDIAN', 'REGISTER', 'INTERVAL', 'TABLE']
+    const UA_HEADERS = ['TAG', 'NODE_ID', 'INTERVAL', 'TABLE']
+
+    // 把 Array<Array<cell>> 转成 textarea 文本格式
+    // - 首行若是已知表头则跳过
+    // - 空行跳过
+    // - 列用 Tab 分隔（Excel 友好，复制粘贴不变形）
+    const rowsToText = (rows, knownHeaders) => {
+      if (!rows || rows.length === 0) return ''
+      // 检测首行是否为表头
+      const first = (rows[0] || []).map((c) => String(c || '').trim().toUpperCase())
+      const isHeader = knownHeaders && knownHeaders.length > 0 &&
+        knownHeaders.every((h) => first.includes(h))
+      const data = isHeader ? rows.slice(1) : rows
+      return data
+        .map((row) => (row || []).map((c) => c == null ? '' : String(c)).join('\t'))
+        .filter((line) => line.replace(/\t/g, '').trim() !== '')
+        .join('\n')
+    }
+
+    // 把 textarea 文本格式解析成 Array<Array<cell>>
+    const textToRows = (text) => {
+      return text.split(/\r?\n/)
+        .map((line) => line.split(/\t/))
+        .filter((cols) => cols.some((c) => c && c.trim() !== ''))
+    }
+
+    // 触发浏览器下载 Blob
+    const downloadBlob = (blob, filename) => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 0)
+    }
+
+    // 生成 xlsx 文件并下载（rows[0] 作表头）
+    const exportRowsAsXlsx = (rows, filename, sheetName) => {
+      if (typeof XLSX === 'undefined') {
+        showToast('✕ SheetJS 未加载，请检查网络', 'error')
+        return
+      }
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = (rows[0] || []).map(() => ({ wch: 18 }))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Sheet1')
+      XLSX.writeFile(wb, filename)
+    }
+
+    // 读取 .xlsx/.xls/.csv → Array<Array<cell>>
+    const readFileAsRows = (file) => new Promise((resolve, reject) => {
+      if (typeof XLSX === 'undefined') {
+        reject(new Error('SheetJS 未加载，请检查网络'))
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target.result)
+          const wb = XLSX.read(data, { type: 'array' })
+          const firstSheet = wb.SheetNames[0]
+          const ws = wb.Sheets[firstSheet]
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false })
+          resolve(rows)
+        } catch (err) { reject(err) }
+      }
+      reader.onerror = () => reject(new Error('文件读取失败'))
+      reader.readAsArrayBuffer(file)
+    })
+
+    // 通用：导入 xlsx → 填到 textarea（保留用户已有内容并提示覆盖）
+    const importXlsxToTextarea = async (file, textareaId, knownHeaders, progressId, label) => {
+      try {
+        const rows = await readFileAsRows(file)
+        const text = rowsToText(rows, knownHeaders)
+        if (!text) {
+          setBulkProgress(progressId, '✕ 文件为空或解析后无数据', 'error')
+          showToast(`✕ ${label} Excel 解析为空`, 'error')
+          return
+        }
+        const el = document.getElementById(textareaId)
+        const existing = el.value.trim()
+        if (existing) {
+          if (!confirm(`当前列表已有 ${existing.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#')).length} 行。\n是否覆盖为 Excel 内容？\n（取消 = 追加到末尾）`)) {
+            el.value = existing + '\n' + text
+            showToast(`✓ 已追加 ${rows.length - 1} 行到 ${label} 列表`, 'success')
+            return
+          }
+        }
+        el.value = text
+        const lineCount = text.split(/\r?\n/).length
+        setBulkProgress(progressId, `✓ 已导入 ${lineCount} 行（点击 BULK ADD 执行）`, 'success')
+        showToast(`✓ ${label} 列表已填入 ${lineCount} 行`, 'success')
+      } catch (e) {
+        setBulkProgress(progressId, `✕ ${e.message}`, 'error')
+        showToast(`✕ ${e.message}`, 'error')
+      }
+    }
+
+    // 通用：导出 textarea → xlsx
+    const exportTextareaAsXlsx = (textareaId, knownHeaders, filename, sheetName, progressId) => {
+      const text = document.getElementById(textareaId).value
+      if (!text.trim()) {
+        setBulkProgress(progressId, '✕ 列表为空，无可导出内容', 'error')
+        showToast('✕ 列表为空', 'error')
+        return
+      }
+      // 过滤注释行
+      const dataOnly = text.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#'))
+      if (dataOnly.length === 0) {
+        setBulkProgress(progressId, '✕ 仅有注释行，无可导出内容', 'error')
+        showToast('✕ 没有可导出的数据行', 'error')
+        return
+      }
+      const rows = [knownHeaders, ...dataOnly.map((line) => line.split(/\t|\s+/))]
+      exportRowsAsXlsx(rows, filename, sheetName)
+      setBulkProgress(progressId, `✓ 已导出 ${dataOnly.length} 行到 ${filename}`, 'success')
+      showToast(`✓ 导出 ${dataOnly.length} 行到 ${filename}`, 'success')
+    }
+
+    // 下载模板（带示例行 + 测试场景 sheet）
+    const downloadTemplateXlsx = (headers, example, filename, sheetName, progressId, label) => {
+      if (typeof XLSX === 'undefined') {
+        showToast('✕ SheetJS 未加载', 'error'); return
+      }
+      const rows = [headers, example]
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.aoa_to_sheet(rows)
+      ws['!cols'] = headers.map(() => ({ wch: 18 }))
+      XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Sheet1')
+      // 给 Modbus 模板附加"测试场景" + "数据类型参考" sheet
+      if (label === 'Modbus') {
+        // Sheet 2: 测试场景
+        const ts = [
+          ['#', '场景', '功能码', '起始地址', '长度', '类型', '预期结果', '说明'],
+          ['1', '读保持寄存器', '0x03', '400001', 10, 'float32', '5 个 float', '服务器只读，count 必须=10'],
+          ['2', '写线圈', '0x0F', '00001', 10, 'bool[]', '10110 10110', '可读可写'],
+          ['3', '读离散量', '0x02', '10001', 10, 'bool[]', '10 个 false', '只读'],
+        ]
+        const ws2 = XLSX.utils.aoa_to_sheet(ts)
+        ws2['!cols'] = [4, 14, 10, 12, 8, 12, 16, 28].map((w) => ({ wch: w }))
+        XLSX.utils.book_append_sheet(wb, ws2, '测试场景')
+        // Sheet 3: 数据类型参考
+        const dt = [
+          ['DTYPE', '类别', '字节数', '占字', '说明', '示例', '适用寄存器'],
+          ['u8',     '无符号整型', '1',  '1', '无符号 8 位（取低字节）',     '0..255',                'holding/input'],
+          ['u16',    '无符号整型', '2',  '1', '无符号 16 位（Modbus 原生）', '0..65535',              'holding/input'],
+          ['u32',    '无符号整型', '4',  '2', '无符号 32 位',               '0..2^32-1',             'holding/input'],
+          ['u64',    '无符号整型', '8',  '4', '无符号 64 位',               '0..2^64-1',             'holding/input'],
+          ['i8',     '有符号整型', '1',  '1', '有符号 8 位（补码）',         '-128..127',             'holding/input'],
+          ['i16',    '有符号整型', '2',  '1', '有符号 16 位',               '-32768..32767',         'holding/input'],
+          ['i32',    '有符号整型', '4',  '2', '有符号 32 位',               '-2^31..2^31-1',         'holding/input'],
+          ['i64',    '有符号整型', '8',  '4', '有符号 64 位',               '-2^63..2^63-1',         'holding/input'],
+          ['f32',    '浮点',     '4',  '2', 'IEEE 754 单精度',            '3.14, -273.15',         'holding/input'],
+          ['f64',    '浮点',     '8',  '4', 'IEEE 754 双精度',            '3.14159265358979',      'holding/input'],
+          ['bcd16',  'BCD',     '2',  '1', 'BCD 16 位 (0..9999)',        '1234',                  'holding/input'],
+          ['bcd32',  'BCD',     '4',  '2', 'BCD 32 位 (0..99999999)',    '12345678',              'holding/input'],
+          ['bit:N',  '位',      '0.2','1', '取某寄存器的某一位 (0..15)',  'bit:0=bit 0, bit:15=MSB','coils / holding'],
+          ['ascii:N','字符串',   'N',  'N/2','ASCII 字符串，N 字符',       '"HELLO"',                'holding/input'],
+          ['utf8:N', '字符串',   'N',  'N/2','UTF-8 字符串，N 字节',        '"你好"',                 'holding/input'],
+          ['time',   '时间',     '4',  '2', 'epoch 秒 (u32)',             '1577836800 (2020-01-01)','holding/input'],
+          ['duration','时间',   '4',  '2', '持续时间 (f32 毫秒)',         '100.0 (100ms)',          'holding/input'],
+        ]
+        const ws3 = XLSX.utils.aoa_to_sheet(dt)
+        ws3['!cols'] = [10, 12, 8, 6, 30, 24, 18].map((w) => ({ wch: w }))
+        XLSX.utils.book_append_sheet(wb, ws3, '数据类型参考')
+        // Sheet 4: 字节序参考
+        const en = [
+          ['ENDIAN', '名称', '说明', '常见设备'],
+          ['ABCD', 'Big-endian (大端)', '标准 Modbus 字节序', 'Modbus 标准、绝大多数设备'],
+          ['CDAB', 'Byte-swap (字内字节交换)', '每个 16 位字内部字节反转', 'Modicon legacy (施耐德老型号)'],
+          ['BADC', 'Word-swap (字交换)', '两个字交换，字节不变', 'AB/罗克韦尔 ControlLogix、西门子部分'],
+          ['DCBA', 'Full reverse (全反转)', '字节和字都反转', '西门子 S7-200 SMART 等'],
+        ]
+        const ws4 = XLSX.utils.aoa_to_sheet(en)
+        ws4['!cols'] = [10, 22, 32, 32].map((w) => ({ wch: w }))
+        XLSX.utils.book_append_sheet(wb, ws4, '字节序参考')
+      }
+      XLSX.writeFile(wb, filename)
+      setBulkProgress(progressId, `✓ 已下载 ${label} 模板 ${filename}`, 'success')
+      showToast(`✓ ${label} 模板已下载（含 3 个参考 sheet）`, 'success')
+    }
+
+    // ── Modbus Excel 按钮绑定 ──
+    document.getElementById('mb-bulk-import').addEventListener('click', () => {
+      document.getElementById('mb-bulk-file').click()
+    })
+    document.getElementById('mb-bulk-file').addEventListener('change', (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      importXlsxToTextarea(file, 'mb-bulk', MB_HEADERS, 'mb-bulk-progress', 'Modbus')
+      e.target.value = '' // 重置以允许重复导入同名文件
+    })
+    document.getElementById('mb-bulk-export').addEventListener('click', () => {
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+      exportTextareaAsXlsx('mb-bulk', MB_HEADERS, `modbus-points-${ts}.xlsx`, 'Modbus', 'mb-bulk-progress')
+    })
+    document.getElementById('mb-bulk-tpl-xlsx').addEventListener('click', () => {
+      downloadTemplateXlsx(
+        MB_HEADERS,
+        ['TI-101', 40001, 1, 'holding', 1.0, 'raw_data'],
+        'modbus-points-template.xlsx',
+        'Modbus',
+        'mb-bulk-progress',
+        'Modbus'
+      )
+    })
+
+    // ── OPC UA Excel 按钮绑定 ──
+    document.getElementById('ua-bulk-import').addEventListener('click', () => {
+      document.getElementById('ua-bulk-file').click()
+    })
+    document.getElementById('ua-bulk-file').addEventListener('change', (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      importXlsxToTextarea(file, 'ua-bulk', UA_HEADERS, 'ua-bulk-progress', 'OPC UA')
+      e.target.value = ''
+    })
+    document.getElementById('ua-bulk-export').addEventListener('click', () => {
+      const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+      exportTextareaAsXlsx('ua-bulk', UA_HEADERS, `opcua-nodes-${ts}.xlsx`, 'OPC_UA', 'ua-bulk-progress')
+    })
+    document.getElementById('ua-bulk-tpl-xlsx').addEventListener('click', () => {
+      downloadTemplateXlsx(
+        UA_HEADERS,
+        ['TI-101', 'ns=2;s=Device1.Temp', 1.0, 'raw_data'],
+        'opcua-nodes-template.xlsx',
+        'OPC_UA',
+        'ua-bulk-progress',
+        'OPC UA'
+      )
+    })
+
+    // ─────────────────────────────────────────
+    // Modbus 驱动测试 § D — 单次读写
+    // ─────────────────────────────────────────
+
+    // 智能地址解析: 5/6 位数字（400001、00001、10001、30001、40001）或纯 0-based 数字
+    // 返回 { space: 'coil'|'discrete'|'input'|'holding'|'unknown', address: int, raw: string }
+    const parseMbAddress = (raw) => {
+      const s = String(raw || '').trim()
+      if (!s) return { space: 'unknown', address: 0, raw: s }
+      // 6 位: 0/1/3/4 + 5 位 (1-based)
+      if (/^[0134]\d{5}$/.test(s)) {
+        const space = s[0] === '0' ? 'coil' : s[0] === '1' ? 'discrete' : s[0] === '3' ? 'input' : 'holding'
+        return { space, address: parseInt(s.slice(1)) - 1, raw: s }
+      }
+      // 5 位: 0/1/3/4 + 4 位 (1-based)
+      if (/^[0134]\d{4}$/.test(s)) {
+        const space = s[0] === '0' ? 'coil' : s[0] === '1' ? 'discrete' : s[0] === '3' ? 'input' : 'holding'
+        return { space, address: parseInt(s.slice(1)) - 1, raw: s }
+      }
+      // 纯数字 = 0-based 通用地址（空间由功能码推断）
+      if (/^\d+$/.test(s)) {
+        return { space: 'unknown', address: parseInt(s), raw: s }
+      }
+      return { space: 'unknown', address: 0, raw: s }
+    }
+
+    // 把值字符串解析成 Python 兼容的 JS 值: true/false/数字/字符串
+    const parseMbWriteValue = (raw, kind) => {
+      const s = String(raw || '').trim()
+      if (!s) return null
+      // 多值 (coil 列表 / register 列表)
+      if (s.includes(',') || s.includes(' ') || s.startsWith('[')) {
+        const cleaned = s.replace(/[\[\]]/g, '').split(/[,\s]+/).filter(Boolean)
+        if (kind === 'coil' || kind === 'coils') {
+          return cleaned.map((v) => /^(true|1|on)$/i.test(v))
+        }
+        return cleaned.map((v) => {
+          const n = parseFloat(v)
+          return isNaN(n) ? 0 : Math.round(n)
+        })
+      }
+      // 单值
+      if (kind === 'coil') return /^(true|1|on)$/i.test(s)
+      if (kind === 'float32') return parseFloat(s)
+      const n = parseInt(s)
+      return isNaN(n) ? parseFloat(s) : n
+    }
+
+    // 读功能执行
+    const mbTestRead = async () => {
+      const fc = document.getElementById('mb-test-fc').value
+      const addrRaw = document.getElementById('mb-test-addr').value
+      const count = parseInt(document.getElementById('mb-test-count').value) || 1
+      const parsed = parseMbAddress(addrRaw)
+      const out = document.getElementById('mb-test-read-out')
+      if (parsed.address < 0) { out.textContent = '✕ 地址无效'; return }
+      const t0 = Date.now()
+      out.textContent = `读 ${fc} @ ${addrRaw} (协议地址 ${parsed.address}) count=${count} …`
+      try {
+        let data, display
+        const endpoint = `/industrial-gateway/api/modbus/${fc}`
+        if (fc === 'read_float32') {
+          // 一次读 2*count 寄存器
+          const r = await postJSON(endpoint, { address: parsed.address, count: count * 2 })
+          const words = r.values || []
+          const floats = []
+          for (let i = 0; i + 1 < words.length; i += 2) {
+            const buf = new ArrayBuffer(4)
+            const view = new DataView(buf)
+            view.setUint16(0, words[i], false)   // big-endian hi
+            view.setUint16(2, words[i + 1], false) // big-endian lo
+            floats.push(view.getFloat32(0, false))
+          }
+          data = { floats, raw: words }
+          display = floats.map((f, i) => `[${i}] ${f.toFixed(4)}`).join('  ')
+        } else {
+          const r = await postJSON(endpoint, { address: parsed.address, count })
+          data = r
+          if (fc === 'read_coils' || fc === 'read_discrete') {
+            display = (r.values || []).map((v, i) => `[${parsed.address + i}] ${v ? '● ON' : '○ OFF'}`).join('  ')
+          } else {
+            display = (r.values || []).map((v, i) => `[${parsed.address + i}] ${v}`).join('  ')
+          }
+        }
+        const ms = Date.now() - t0
+        out.innerHTML = `<span style="color:var(--ok);">✓ ${fc} @ ${addrRaw} (${ms}ms)</span>\n` +
+          `<span style="color:var(--ink-2);">空间: ${parsed.space} · 协议地址: ${parsed.address} · 长度: ${count}</span>\n` +
+          `<span style="color:var(--industrial);">${display || '(空)'}</span>`
+      } catch (e) {
+        const ms = Date.now() - t0
+        out.innerHTML = `<span style="color:var(--signal-red);">✕ ${fc} 失败 (${ms}ms)</span>\n` +
+          `<span style="color:var(--ink-3);">${e.message}</span>\n` +
+          `<span style="color:var(--ink-4);font-size:10px;">提示: 服务器可能不支持该地址/长度/类型</span>`
+      }
+    }
+
+    // 写功能执行
+    const mbTestWrite = async () => {
+      const wfc = document.getElementById('mb-test-wfc').value
+      const addrRaw = document.getElementById('mb-test-waddr').value
+      const valRaw = document.getElementById('mb-test-wval').value
+      const parsed = parseMbAddress(addrRaw)
+      const out = document.getElementById('mb-test-write-out')
+      if (parsed.address < 0) { out.textContent = '✕ 地址无效'; return }
+      if (!valRaw) { out.textContent = '✕ 值不能为空'; return }
+
+      // 按 wfc 准备 value body
+      let body
+      const kind = wfc.replace('write_', '').replace(/s$/, '')  // coil | coils | register | registers | float32
+      const value = parseMbWriteValue(valRaw, kind.replace(/s$/, ''))
+      body = { address: parsed.address, value }
+      const endpoint = `/industrial-gateway/api/modbus/${wfc}`
+
+      const t0 = Date.now()
+      out.textContent = `写 ${wfc} @ ${addrRaw} (${parsed.address}) value=${JSON.stringify(value)} …`
+      try {
+        await postJSON(endpoint, body)
+        const ms = Date.now() - t0
+        out.innerHTML = `<span style="color:var(--ok);">✓ ${wfc} @ ${addrRaw} 成功 (${ms}ms)</span>\n` +
+          `<span style="color:var(--ink-2);">空间: ${parsed.space} · 协议地址: ${parsed.address}</span>\n` +
+          `<span style="color:var(--industrial);">已写入: ${JSON.stringify(value)}</span>`
+      } catch (e) {
+        const ms = Date.now() - t0
+        out.innerHTML = `<span style="color:var(--signal-red);">✕ ${wfc} 失败 (${ms}ms)</span>\n` +
+          `<span style="color:var(--ink-3);">${e.message}</span>\n` +
+          `<span style="color:var(--ink-4);font-size:10px;">提示: 服务器可能拒绝写该地址（只读/无权限/越界）</span>`
+      }
+    }
+
+    // 预设场景
+    const mbPresets = {
+      hr_float: () => {
+        document.getElementById('mb-test-fc').value = 'read_float32'
+        document.getElementById('mb-test-addr').value = '400001'
+        document.getElementById('mb-test-count').value = '10'
+        showToast('已填入: 读保持 400001 长度 10 → 当 float32', '')
+        mbTestRead()
+      },
+      coil_write: () => {
+        document.getElementById('mb-test-wfc').value = 'write_coils'
+        document.getElementById('mb-test-waddr').value = '00001'
+        document.getElementById('mb-test-wval').value = 'true,false,true,true,false,true,false,true,true,false'
+        showToast('已填入: 写 10 线圈 @ 00001 模式 10110 10110', '')
+        mbTestWrite()
+      },
+      discrete_read: () => {
+        document.getElementById('mb-test-fc').value = 'read_discrete'
+        document.getElementById('mb-test-addr').value = '10001'
+        document.getElementById('mb-test-count').value = '10'
+        showToast('已填入: 读离散量 10001 长度 10', '')
+        mbTestRead()
+      },
+    }
+    document.querySelectorAll('[data-mb-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const fn = mbPresets[btn.dataset.mbPreset]
+        if (fn) fn()
+      })
+    })
+
+    document.getElementById('mb-test-read').addEventListener('click', mbTestRead)
+    document.getElementById('mb-test-write').addEventListener('click', mbTestWrite)
+
+    // ── Dispatcher ──
+    const applyConfig = async () => {
+      const tab = getActiveTab()
+      const applyBtn = document.getElementById('apply-btn')
+      applyBtn.disabled = true
+      const orig = applyBtn.textContent
+      applyBtn.textContent = '应用中…'
+      try {
+        if (tab === 'modbus') await applyModbus()
+        else if (tab === 'opcua') await applyOpcua()
+        else if (tab === 'mqtt') await applyMqtt()
+        else if (tab === 'tdengine') await applyTdengine()
+        else if (tab === 'anomaly') {
+          applyBtn.textContent = '注册中…'
+          await applyAnomaly()
+        }
+        setTimeout(refresh, 500)
+      } catch (e) {
+        showToast(`✕ ${e.message}`, 'error')
+      } finally {
+        applyBtn.disabled = false
+        applyBtn.textContent = orig
+      }
+    }
+
+    const disconnectDriver = async () => {
+      const tab = getActiveTab()
+      if (tab === 'anomaly') {
+        showToast('Anomaly 不需要断开', '')
+        return
+      }
+      if (tab === 'tdengine') {
+        showToast('TDengine 是存储后端，由 collector 任务维持活跃', '')
+        return
+      }
+      const path = tab === 'modbus' ? '/industrial-gateway/api/modbus/disconnect'
+                : tab === 'opcua'  ? '/industrial-gateway/api/opcua/disconnect'
+                : '/industrial-gateway/api/mqtt/disconnect'
+      try {
+        const r = await fetch(path, { method: 'POST' })
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        setStatus(tab === 'modbus' ? 'mb' : tab === 'opcua' ? 'ua' : 'mq', false)
+        showToast(`${tab.toUpperCase()} 已断开`, '')
+        setTimeout(refresh, 500)
+      } catch (e) {
+        showToast(`✕ ${e.message}`, 'error')
+      }
+    }
+
+    // ── Anomaly channel list rendering + delete ──
+    const renderAnomalyChannels = (channels) => {
+      const el = document.getElementById('an-channels')
+      if (!channels || channels.length === 0) {
+        el.innerHTML = '<span style="color:var(--ink-3);font-style:italic;">尚未注册任何通道</span>'
+        const statusEl = document.getElementById('an-status')
+        statusEl.className = 'config-status disconnected'
+        statusEl.textContent = '○ 0 通道'
+        return
+      }
+      el.innerHTML = channels.map((c) => `
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--rule-soft);">
+          <span style="color:var(--ink);font-weight:700;min-width:80px;">${c.id}</span>
+          <span style="color:var(--ink-3);flex:1;font-size:10px;">${c.table}.${c.col} [${c.low}~${c.high}] step=${c.step_threshold} drift=${c.drift_threshold}</span>
+          <button data-id="${c.id}" class="an-del-btn" type="button" style="appearance:none;background:transparent;border:1px solid var(--signal-red);color:var(--signal-red);padding:1px 6px;cursor:pointer;font-size:10px;">✕</button>
+        </div>
+      `).join('')
+      const statusEl = document.getElementById('an-status')
+      statusEl.className = 'config-status connected'
+      statusEl.textContent = `● ${channels.length} 通道已注册`
+      // Bind delete
+      el.querySelectorAll('.an-del-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const cid = btn.dataset.id
+          try {
+            await postJSON(`/industrial-gateway/api/anomaly/channel/remove?channel_id=${encodeURIComponent(cid)}`)
+            showToast(`✓ 通道 ${cid} 已移除`, '')
+            await loadAnomalyChannels()
+          } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+        })
+      })
+    }
+    const loadAnomalyChannels = async () => {
+      const d = await api('/industrial-gateway/api/anomaly/channels')
+      renderAnomalyChannels(d?.channels || [])
+    }
+
+    // ── MQTT subscription list (client-side; backend doesn't track) ──
+    const mqSubscriptions = new Set()
+    const renderMqSubs = () => {
+      const el = document.getElementById('mq-sub-list')
+      if (mqSubscriptions.size === 0) {
+        el.innerHTML = '<span style="color:var(--ink-3);font-style:italic;">尚未订阅任何 topic</span>'
+        return
+      }
+      el.innerHTML = Array.from(mqSubscriptions).map((entry) => {
+        const [topic, qos] = entry.split('|')
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--rule-soft);">
+            <span style="color:var(--ink);flex:1;">${topic}</span>
+            <span style="color:var(--ink-3);font-size:10px;">QoS ${qos}</span>
+            <button data-entry="${entry}" class="mq-unsub-btn" type="button" style="appearance:none;background:transparent;border:1px solid var(--signal-red);color:var(--signal-red);padding:1px 6px;cursor:pointer;font-size:10px;">✕</button>
+          </div>
+        `
+      }).join('')
+      el.querySelectorAll('.mq-unsub-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const [topic, qos] = btn.dataset.entry.split('|')
+          try {
+            await postJSON('/industrial-gateway/api/mqtt/unsubscribe', { topic, qos: parseInt(qos) })
+            mqSubscriptions.delete(btn.dataset.entry)
+            renderMqSubs()
+            showToast(`✓ 取消订阅 ${topic}`, '')
+          } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+        })
+      })
+    }
+
+    document.getElementById('mq-sub-add').addEventListener('click', async () => {
+      const topic = document.getElementById('mq-sub-topic').value.trim()
+      if (!topic) { showToast('✕ topic 不能为空', 'error'); return }
+      const qos = parseInt(document.getElementById('mq-sub-qos').value) || 0
+      try {
+        await postJSON('/industrial-gateway/api/mqtt/subscribe', { topic, qos })
+        mqSubscriptions.add(`${topic}|${qos}`)
+        renderMqSubs()
+        document.getElementById('mq-sub-topic').value = ''
+        showToast(`✓ 已订阅 ${topic} (QoS ${qos})`, 'success')
+      } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+    })
+
+    // Anomaly manual buttons
+    document.getElementById('an-add').addEventListener('click', async () => {
+      const btn = document.getElementById('an-add')
+      btn.disabled = true
+      try { await applyAnomaly() } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+      finally { btn.disabled = false }
+    })
+    document.getElementById('an-scan').addEventListener('click', async () => {
+      try {
+        const d = await postJSON('/industrial-gateway/api/anomaly/scan')
+        showToast(`✓ 扫描完成: ${d.count || 0} 条异常`, 'success')
+        setTimeout(refresh, 500)
+      } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+    })
+    document.getElementById('an-clear').addEventListener('click', async () => {
+      if (!confirm('确认清空所有异常历史？')) return
+      try {
+        await postJSON('/industrial-gateway/api/anomaly/clear')
+        showToast('✓ 历史已清空', 'success')
+        setTimeout(refresh, 500)
+      } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+    })
+
+    // Load anomaly channels when drawer opens (now baked into openDrawer above)
+
+    document.getElementById('apply-btn').addEventListener('click', applyConfig)
+    document.getElementById('disconnect-btn').addEventListener('click', disconnectDriver)
+
+    // MQTT message clear
+    document.getElementById('mqtt-clear-btn').addEventListener('click', async () => {
+      try {
+        await postJSON('/industrial-gateway/api/mqtt/clear')
+        showToast('✓ MQTT 消息已清空', '')
+        setTimeout(refresh, 200)
+      } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+    })
+  </script>
+</body>
+</html>
