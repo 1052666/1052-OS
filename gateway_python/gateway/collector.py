@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from gateway.tdengine_client import TdClient, TdConfig
 from gateway.modbus_client import ModbusClient, ModbusConfig
 from gateway.opcua_client import OpcuaClientWrapper, OpcuaConfig
+from gateway.mqtt_publisher import MqttPublisher
 from gateway.modbus_decoder import (
     DTYPES, ENDIANS, DEFAULT_ENDIAN, DecoderError, decode_value, register_count,
 )
@@ -78,8 +79,9 @@ class CollectTask:
 class DataCollector:
     """Background collector that polls protocols and writes to TDengine."""
 
-    def __init__(self, td_config: TdConfig | None = None):
+    def __init__(self, td_config: TdConfig | None = None, mqtt_publisher: MqttPublisher | None = None):
         self.td = TdClient(td_config)
+        self.mqtt_publisher = mqtt_publisher
         self.tasks: dict[str, CollectTask] = {}
         self._running: dict[str, bool] = {}
         self._threads: dict[str, threading.Thread] = {}
@@ -121,6 +123,27 @@ class DataCollector:
         child_table = f"{task.table}_{task.id}"
         self.td.ensure_table(child_table, task.table, {"task_id": task.id})
 
+        # Publish retained meta so NR can discover this tag
+        if self.mqtt_publisher:
+            self.mqtt_publisher.publish_meta(
+                site=task.site,
+                device=task.device or task.table,
+                tag=task.id,
+                meta={
+                    "tag": task.id,
+                    "device": task.device or task.table,
+                    "site": task.site,
+                    "protocol": task.protocol,
+                    "table": task.table,
+                    "dtype": task.dtype,
+                    "endian": task.endian,
+                    "interval": task.interval,
+                    "ua_node_id": task.ua_node_id,
+                    "ua_data_type": task.col_map.get("ua_dtype", ""),
+                },
+                retain=True,
+            )
+
         if task.protocol == "modbus":
             t = threading.Thread(target=self._poll_modbus, args=(task, child_table), daemon=True)
         elif task.protocol == "opcua":
@@ -137,6 +160,15 @@ class DataCollector:
         if t:
             t.join(timeout=5)
         self._last_values.pop(task_id, None)
+        task = self.tasks.get(task_id)
+        if self.mqtt_publisher and task:
+            self.mqtt_publisher.publish_meta(
+                site=task.site,
+                device=task.device or task.table,
+                tag=task.id,
+                meta={},
+                retain=True,
+            )
 
     def stop_all(self):
         for tid in list(self._running.keys()):
@@ -175,6 +207,18 @@ class DataCollector:
         return out
 
     # ── Internal pollers ──────────────────────────────
+
+    def _publish_value(self, task: CollectTask, value, ts: float, q: int = 192) -> None:
+        if not self.mqtt_publisher:
+            return
+        self.mqtt_publisher.publish(
+            site=task.site,
+            device=task.device or task.table,
+            tag=task.id,
+            value=value,
+            ts=ts,
+            q=q,
+        )
 
     def _poll_modbus(self, task: CollectTask, table: str):
         mb = ModbusClient(ModbusConfig(host=task.mb_host, port=task.mb_port, unit_id=task.mb_unit))
@@ -224,6 +268,7 @@ class DataCollector:
                         "type": task.dtype,
                         "ts": time.time(),
                     }
+                    self._publish_value(task, decoded, time.time())
                 except Exception as e:
                     self._last_values[task.id] = {
                         "value": None,
@@ -285,6 +330,7 @@ class DataCollector:
                                 "type": node.get("data_type", "Unknown"),
                                 "ts": time.time(),
                             }
+                            self._publish_value(task, node["value"], time.time())
                     except Exception as e:
                         self._last_values[task.id] = {
                             "value": None,
