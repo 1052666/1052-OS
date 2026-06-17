@@ -782,6 +782,7 @@
               <div id="kpi-nodered-writes-list"></div>
             </div>
             <button class="export-btn" id="export-flows-btn" type="button">⬇ Export flows.json</button>
+            <button class="export-btn" id="export-dashboard-btn" type="button">⬇ Export dashboard.json</button>
           </div>
         </div>
       </section>
@@ -1726,6 +1727,35 @@
         setTimeout(() => {
           btn.disabled = false
           btn.textContent = '⬇ Export flows.json'
+        }, 2000)
+      }
+    })
+
+    // Export dashboard.json (Node-RED Dashboard)
+    document.getElementById('export-dashboard-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('export-dashboard-btn')
+      btn.disabled = true
+      btn.textContent = '⏳ Generating...'
+      try {
+        const r = await fetch('/industrial-gateway/api/nodered/dashboard')
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const blob = await r.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = '1052os-dashboard.json'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        btn.textContent = '✓ Downloaded'
+      } catch (e) {
+        btn.textContent = '✗ Failed'
+        console.error('Export dashboard failed:', e)
+      } finally {
+        setTimeout(() => {
+          btn.disabled = false
+          btn.textContent = '⬇ Export dashboard.json'
         }, 2000)
       }
     })
