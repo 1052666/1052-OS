@@ -220,6 +220,20 @@ def test_mqtt_out_uses_correct_topic_per_protocol():
     assert "1052os/cmd/write/opcua" in topics
 
 
+def test_mqtt_out_topics_respect_custom_topic_prefix():
+    """Sub-5 control write topics follow the configured topic_prefix."""
+    tasks = {
+        "TI-101": _mk_task("TI-101", protocol="modbus"),
+        "PRESSURE": _mk_task("PRESSURE", protocol="opcua"),
+    }
+    flows = build_dashboard_flows(tasks, include_controls=True, topic_prefix="device")
+    outs = [n for n in flows if n["type"] == "mqtt out"]
+    topics = {n["topic"] for n in outs}
+    assert "device/cmd/write/modbus" in topics
+    assert "device/cmd/write/opcua" in topics
+    assert "1052os/cmd/write/modbus" not in topics
+
+
 # ── min/max from anomaly channel ───────────────────────
 
 

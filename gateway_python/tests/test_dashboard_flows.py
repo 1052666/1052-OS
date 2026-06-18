@@ -144,6 +144,19 @@ def test_mqtt_in_topic_uses_value_path():
     assert in_node["topic"] == "1052os/site1/plc1/TI-101/value"
 
 
+def test_mqtt_in_topic_respects_custom_topic_prefix():
+    """Frontend-configurable topic_prefix flows through to all topic strings."""
+    tasks = {"TI-101": _mk_task("TI-101", site="site1", device="plc1")}
+    flows = build_dashboard_flows(tasks, topic_prefix="device")
+    in_node = next(n for n in flows if n["type"] == "mqtt in" and n.get("name") == "TI-101")
+    assert in_node["topic"] == "device/site1/plc1/TI-101/value"
+    in_nodes = [n for n in flows if n["type"] == "mqtt in"]
+    # Overview / anomaly / write audit all use the custom prefix
+    assert any(n["topic"] == "device/events/status" for n in in_nodes)
+    assert any(n["topic"] == "device/events/anomaly/#" for n in in_nodes)
+    assert any(n["topic"] == "device/events/+/+" for n in in_nodes)
+
+
 def test_anomaly_text_subscribes_to_wildcard():
     flows = build_dashboard_flows({})
     in_nodes = [n for n in flows if n["type"] == "mqtt in"]

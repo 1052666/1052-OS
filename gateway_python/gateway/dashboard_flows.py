@@ -45,10 +45,12 @@ TEXT_DTYPES = {"bit", "bool", "ascii", "utf8"}
 # Default gauge segments + colors (green/yellow/red)
 DEFAULT_COLORS = ["#00B500", "#E6E600", "#CA3838"]
 
-# Sub-5: control widget write topics (matches CommandHandler subscriptions)
-CONTROL_WRITE_TOPIC = {
-    "modbus": "1052os/cmd/write/modbus",
-    "opcua":  "1052os/cmd/write/opcua",
+# Sub-5: control widget write topic templates. Final value is built per
+# protocol with the (configurable) topic_prefix; CommandHandler subscribes
+# to {prefix}/cmd/write/{modbus,opcua}.
+CONTROL_WRITE_TOPIC_FMT = {
+    "modbus": "{prefix}/cmd/write/modbus",
+    "opcua":  "{prefix}/cmd/write/opcua",
 }
 
 # dtype → (modbus_cmd, JS expression that extracts `value:` from msg.payload)
@@ -413,7 +415,8 @@ def _build_function_body_opcua(tag_id: str, url: str, node_id: str) -> str:
 
 
 def _emit_control_widgets(tasks: dict, channels: dict,
-                          seen_ids: set) -> list[dict]:
+                          seen_ids: set,
+                          topic_prefix: str = "1052os") -> list[dict]:
     """For each writable task, generate ui_switch/ui_numeric + function + mqtt out.
 
     Layout:
@@ -463,10 +466,8 @@ def _emit_control_widgets(tasks: dict, channels: dict,
             )
             fn_id = _safe_id("fn", t.id, _seen=seen_ids)
             out_id = _safe_id("out", t.id, _seen=seen_ids)
-            topic = CONTROL_WRITE_TOPIC[
-                "opcua" if getattr(t, "protocol", "modbus") == "opcua"
-                else "modbus"
-            ]
+            proto = "opcua" if getattr(t, "protocol", "modbus") == "opcua" else "modbus"
+            topic = CONTROL_WRITE_TOPIC_FMT[proto].format(prefix=topic_prefix)
             x_w, x_f, x_o = 140, 340, 540
             y = y_base + (i // 2) * 80
 
@@ -517,12 +518,13 @@ def _emit_control_widgets(tasks: dict, channels: dict,
 
 
 def _emit_tag_widgets(t, group_id: str, x: int, y: int, order: int,
-                      anomaly_channels: dict, seen_ids: set) -> list[dict]:
+                      anomaly_channels: dict, seen_ids: set,
+                      topic_prefix: str = "1052os") -> list[dict]:
     """Generate mqtt_in + ui_gauge/ui_chart (numeric) or + ui_text (text) for a tag."""
     nodes: list[dict] = []
     device = getattr(t, "device", "") or getattr(t, "table", "raw_data")
     site = getattr(t, "site", "default")
-    topic = f"1052os/{site}/{device}/{t.id}/value"
+    topic = f"{topic_prefix}/{site}/{device}/{t.id}/value"
     in_id = _safe_id("in", site, device, t.id, _seen=seen_ids)
     is_numeric = t.dtype in NUMERIC_DTYPES
 
@@ -563,7 +565,8 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
                           recent_audit: list | None = None,
                           recent_anomalies: list | None = None,
                           include_controls: bool = False,
-                          broker: str = "localhost", port: int = 1883) -> list[dict]:
+                          broker: str = "localhost", port: int = 1883,
+                          topic_prefix: str = "1052os") -> list[dict]:
     """Generate a Node-RED Dashboard flows.json array.
 
     Parameters
@@ -607,10 +610,10 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
     }
     channels = anomaly_channels or {}
 
-    # Overview: mqtt in (1052os/events/status) + ui_text
+    # Overview: mqtt in ({prefix}/events/status) + ui_text
     in_id = _safe_id("in", "overview", "status", _seen=seen_ids)
     txt_id = _safe_id("txt", "overview", "status", _seen=seen_ids)
-    flows.append(_mqtt_in_node(in_id, "Status", "1052os/events/status",
+    flows.append(_mqtt_in_node(in_id, "Status", f"{topic_prefix}/events/status",
                                 "tab_1052os", [[txt_id]], x=140, y=80))
     text = _ui_text_node(txt_id, "Gateway Status", "grp_overview", 1,
                           fmt='<i class="fa fa-heartbeat"></i> {{msg.payload}}', height=1)
@@ -632,16 +635,19 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
             x = 140
             y = 120 + (i // 2) * 100 + y_offset
             order = i + 1
-            nodes = _emit_tag_widgets(t, group_id, x, y, order, channels, seen_ids)
+            nodes = _emit_tag_widgets(
+                t, group_id, x, y, order, channels, seen_ids,
+                topic_prefix=topic_prefix,
+            )
             flows.extend(nodes)
 
     _emit_series(modbus_tasks, "grp_modbus_tags", 0)
     _emit_series(opcua_tasks, "grp_opc_ua_tags", 400)
 
-    # Anomalies: mqtt in (1052os/events/anomaly/#) + ui_text
+    # Anomalies: mqtt in ({prefix}/events/anomaly/#) + ui_text
     in_id = _safe_id("in", "anomalies", _seen=seen_ids)
     txt_id = _safe_id("txt", "anomalies", _seen=seen_ids)
-    flows.append(_mqtt_in_node(in_id, "Anomaly events", "1052os/events/anomaly/#",
+    flows.append(_mqtt_in_node(in_id, "Anomaly events", f"{topic_prefix}/events/anomaly/#",
                                 "tab_1052os", [[txt_id]], x=140, y=560))
     text = _ui_text_node(txt_id, "Recent Anomalies", "grp_anomalies", 1,
                           fmt='<b>{{msg.payload.channel}}</b> · '
@@ -652,10 +658,10 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
     text["x"], text["y"] = 340, 560
     flows.append(text)
 
-    # Recent Writes: mqtt in (1052os/events/+/+) + ui_text
+    # Recent Writes: mqtt in ({prefix}/events/+/+) + ui_text
     in_id = _safe_id("in", "writes", _seen=seen_ids)
     txt_id = _safe_id("txt", "writes", _seen=seen_ids)
-    flows.append(_mqtt_in_node(in_id, "Write audit", "1052os/events/+/+",
+    flows.append(_mqtt_in_node(in_id, "Write audit", f"{topic_prefix}/events/+/+",
                                 "tab_1052os", [[txt_id]], x=140, y=640))
     text = _ui_text_node(txt_id, "Recent Writes", "grp_recent_writes", 1,
                           fmt='{{msg.payload.cmd}} · {{msg.payload.target}} · '
@@ -667,7 +673,9 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
 
     # Sub-5: optional control widgets (ui_switch / ui_numeric + function + mqtt out)
     if include_controls:
-        control_nodes = _emit_control_widgets(tasks, channels, seen_ids)
+        control_nodes = _emit_control_widgets(
+            tasks, channels, seen_ids, topic_prefix=topic_prefix,
+        )
         flows.extend(control_nodes)
         # Track new IDs so subsequent calls (if any) remain collision-safe
         for n in control_nodes:

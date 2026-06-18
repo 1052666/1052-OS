@@ -664,8 +664,10 @@ def nodered_dashboard(controls: bool = False):
         tasks, channels,
         recent_audit=recent_audit, recent_anomalies=recent_anomalies,
         include_controls=controls,
+        topic_prefix=_mq_config.topic_prefix,
     )
-    filename = "1052os-dashboard-controls.json" if controls else "1052os-dashboard.json"
+    prefix = _mq_config.topic_prefix
+    filename = f"{prefix}-dashboard-controls.json" if controls else f"{prefix}-dashboard.json"
     body = json.dumps(flows, ensure_ascii=False, indent=2)
     return Response(
         content=body,
