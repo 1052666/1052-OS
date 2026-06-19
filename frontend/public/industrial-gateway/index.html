@@ -420,6 +420,10 @@
     table.protocols .type-badge.modbus.string { border-color: #8a4f1a; color: #8a4f1a; }
     table.protocols .type-badge.modbus.bit    { border-color: #6a6a6a; color: #6a6a6a; }
     table.protocols .type-badge.modbus.bcd    { border-color: #8a1a8a; color: #8a1a8a; }
+    table.protocols .type-badge.mqtt     { border-color: #6a3a8a; color: #6a3a8a; }
+    table.protocols .type-badge.mqtt.float  { border-color: #c8102e; color: #c8102e; }
+    table.protocols .type-badge.mqtt.string { border-color: #8a4f1a; color: #8a4f1a; }
+    table.protocols .type-badge.mqtt.payload { border-color: #3a6a8a; color: #3a6a8a; margin-left: 4px; }
     table.protocols .type-badge.endian   { border-color: var(--ink-3); color: var(--ink-3); margin-left: 4px; }
     table.protocols .col-liveval {
       font-family: 'JetBrains Mono', monospace;
@@ -607,6 +611,62 @@
     }
     .drawer-section { display: none; }
     .drawer-section.active { display: block; }
+    .nr-bar { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--rule); margin-bottom: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+    .nr-title { font-weight: 600; color: var(--ink); }
+    .nr-status { color: var(--ink-3); }
+    .nr-status.ok { color: var(--signal-green, #5fa86b); }
+    .nr-status.bad { color: var(--signal-red, #c04848); }
+    .nr-spacer { flex: 1; }
+    .nr-bar .btn { padding: 2px 8px; font-size: 10px; }
+    #nr-iframe { width: 100%; height: calc(100vh - 220px); min-height: 480px; border: 1px solid var(--rule); background: #f7f5ef; }
+    .nr-help { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-3); margin-top: 6px; line-height: 1.5; }
+    .nr-help code { background: #efece4; padding: 1px 4px; border-radius: 2px; }
+
+    /* Fullscreen overlay for Node-RED editor / dashboard iframes.
+       We don't use the browser Fullscreen API (it asks for permission) — a
+       fixed-position overlay gives the same effect with one click. */
+    .nr-fs {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #1a1a1a;
+      display: flex;
+      flex-direction: column;
+    }
+    .nr-fs-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+    .nr-fs-bar .nr-fs-title { font-weight: 600; letter-spacing: 0.05em; }
+    .nr-fs-bar .nr-fs-spacer { flex: 1; }
+    .nr-fs-bar .btn {
+      padding: 4px 12px;
+      font-size: 10px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--ink);
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.05em;
+    }
+    .nr-fs-bar .btn:hover { background: var(--accent, #c04848); color: var(--paper); }
+    .nr-fs-frame { flex: 1; border: 0; background: #f7f5ef; }
+    .nr-section-head { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink); margin: 14px 0 8px 0; padding: 4px 0; border-top: 1px solid var(--rule); font-weight: 600; }
+    .nr-demos { display: flex; flex-direction: column; gap: 6px; }
+    .nr-demo { border: 1px solid var(--rule); padding: 8px 10px; background: #f7f5ef; }
+    .nr-demo-skel { color: var(--ink-3); font-size: 11px; padding: 8px 0; }
+    .nr-demo-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .nr-demo-title { font-weight: 600; font-size: 12px; color: var(--ink); flex: 1; }
+    .nr-demo-installed { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--signal-green, #5fa86b); text-transform: uppercase; letter-spacing: 0.5px; }
+    .nr-demo-desc { font-size: 11px; color: var(--ink-3); line-height: 1.4; margin-bottom: 6px; }
+    .nr-demo-actions { display: flex; gap: 6px; }
+    .nr-demo-actions .btn { font-size: 10px; padding: 3px 10px; }
 
     .field {
       margin-bottom: 16px;
@@ -890,6 +950,9 @@
       <button class="drawer-tab active" data-tab="modbus" type="button">MODBUS</button>
       <button class="drawer-tab" data-tab="opcua" type="button">OPC UA</button>
       <button class="drawer-tab" data-tab="mqtt" type="button">MQTT</button>
+      <button class="drawer-tab" data-tab="generic" type="button">通用 / DRIVERS</button>
+      <button class="drawer-tab" data-tab="nodered" type="button">Node-RED</button>
+      <button class="drawer-tab" data-tab="dashboard" type="button">DASHBOARD</button>
       <button class="drawer-tab" data-tab="tdengine" type="button">TDENGINE</button>
       <button class="drawer-tab" data-tab="anomaly" type="button">ANOMALY</button>
     </div>
@@ -1173,7 +1236,93 @@
         </div>
 
         <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
-          <span class="num">§ B</span><h2 style="font-size:13px;">订阅 Topic</h2>
+          <span class="num">§ B</span><h2 style="font-size:13px;">MQTT 采集任务</h2>
+        </div>
+        <div class="field">
+          <label for="mq-task-id">采集任务 ID</label>
+          <input id="mq-task-id" type="text" placeholder="例如 device-temperature" />
+          <div class="field-help">作为 TDengine 子表名；同 ID 会替换</div>
+        </div>
+        <div class="field">
+          <label for="mq-task-topic">订阅 Topic（绝对路径）</label>
+          <input id="mq-task-topic" type="text" placeholder="例如 device/temperature" />
+          <div class="field-help">点此<a href="#" id="mq-fill-from-list" style="color:var(--accent);text-decoration:underline;">从 §A 已有订阅填充</a>；支持 MQTT 通配符（+/ #）</div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mq-task-payload">Payload 格式</label>
+            <select id="mq-task-payload">
+              <option value="raw">raw · 裸值（数字 / 字符串）</option>
+              <option value="json">json · 取字段</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mq-task-field">JSON 字段名（payload=json）</label>
+            <input id="mq-task-field" type="text" placeholder="value" value="value" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mq-task-dtype">数据类型</label>
+            <select id="mq-task-dtype">
+              <option value="f32">f32 · 双精度浮点（DOUBLE）</option>
+              <option value="ascii">ascii · 文本（NCHAR）</option>
+              <option value="bit">bit · 0/1</option>
+              <option value="u16">u16 · 无符号整型</option>
+              <option value="i32">i32 · 有符号整型</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="mq-task-interval">采集间隔（秒）</label>
+            <input id="mq-task-interval" type="number" min="0.1" step="0.1" placeholder="1.0" />
+            <div class="field-help">仅用于心跳 / 错误可见性；数据按 publish 频率入库</div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="mq-task-site">Site</label>
+            <input id="mq-task-site" type="text" placeholder="site1" value="site1" />
+          </div>
+          <div class="field">
+            <label for="mq-task-device">Device</label>
+            <input id="mq-task-device" type="text" placeholder="emqx" value="emqx" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="mq-task-table">TDengine 目标表</label>
+          <input id="mq-task-table" type="text" placeholder="device_data" value="device_data" />
+          <div class="field-help">MQTT 是第三种采集协议；写入路径与 Modbus / OPC UA 一致（每任务一张子表）</div>
+        </div>
+        <div class="field-row">
+          <button class="btn btn-primary" id="mq-task-add" type="button" style="flex:1;">+ 添加采集任务</button>
+        </div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ C</span><h2 style="font-size:13px;">批量添加 MQTT 源</h2>
+        </div>
+        <div class="field">
+          <label for="mq-bulk">源清单（每行一个）</label>
+          <textarea id="mq-bulk" rows="6" style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:6px 8px;background:var(--paper);border:1px solid var(--ink-4);resize:vertical;min-height:80px;" placeholder="格式: TAG  TOPIC  PAYLOAD  FIELD  DTYPE  INTERVAL  TABLE&#10;# 例 (EMQX 仿真器 7 测点):&#10;TEMP      device/temperature  json  value  f32   1.0  device_data&#10;HUMIDITY  device/humidity     json  value  f32   1.0  device_data&#10;PRESSURE  device/pressure     json  value  f32   2.0  device_data&#10;FLOW_RATE device/flow_rate    json  value  f32   1.0  device_data&#10;POWER     device/power        json  value  f32   1.0  device_data&#10;STATUS    device/status       json  value  ascii 1.0  device_data&#10;ALARM     device/alarm        json  value  ascii 1.0  device_data"></textarea>
+          <div class="field-help">列以空格/Tab 分隔。省略列默认：PAYLOAD=json、FIELD=value、DTYPE=f32、INTERVAL=1.0、TABLE=取本节输入框。Broker 凭据继承 §A</div>
+        </div>
+        <div class="field-row">
+          <div class="field" style="display:flex;align-items:center;gap:6px;">
+            <input id="mq-bulk-autostart" type="checkbox" checked style="width:auto;margin:0;" />
+            <label for="mq-bulk-autostart" style="margin:0;cursor:pointer;">添加后立即启动</label>
+          </div>
+          <div class="field" style="display:flex;align-items:center;gap:6px;">
+            <input id="mq-bulk-shared-table" type="checkbox" checked style="width:auto;margin:0;" />
+            <label for="mq-bulk-shared-table" style="margin:0;cursor:pointer;">使用共享表（忽略行内 TABLE）</label>
+          </div>
+        </div>
+        <div class="field-row">
+          <button class="btn btn-primary" id="mq-bulk-go" type="button" style="flex:1;">BULK ADD</button>
+          <button class="btn" id="mq-bulk-template" type="button" style="flex:0 0 auto;">填入示例</button>
+        </div>
+        <div id="mq-bulk-progress" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);margin-top:4px;min-height:14px;"></div>
+
+        <div class="section-head" style="margin: 24px 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ D</span><h2 style="font-size:13px;">事件订阅（仅 Event Log 显示用）</h2>
         </div>
         <div class="field">
           <label for="mq-sub-topic">Topic 名称</label>
@@ -1196,6 +1345,105 @@
           <span style="color:var(--ink-3);font-style:italic;">尚未订阅任何 topic</span>
         </div>
         <div class="field-help" style="margin-top:6px;">订阅消息会出现在下方 Event Log；取消订阅请点击 ✕</div>
+      </section>
+
+      <!-- ═══ Generic driver form (schema-driven) ═══ -->
+      <section class="drawer-section" data-section="generic">
+        <div class="config-status disconnected" id="generic-status">○ 加载 schemas…</div>
+        <div class="section-head" style="margin: 0 0 12px 0; padding-bottom: 4px;">
+          <span class="num">§ A</span><h2 style="font-size:13px;">通用驱动 · schema-driven</h2>
+        </div>
+        <div class="field-help" style="margin-bottom:12px;">
+          此页完全由后端 <code>GET /api/collector/schemas</code> 驱动。后端新增 driver = 此页自动出现新的协议面板，无需修改前端代码。
+        </div>
+
+        <div class="field">
+          <label for="generic-protocol">协议</label>
+          <select id="generic-protocol"></select>
+          <div class="field-help" id="generic-protocol-help"></div>
+        </div>
+
+        <div class="section-head" style="margin: 12px 0 8px 0; padding-bottom: 4px;">
+          <span class="num">§ B</span><h2 style="font-size:13px;">驱动配置（来自 Pydantic schema）</h2>
+        </div>
+        <div id="generic-config-fields"></div>
+
+        <div class="section-head" style="margin: 12px 0 8px 0; padding-bottom: 4px;">
+          <span class="num">§ C</span><h2 style="font-size:13px;">采集任务公共参数</h2>
+        </div>
+        <div class="field">
+          <label for="generic-task-id">任务 ID</label>
+          <input id="generic-task-id" type="text" placeholder="例如 TEMP_001" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="generic-interval">采集间隔（秒）</label>
+            <input id="generic-interval" type="number" min="0.1" step="0.1" value="1.0" />
+          </div>
+          <div class="field">
+            <label for="generic-table">TDengine 目标表</label>
+            <input id="generic-table" type="text" value="raw_data" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="generic-site">Site</label>
+            <input id="generic-site" type="text" value="default" />
+          </div>
+          <div class="field">
+            <label for="generic-device">Device</label>
+            <input id="generic-device" type="text" placeholder="(defaults to table)" />
+          </div>
+        </div>
+
+        <div class="field-row" style="margin-top:12px;">
+          <button class="btn btn-primary" id="generic-add" type="button" style="flex:1;">+ 添加采集任务</button>
+        </div>
+        <div id="generic-result" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);margin-top:6px;min-height:14px;white-space:pre-wrap;"></div>
+      </section>
+
+      <!-- ═══ Node-RED editor (embedded iframe) ═══ -->
+      <section class="drawer-section" data-section="nodered">
+        <div class="nr-bar">
+          <span class="nr-title">Node-RED Editor</span>
+          <span class="nr-status" id="nr-status">○ checking…</span>
+          <span class="nr-spacer"></span>
+          <button class="btn" id="nr-restart-btn" type="button" title="Restart Node-RED child process">↻ Restart</button>
+          <button class="btn" id="nr-reset-btn" type="button" title="Re-seed the bootstrap flow">⌂ Reset Bootstrap</button>
+          <button class="btn" id="nr-fullscreen-btn" type="button" title="Expand editor to full viewport (Esc to exit)">⛶ Fullscreen</button>
+          <a class="btn" href="/industrial-gateway/nodered" target="_blank" rel="noopener">↗ Open in new tab</a>
+        </div>
+        <iframe id="nr-iframe"
+                src="/industrial-gateway/nodered"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+                referrerpolicy="no-referrer"></iframe>
+
+        <div class="nr-section-head">📦 示例 Flows</div>
+        <div id="nr-demos" class="nr-demos">
+          <div class="nr-demo-skel">加载中…</div>
+        </div>
+
+        <div class="nr-help">
+          拖节点配置任意协议 (modbus / opc ua / s7 / mqtt / http / ...) → 接 <code>http request</code> 节点 POST
+          <code>/industrial-gateway/api/td/insert</code> 写入 TDengine。Python 0 改动。
+        </div>
+      </section>
+
+      <!-- ═══ Node-RED Dashboard ═══ -->
+      <section class="drawer-section" data-section="dashboard">
+        <div class="nr-bar">
+          <span class="nr-title">Node-RED Dashboard</span>
+          <span class="nr-spacer"></span>
+          <button class="btn" id="dash-fullscreen-btn" type="button" title="Expand dashboard to full viewport (Esc to exit)">⛶ Fullscreen</button>
+          <a class="btn" href="/industrial-gateway/nodered/ui" target="_blank" rel="noopener">↗ Open in new tab</a>
+        </div>
+        <iframe id="dash-iframe"
+                src="/industrial-gateway/nodered/ui"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups"
+                referrerpolicy="no-referrer"></iframe>
+        <div class="nr-help">
+          Node-RED 官方 <code>node-red-dashboard</code>。在 <code>Node-RED</code> tab 拖入 <code>ui_*</code> 节点即可在此处显示实时图表、仪表盘、按钮。
+        </div>
       </section>
 
       <!-- ═══ TDengine form ═══ -->
@@ -1368,11 +1616,11 @@
     // Render — protocol matrix
     // ─────────────────────────────────────────
     const PROTOCOL_DEFS = [
-      { id: 'modbus',    label: 'Modbus',     desc: 'PLC / Field device telemetry' },
-      { id: 'opcua',     label: 'OPC UA',     desc: 'Industrial M2M protocol' },
-      { id: 'mqtt',      label: 'MQTT',       desc: 'Pub/Sub telemetry transport' },
-      { id: 'tdengine',  label: 'TDengine',   desc: 'Time-series data store' },
-      { id: 'anomaly',   label: 'Anomaly',    desc: 'Threshold / step / drift detection' },
+      { id: 'modbus',    label: 'Modbus',     desc: 'PLC / Field device telemetry', source: 'builtin' },
+      { id: 'opcua',     label: 'OPC UA',     desc: 'Industrial M2M protocol',      source: 'builtin' },
+      { id: 'mqtt',      label: 'MQTT',       desc: 'Pub/Sub telemetry transport',  source: 'builtin' },
+      { id: 'tdengine',  label: 'TDengine',   desc: 'Time-series data store',       source: 'system' },
+      { id: 'anomaly',   label: 'Anomaly',    desc: 'Threshold / step / drift detection', source: 'system' },
     ]
 
     const renderProtocols = (health) => {
@@ -1381,12 +1629,32 @@
         tbody.innerHTML = '<tr><td colspan="6" class="empty-state">gateway offline</td></tr>'
         return
       }
-      tbody.innerHTML = PROTOCOL_DEFS.map((p, i) => {
+      // Merge static subsystems (tdengine/anomaly) with any drivers reported
+      // by /api/collector/schemas. Drivers auto-appear in the matrix when a
+      // new driver module is registered on the backend.
+      const fromSchemas = (GENERIC_DRIVERS || []).map(d => ({
+        id: d.name, label: d.label,
+        desc: d.readonly ? `${d.label} (read-only)` : d.label,
+        source: 'driver',
+      }))
+      const merged = []
+      const seen = new Set()
+      for (const p of [...PROTOCOL_DEFS, ...fromSchemas]) {
+        if (seen.has(p.id)) continue
+        seen.add(p.id)
+        merged.push(p)
+      }
+      tbody.innerHTML = merged.map((p, i) => {
         const ok = !!health[p.id]
+        const sourceTag = p.source === 'driver'
+          ? `<span class="tag" style="color:var(--accent);">driver · auto</span>`
+          : p.source === 'system'
+          ? `<span class="tag" style="color:var(--ink-3);">system</span>`
+          : `<span class="tag">protocol</span>`
         return `
           <tr>
             <td class="col-num">${pad2(i+1)}</td>
-            <td class="col-name">${p.label}<span class="tag">${p.desc}</span></td>
+            <td class="col-name">${p.label}${sourceTag}<span class="tag">${p.desc}</span></td>
             <td class="col-state"><span class="pill ${ok ? 'pill-on' : 'pill-off'}">${ok ? '● ON' : '○ OFF'}</span></td>
             <td class="col-rtt" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);">—</td>
             <td class="col-points" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-3);">—</td>
@@ -1480,7 +1748,7 @@
       const countEl = document.getElementById('collector-count')
       const tasks = resp?.tasks || []
       if (tasks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">no collector tasks — add one via MODBUS / OPC UA tab</td></tr>'
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">no collector tasks — add one via MODBUS / OPC UA / MQTT tab</td></tr>'
         countEl.textContent = '0 registered'
         return
       }
@@ -1488,14 +1756,30 @@
       tbody.innerHTML = tasks.map((t, i) => {
         const running = !!t.running
         const proto = (t.protocol || 'modbus').toUpperCase()
-        const endpoint = t.protocol === 'opcua'
-          ? (t.ua_url || 'opc.tcp://—')
-          : `${t.mb_host || '—'}:${t.mb_port || 502}/${t.mb_register || 'holding'}@${t.mb_address ?? 0}#${t.mb_count ?? 1}`
-        // Type cell — modbus: dtype+endian badge; opcua: node id
+        // Endpoint cell — protocol-specific
+        let endpoint = ''
+        if (t.protocol === 'opcua') {
+          endpoint = t.ua_url || 'opc.tcp://—'
+        } else if (t.protocol === 'mqtt') {
+          const host = t.mq_broker_host || '—'
+          const port = t.mq_broker_port || 1883
+          const topic = t.mq_topic || '—'
+          endpoint = `${host}:${port} · ${topic}`
+        } else {
+          endpoint = `${t.mb_host || '—'}:${t.mb_port || 502}/${t.mb_register || 'holding'}@${t.mb_address ?? 0}#${t.mb_count ?? 1}`
+        }
+        // Type cell — protocol-specific
         let typeCell = '<span style="color:var(--ink-4);">—</span>'
         if (t.protocol === 'opcua') {
           const nid = t.ua_node_id || '—'
           typeCell = `<span class="type-badge opcua" title="OPC UA node id">${nid.length > 28 ? nid.slice(0, 25) + '…' : nid}</span>`
+        } else if (t.protocol === 'mqtt') {
+          const dt = t.dtype || 'f32'
+          const payload = t.mq_payload || 'raw'
+          const field = t.mq_field || 'value'
+          const dtCls = (dt === 'f32' || dt === 'f64') ? 'mqtt float' : (dt === 'ascii' || dt === 'utf8') ? 'mqtt string' : 'mqtt'
+          typeCell = `<span class="type-badge ${dtCls}">${dt}</span>`
+                + `<span class="type-badge mqtt payload" title="payload=${payload}, field=${field}">${payload}:${field}</span>`
         } else {
           // modbus: show dtype + endian as two adjacent badges
           const dt = t.dtype || 'u16'
@@ -1514,7 +1798,13 @@
         } else if (t.last_value !== undefined && t.last_value !== null) {
           const v = String(t.last_value)
           const tp = t.last_type || ''
-          const cls = t.protocol === 'opcua' ? 'opcua' : (tp === 'f32' || tp === 'f64' || tp === 'duration') ? 'modbus float' : 'modbus'
+          let cls = 'modbus'
+          if (t.protocol === 'opcua') cls = 'opcua'
+          else if (t.protocol === 'mqtt') {
+            cls = (tp === 'f32' || tp === 'f64') ? 'mqtt float' : (tp === 'ascii' || tp === 'utf8') ? 'mqtt string' : 'mqtt'
+          } else {
+            cls = (tp === 'f32' || tp === 'f64' || tp === 'duration') ? 'modbus float' : 'modbus'
+          }
           lastCell = `<span class="col-liveval">${escHtml(v)}</span><span class="type-badge ${cls}" style="margin-left:4px;">${escHtml(tp)}</span>`
         } else if (running) {
           lastCell = '<span style="color:var(--ink-4);font-size:10px;">polling…</span>'
@@ -1827,6 +2117,87 @@
       })
     })
 
+    // Fullscreen mode for Node-RED editor / dashboard iframes.
+    // We use the browser's native Fullscreen API on the live iframe — it
+    // handles Esc automatically and preserves scroll/connection state.
+    // Falls back to a CSS overlay if the Fullscreen API is unavailable.
+    let _fsOverlay = null
+    let _fsIframe = null
+
+    const exitFullscreen = () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.()
+        return
+      }
+      if (_fsOverlay) {
+        _fsOverlay.remove()
+        _fsOverlay = null
+        _fsIframe = null
+      }
+    }
+
+    const enterFullscreen = async (iframeId) => {
+      const iframe = document.getElementById(iframeId)
+      if (!iframe) return
+      _fsIframe = iframe
+      // Try native fullscreen first — works in Chromium, Firefox, Safari
+      // (with vendor prefix). User gesture is satisfied because we are
+      // called from a click handler.
+      const req = iframe.requestFullscreen
+        || iframe.webkitRequestFullscreen
+        || iframe.mozRequestFullScreen
+        || iframe.msRequestFullscreen
+      if (req) {
+        try { await req.call(iframe); return } catch (_) { /* fall through to overlay */ }
+      }
+      // Fallback: CSS overlay
+      _fsOverlay = document.createElement('div')
+      _fsOverlay.className = 'nr-fs'
+      const bar = document.createElement('div')
+      bar.className = 'nr-fs-bar'
+      const title = document.createElement('span')
+      title.className = 'nr-fs-title'
+      title.textContent = iframeId === 'nr-iframe' ? 'Node-RED Editor — fullscreen' : 'Node-RED Dashboard — fullscreen'
+      const spacer = document.createElement('span')
+      spacer.className = 'nr-fs-spacer'
+      const exitBtn = document.createElement('button')
+      exitBtn.className = 'btn'
+      exitBtn.type = 'button'
+      exitBtn.textContent = '✕ Exit Fullscreen (Esc)'
+      exitBtn.addEventListener('click', exitFullscreen)
+      bar.append(title, spacer, exitBtn)
+      const frame = document.createElement('iframe')
+      frame.className = 'nr-fs-frame'
+      frame.src = iframe.src
+      frame.sandbox = iframe.sandbox
+      frame.referrerPolicy = iframe.referrerPolicy || 'no-referrer'
+      _fsOverlay.append(bar, frame)
+      document.body.appendChild(_fsOverlay)
+      // Defer focus so Esc reaches parent, not the iframe.
+      setTimeout(() => { try { document.activeElement?.blur?.() } catch (_) {} exitBtn.focus() }, 60)
+    }
+
+    document.getElementById('nr-fullscreen-btn')?.addEventListener('click', () => {
+      enterFullscreen('nr-iframe')
+    })
+    document.getElementById('dash-fullscreen-btn')?.addEventListener('click', () => {
+      enterFullscreen('dash-iframe')
+    })
+
+    // Esc closes the CSS-overlay fallback; native fullscreen has its own handler.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && _fsOverlay) {
+        e.stopPropagation()
+        e.preventDefault()
+        exitFullscreen()
+      }
+    })
+
+    // Sync state when user exits native fullscreen via browser UI.
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) { _fsIframe = null }
+    })
+
     const showToast = (msg, mood = '') => {
       toast.textContent = msg
       toast.className = 'toast show ' + mood
@@ -2003,6 +2374,115 @@
       setStatus('mq', conn.connected ?? true)
       showToast(`✓ MQTT ${host}:${port} 已连接`, 'success')
     }
+
+    // ── MQTT: collect broker config from §A so §B/§C can inherit it ──
+    const collectMqttBroker = () => {
+      const host = document.getElementById('mq-host').value.trim() || '127.0.0.1'
+      const port = parseInt(document.getElementById('mq-port').value) || 1883
+      const user = document.getElementById('mq-user').value.trim()
+      const pass = document.getElementById('mq-pass').value
+      return {
+        mq_broker_host: host,
+        mq_broker_port: port,
+        ...(user ? { mq_username: user } : {}),
+        ...(pass ? { mq_password: pass } : {}),
+      }
+    }
+
+    // ── MQTT: add a single source task (§B form) ──
+    const addTaskMqtt = async () => {
+      const taskId = document.getElementById('mq-task-id').value.trim()
+      const topic = document.getElementById('mq-task-topic').value.trim()
+      if (!taskId) throw new Error('采集任务 ID 不能为空')
+      if (!topic) throw new Error('订阅 Topic 不能为空')
+      const payload = document.getElementById('mq-task-payload').value
+      const field = document.getElementById('mq-task-field').value.trim() || 'value'
+      const dtype = document.getElementById('mq-task-dtype').value
+      const interval = parseFloat(document.getElementById('mq-task-interval').value) || 1.0
+      const site = document.getElementById('mq-task-site').value.trim() || 'site1'
+      const device = document.getElementById('mq-task-device').value.trim() || 'emqx'
+      const table = document.getElementById('mq-task-table').value.trim() || 'device_data'
+
+      const task = {
+        id: taskId, protocol: 'mqtt', dtype,
+        mq_topic: topic, mq_qos: 0,
+        mq_payload: payload, mq_field: field,
+        site, device, table, interval,
+        ...collectMqttBroker(),
+      }
+      await postJSON('/industrial-gateway/api/collector/add', task)
+      await postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(taskId)}`)
+      showToast(`✓ MQTT 源 ${taskId} (${topic}) 已添加并启动`, 'success')
+    }
+
+    // ── MQTT: bulk add from textarea (§C) ──
+    const MQTT_BULK_TEMPLATE = `# MQTT 批量源（Broker 凭据继承 §A）
+# 格式: TAG  TOPIC  PAYLOAD  FIELD  DTYPE  INTERVAL  TABLE
+# 合法 DTYPE: f32 | ascii | bit | u16 | i32 | f64 | u32
+# PAYLOAD 缺省 json；FIELD 缺省 value；TABLE 缺省共享表
+TEMP      device/temperature  json  value  f32   1.0  device_data
+HUMIDITY  device/humidity     json  value  f32   1.0  device_data
+PRESSURE  device/pressure     json  value  f32   2.0  device_data
+FLOW_RATE device/flow_rate    json  value  f32   1.0  device_data
+POWER     device/power        json  value  f32   1.0  device_data
+STATUS    device/status       json  value  ascii 1.0  device_data
+ALARM     device/alarm        json  value  ascii 1.0  device_data
+`
+    const VALID_MQTT_DTYPES = new Set(['f32','f64','ascii','bit','u8','u16','u32','u64','i8','i16','i32','i64','bcd16','bcd32'])
+
+    const bulkAddMqtt = async () => {
+      const raw = document.getElementById('mq-bulk').value
+      const lines = parseBulkLines(raw)
+      if (lines.length === 0) {
+        setBulkProgress('mq-bulk-progress', '✕ 列表为空', 'error')
+        showToast('✕ MQTT 源列表为空', 'error')
+        return
+      }
+      const sharedTable = document.getElementById('mq-task-table').value.trim() || 'device_data'
+      const useSharedTable = document.getElementById('mq-bulk-shared-table').checked
+      const autostart = document.getElementById('mq-bulk-autostart').checked
+      const broker = collectMqttBroker()
+
+      const buildTask = (it) => {
+        const [tag, topic, payloadStr, fieldStr, dtypeStr, intervalStr, tableStr] = it.cols
+        if (!tag || !topic) return null
+        const payload = (payloadStr || 'json').toLowerCase()
+        if (!['raw','json'].includes(payload)) return null
+        const field = fieldStr || 'value'
+        const dtype = (dtypeStr || 'f32').toLowerCase()
+        if (!VALID_MQTT_DTYPES.has(dtype)) return null
+        const interval = parseFloat(intervalStr) || 1.0
+        const table = (useSharedTable || !tableStr) ? sharedTable : tableStr
+        return {
+          id: tag, protocol: 'mqtt', dtype,
+          mq_topic: topic, mq_qos: 0,
+          mq_payload: payload, mq_field: field,
+          table, interval,
+          site: 'site1', device: 'emqx',
+          ...broker,
+        }
+      }
+      const doAdd = (task) => postJSON('/industrial-gateway/api/collector/add', task)
+      const doStart = autostart
+        ? (task) => postJSON(`/industrial-gateway/api/collector/start?task_id=${encodeURIComponent(task.id)}`)
+        : null
+
+      await runBulkAdd(lines, buildTask, doAdd, doStart, 'mq-bulk-progress', 'MQTT 源')
+    }
+
+    // §B "从 §A 已有订阅填充" link — prefill topic from §D subscription list
+    document.getElementById('mq-fill-from-list')?.addEventListener('click', (e) => {
+      e.preventDefault()
+      const list = document.getElementById('mq-sub-list')
+      const topicSpan = list?.querySelector('[data-mqtt-topic]')
+      const t = topicSpan?.getAttribute('data-mqtt-topic')
+      if (!t) {
+        showToast('✕ §A 暂无订阅，先在下面加一条', 'error')
+        return
+      }
+      document.getElementById('mq-task-topic').value = t
+      showToast(`✓ 已填入 ${t}`, '')
+    })
 
     // ── Anomaly: register channel (no driver/connect) ──
     const applyAnomaly = async () => {
@@ -2285,6 +2765,46 @@ LI-401  ns=2;s=Device1.Level     5.0  raw_data
     document.getElementById('ua-bulk-template').addEventListener('click', () => {
       document.getElementById('ua-bulk').value = UA_BULK_TEMPLATE
       showToast('✓ 已填充 OPC UA 模板（请改 NODE_ID）', '')
+    })
+
+    // ── MQTT 采集任务：单条 / 批量 ──
+    document.getElementById('mq-task-add').addEventListener('click', async () => {
+      const btn = document.getElementById('mq-task-add')
+      btn.disabled = true
+      const orig = btn.textContent
+      btn.textContent = '添加中…'
+      try {
+        // Make sure broker is configured + connected first (§A).
+        await applyMqtt()
+        await addTaskMqtt()
+        await refresh()
+      } catch (e) {
+        showToast(`✕ ${e.message}`, 'error')
+      } finally {
+        btn.disabled = false
+        btn.textContent = orig
+      }
+    })
+    document.getElementById('mq-bulk-go').addEventListener('click', async () => {
+      const btn = document.getElementById('mq-bulk-go')
+      btn.disabled = true
+      const orig = btn.textContent
+      btn.textContent = '批量添加中…'
+      try {
+        await applyMqtt()
+        await bulkAddMqtt()
+        await refresh()
+      } catch (e) {
+        setBulkProgress('mq-bulk-progress', `✕ ${e.message}`, 'error')
+        showToast(`✕ ${e.message}`, 'error')
+      } finally {
+        btn.disabled = false
+        btn.textContent = orig
+      }
+    })
+    document.getElementById('mq-bulk-template').addEventListener('click', () => {
+      document.getElementById('mq-bulk').value = MQTT_BULK_TEMPLATE
+      showToast('✓ 已填充 MQTT 源模板（EMQX 7 测点示例）', '')
     })
 
     // ─────────────────────────────────────────
@@ -2705,6 +3225,9 @@ LI-401  ns=2;s=Device1.Level     5.0  raw_data
         else if (tab === 'anomaly') {
           applyBtn.textContent = '注册中…'
           await applyAnomaly()
+        } else if (tab === 'generic') {
+          // Generic tab does its own per-task add via the schema-driven form.
+          showToast('通用 tab: 在 §B / §C 直接添加任务即可', '')
         }
         setTimeout(refresh, 500)
       } catch (e) {
@@ -2723,6 +3246,10 @@ LI-401  ns=2;s=Device1.Level     5.0  raw_data
       }
       if (tab === 'tdengine') {
         showToast('TDengine 是存储后端，由 collector 任务维持活跃', '')
+        return
+      }
+      if (tab === 'generic') {
+        showToast('通用 tab: 在 §04 Collector Tasks 表格里逐个 STOP 任务', '')
         return
       }
       const path = tab === 'modbus' ? '/industrial-gateway/api/modbus/disconnect'
@@ -2847,6 +3374,240 @@ LI-401  ns=2;s=Device1.Level     5.0  raw_data
 
     document.getElementById('apply-btn').addEventListener('click', applyConfig)
     document.getElementById('disconnect-btn').addEventListener('click', disconnectDriver)
+
+    // ─────────────────────────────────────────
+    // Generic / schema-driven driver UI
+    //
+    // The "通用 / DRIVERS" drawer tab renders forms from
+    // GET /api/collector/schemas. Adding a new driver on the backend
+    // (gateway/drivers/<name>.py) automatically appears here — no
+    // frontend change required.
+    // ─────────────────────────────────────────
+    let GENERIC_DRIVERS = []  // cached list from /api/collector/schemas
+
+    const loadDriverSchemas = async () => {
+      try {
+        const r = await fetch('/industrial-gateway/api/collector/schemas')
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const body = await r.json()
+        GENERIC_DRIVERS = body.drivers || []
+        renderGenericProtocolSelect()
+        renderGenericConfigFields()
+        const status = document.getElementById('generic-status')
+        status.className = 'config-status connected'
+        status.textContent = `✓ ${GENERIC_DRIVERS.length} 个驱动`
+      } catch (e) {
+        const status = document.getElementById('generic-status')
+        status.className = 'config-status disconnected'
+        status.textContent = `✕ schemas 加载失败: ${e.message}`
+      }
+    }
+
+    const renderGenericProtocolSelect = () => {
+      const sel = document.getElementById('generic-protocol')
+      const help = document.getElementById('generic-protocol-help')
+      sel.innerHTML = GENERIC_DRIVERS.map(d =>
+        `<option value="${d.name}">${d.label} (${d.name})</option>`
+      ).join('')
+      const cur = sel.value || (GENERIC_DRIVERS[0] && GENERIC_DRIVERS[0].name)
+      if (cur) {
+        sel.value = cur
+        const d = GENERIC_DRIVERS.find(x => x.name === cur)
+        help.textContent = d
+          ? (d.readonly
+              ? `${d.label} 是只读 source 协议，无写路径。`
+              : `${d.label} 任务在采集的同时可被 Node-RED 控制面板写入。`)
+          : ''
+      }
+    }
+
+    const renderGenericConfigFields = () => {
+      const container = document.getElementById('generic-config-fields')
+      const name = document.getElementById('generic-protocol').value
+      const driver = GENERIC_DRIVERS.find(d => d.name === name)
+      if (!driver) { container.innerHTML = ''; return }
+      container.innerHTML = driver.fields.map(f => {
+        const id = `generic-cfg-${f.key}`
+        let input
+        if (f.type === 'select') {
+          input = `<select id="${id}">${(f.options || []).map(o =>
+            `<option value="${o}">${o}</option>`).join('')}</select>`
+        } else if (f.type === 'number') {
+          input = `<input id="${id}" type="number" step="any" placeholder="${f.default ?? ''}" />`
+        } else if (f.type === 'password') {
+          input = `<input id="${id}" type="password" autocomplete="off" />`
+        } else {
+          input = `<input id="${id}" type="text" placeholder="${f.default ?? ''}" />`
+        }
+        return `
+          <div class="field">
+            <label for="${id}">${f.label}</label>
+            ${input}
+          </div>
+        `
+      }).join('')
+    }
+
+    const collectGenericConfig = (driver) => {
+      const cfg = {}
+      for (const f of driver.fields) {
+        const el = document.getElementById(`generic-cfg-${f.key}`)
+        if (!el) continue
+        let v = el.value
+        if (f.type === 'number') {
+          v = v === '' ? null : Number(v)
+        } else if (f.type === 'password' || f.key === 'password') {
+          // omit empty passwords
+          if (!v) continue
+        } else if (f.type !== 'select') {
+          // omit empty strings except where the schema's default is non-empty
+          if (v === '') continue
+        }
+        cfg[f.key] = v
+      }
+      return cfg
+    }
+
+    const submitGenericTask = async () => {
+      const out = document.getElementById('generic-result')
+      const name = document.getElementById('generic-protocol').value
+      const driver = GENERIC_DRIVERS.find(d => d.name === name)
+      const taskId = document.getElementById('generic-task-id').value.trim()
+      if (!driver) { out.textContent = '✕ 请选择协议'; return }
+      if (!taskId) { out.textContent = '✕ 任务 ID 不能为空'; return }
+      const body = {
+        id: taskId,
+        protocol: name,
+        config: collectGenericConfig(driver),
+        interval: parseFloat(document.getElementById('generic-interval').value) || 1.0,
+        table: document.getElementById('generic-table').value.trim() || 'raw_data',
+        site: document.getElementById('generic-site').value.trim() || 'default',
+        device: document.getElementById('generic-device').value.trim() || '',
+      }
+      try {
+        const r = await fetch('/industrial-gateway/api/collector/add_v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const resp = await r.json()
+        if (!r.ok) throw new Error(resp.detail || `HTTP ${r.status}`)
+        out.innerHTML = `<span style="color:var(--ok);">✓ 已添加 ${name} 任务 ${taskId}</span>\n` +
+          `<span style="color:var(--ink-3);">${JSON.stringify(resp.task || resp, null, 0).slice(0, 200)}</span>`
+        setTimeout(refresh, 600)
+      } catch (e) {
+        out.innerHTML = `<span style="color:var(--signal-red);">✕ ${e.message}</span>`
+      }
+    }
+
+    document.getElementById('generic-protocol').addEventListener('change', () => {
+      // Only re-render the dynamic fields. Don't touch the select itself —
+      // rebuilding it would clobber the user's just-chosen value.
+      const help = document.getElementById('generic-protocol-help')
+      const d = GENERIC_DRIVERS.find(x => x.name === document.getElementById('generic-protocol').value)
+      if (help && d) {
+        help.textContent = d.readonly
+          ? `${d.label} 是只读 source 协议，无写路径。`
+          : `${d.label} 任务在采集的同时可被 Node-RED 控制面板写入。`
+      }
+      renderGenericConfigFields()
+    })
+    document.getElementById('generic-add').addEventListener('click', submitGenericTask)
+    loadDriverSchemas()
+
+    // ── Node-RED tab: status polling + restart/reset handlers ──
+    const nrStatus = document.getElementById('nr-status')
+    const refreshNodeRedStatus = async () => {
+      if (!nrStatus) return
+      try {
+        const r = await fetch('/industrial-gateway/api/nodered/runtime')
+        const j = await r.json()
+        if (!j.available) {
+          nrStatus.textContent = '○ unavailable'
+          nrStatus.className = 'nr-status bad'
+        } else if (j.running) {
+          nrStatus.textContent = `● running · port ${j.port} · pid ${j.pid} · up ${j.uptime_s ?? 0}s`
+          nrStatus.className = 'nr-status ok'
+        } else {
+          nrStatus.textContent = '○ starting…'
+          nrStatus.className = 'nr-status bad'
+        }
+      } catch (e) {
+        nrStatus.textContent = '✕ fetch failed'
+        nrStatus.className = 'nr-status bad'
+      }
+    }
+    refreshNodeRedStatus()
+    setInterval(refreshNodeRedStatus, 3000)
+
+    document.getElementById('nr-restart-btn')?.addEventListener('click', async () => {
+      try {
+        await postJSON('/industrial-gateway/api/nodered/restart', {})
+        showToast('✓ Node-RED restarting…', '')
+        setTimeout(refreshNodeRedStatus, 2000)
+      } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+    })
+    document.getElementById('nr-reset-btn')?.addEventListener('click', async () => {
+      try {
+        await postJSON('/industrial-gateway/api/nodered/reset-bootstrap', {})
+        showToast('✓ Bootstrap flow reseeded (redeploy from editor)', '')
+      } catch (e) { showToast(`✕ ${e.message}`, 'error') }
+    })
+
+    // ── Node-RED tab: example flow registry ──
+    const nrDemosEl = document.getElementById('nr-demos')
+    const renderDemos = (demos, installed) => {
+      if (!nrDemosEl) return
+      if (!demos || !demos.length) {
+        nrDemosEl.innerHTML = '<div class="nr-demo-skel">无可用示例</div>'
+        return
+      }
+      const installedSet = new Set(installed || [])
+      nrDemosEl.innerHTML = demos.map(d => `
+        <div class="nr-demo">
+          <div class="nr-demo-head">
+            <span class="nr-demo-title">${d.label}</span>
+            ${installedSet.has(d.name) ? '<span class="nr-demo-installed">✓ 已安装</span>' : ''}
+          </div>
+          <div class="nr-demo-desc">${d.description}</div>
+          <div class="nr-demo-actions">
+            <button class="btn" data-demo-install="${d.name}" type="button">
+              ${installedSet.has(d.name) ? '↻ 重新安装' : '+ 安装'}
+            </button>
+          </div>
+        </div>
+      `).join('')
+      nrDemosEl.querySelectorAll('[data-demo-install]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const name = btn.dataset.demoInstall
+          btn.disabled = true
+          btn.textContent = '… 安装中'
+          try {
+            await postJSON(`/industrial-gateway/api/nodered/demos/${encodeURIComponent(name)}/install`, {})
+            showToast(`✓ ${name} 已安装`, 'success')
+            await refreshDemos()
+            // Reload iframe so the new flow is visible in the editor
+            const iframe = document.getElementById('nr-iframe')
+            if (iframe) iframe.src = iframe.src
+          } catch (e) {
+            showToast(`✕ ${e.message}`, 'error')
+            btn.disabled = false
+            btn.textContent = '+ 安装'
+          }
+        })
+      })
+    }
+    const refreshDemos = async () => {
+      if (!nrDemosEl) return
+      try {
+        const r = await fetch('/industrial-gateway/api/nodered/demos')
+        const j = await r.json()
+        if (j.ok) renderDemos(j.demos, j.installed)
+      } catch (e) {
+        nrDemosEl.innerHTML = `<div class="nr-demo-skel">✕ ${e.message}</div>`
+      }
+    }
+    refreshDemos()
 
     // MQTT message clear
     document.getElementById('mqtt-clear-btn').addEventListener('click', async () => {

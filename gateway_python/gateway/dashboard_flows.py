@@ -435,8 +435,14 @@ def _emit_control_widgets(tasks: dict, channels: dict,
         t = tasks[tid]
         if t.dtype not in WRITABLE_DTYPES:
             continue
-        if getattr(t, "protocol", "modbus") == "opcua":
+        proto = getattr(t, "protocol", "modbus")
+        if proto == "opcua":
             opcua_writable.append(t)
+        elif proto == "mqtt":
+            # MQTT-source tasks are read-only (gateway subscribes; no control
+            # write path exists — bypassing them here keeps the control
+            # widget emit deterministic for the existing modbus/opcua split).
+            continue
         else:
             modbus_writable.append(t)
     if not modbus_writable and not opcua_writable:
@@ -524,7 +530,12 @@ def _emit_tag_widgets(t, group_id: str, x: int, y: int, order: int,
     nodes: list[dict] = []
     device = getattr(t, "device", "") or getattr(t, "table", "raw_data")
     site = getattr(t, "site", "default")
-    topic = f"{topic_prefix}/{site}/{device}/{t.id}/value"
+    # MQTT-source tasks subscribe to their absolute topic (e.g. "device/temperature"),
+    # not the prefix/site/device/tag/value path the gateway itself publishes.
+    if getattr(t, "protocol", "modbus") == "mqtt" and getattr(t, "mq_topic", ""):
+        topic = t.mq_topic
+    else:
+        topic = f"{topic_prefix}/{site}/{device}/{t.id}/value"
     in_id = _safe_id("in", site, device, t.id, _seen=seen_ids)
     is_numeric = t.dtype in NUMERIC_DTYPES
 
@@ -600,12 +611,14 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
     flows.append(_ui_group_node("Overview", 1, width=12))
     flows.append(_ui_group_node("Modbus Tags", 2, width=12))
     flows.append(_ui_group_node("OPC UA Tags", 3, width=12))
-    flows.append(_ui_group_node("Anomalies", 4, width=12))
-    flows.append(_ui_group_node("Recent Writes", 5, width=12))
+    flows.append(_ui_group_node("MQTT Tags", 4, width=12))
+    flows.append(_ui_group_node("Anomalies", 5, width=12))
+    flows.append(_ui_group_node("Recent Writes", 6, width=12))
 
     seen_ids: set[str] = {
         "tab_1052os", "ui_base",
         "grp_overview", "grp_modbus_tags", "grp_opc_ua_tags",
+        "grp_mqtt_tags",
         "grp_anomalies", "grp_recent_writes",
     }
     channels = anomaly_channels or {}
@@ -620,13 +633,19 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
     text["x"], text["y"] = 340, 80
     flows.append(text)
 
-    # Per-tag widgets: split by protocol into Modbus / OPC UA groups
+    # Per-tag widgets: split by protocol into Modbus / OPC UA / MQTT groups.
+    # MQTT-source tasks render in their own group and subscribe to the absolute
+    # topic configured on the task (see _emit_tag_widgets).
     modbus_tasks = []
     opcua_tasks = []
+    mqtt_tasks = []
     for tid in sorted(tasks.keys()):
         t = tasks[tid]
-        if t.protocol == "opcua":
+        proto = getattr(t, "protocol", "modbus")
+        if proto == "opcua":
             opcua_tasks.append(t)
+        elif proto == "mqtt":
+            mqtt_tasks.append(t)
         else:
             modbus_tasks.append(t)
 
@@ -643,6 +662,7 @@ def build_dashboard_flows(tasks: dict, anomaly_channels: dict | None = None,
 
     _emit_series(modbus_tasks, "grp_modbus_tags", 0)
     _emit_series(opcua_tasks, "grp_opc_ua_tags", 400)
+    _emit_series(mqtt_tasks, "grp_mqtt_tags", 800)
 
     # Anomalies: mqtt in ({prefix}/events/anomaly/#) + ui_text
     in_id = _safe_id("in", "anomalies", _seen=seen_ids)

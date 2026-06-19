@@ -18,6 +18,13 @@ class _FakeTask:
         self.device = kw.get("device", "plc1")
         self.dtype = kw.get("dtype", "f32")
         self.table = kw.get("table", "raw_data")
+        # MQTT source fields (only meaningful when protocol=="mqtt")
+        self.mq_topic = kw.get("mq_topic", "")
+        self.mq_payload = kw.get("mq_payload", "raw")
+        self.mq_field = kw.get("mq_field", "v")
+        self.mq_broker_host = kw.get("mq_broker_host", "127.0.0.1")
+        self.mq_broker_port = kw.get("mq_broker_port", 1883)
+        self.mq_qos = kw.get("mq_qos", 0)
 
 
 class _FakeChannel:
@@ -47,12 +54,13 @@ def test_empty_tasks_returns_base_flows():
     assert "ui_text" in types  # at least overview text
 
 
-def test_base_has_five_groups():
+def test_base_has_six_groups():
     flows = build_dashboard_flows({})
     groups = [n for n in flows if n["type"] == "ui_group"]
-    assert len(groups) == 5
+    assert len(groups) == 6
     group_names = {g["name"] for g in groups}
-    assert {"Overview", "Modbus Tags", "OPC UA Tags", "Anomalies", "Recent Writes"} <= group_names
+    assert {"Overview", "Modbus Tags", "OPC UA Tags", "MQTT Tags",
+            "Anomalies", "Recent Writes"} <= group_names
 
 
 def test_tab_is_1052os():
@@ -184,15 +192,15 @@ def test_broker_default_is_localhost():
 
 def test_node_count_formula():
     """Per-tag nodes: mqtt_in + gauge/chart (3 per numeric tag).
-    Plus: tab(1) + ui_base(1) + 5 groups + 3 fixed text+in pairs (overview/anomaly/writes)."""
+    Plus: tab(1) + ui_base(1) + 6 groups + 3 fixed text+in pairs (overview/anomaly/writes)."""
     tasks = {"A": _mk_task("A", dtype="f32"), "B": _mk_task("B", dtype="f32")}
     flows = build_dashboard_flows(tasks)
     # Expected breakdown:
-    #   1 tab + 1 ui_base + 5 groups = 7
+    #   1 tab + 1 ui_base + 6 groups = 8
     #   3 fixed (overview + anomaly + writes) × (mqtt_in + text) = 6
     #   2 numeric tags × (mqtt_in + gauge + chart) = 6
-    # Total = 19
-    assert len(flows) == 19
+    # Total = 20
+    assert len(flows) == 20
 
 
 def test_safe_id_replaces_special_chars():
@@ -204,3 +212,95 @@ def test_safe_id_replaces_special_chars():
     assert "TI_101_PV" in gauge["id"]  # ID has sanitized form
     assert "." not in gauge["id"]
     assert "-" not in gauge["id"]
+
+
+# ── MQTT-source tasks ─────────────────────────────────
+
+
+def test_mqtt_numeric_task_creates_gauge_with_absolute_topic():
+    """MQTT-source tasks subscribe to their absolute topic, not prefix/site/device/tag/value."""
+    tasks = {
+        "TEMP": _mk_task(
+            "TEMP", protocol="mqtt", dtype="f32",
+            mq_topic="device/temperature",
+        ),
+    }
+    flows = build_dashboard_flows(tasks)
+    gauges = [n for n in flows if n["type"] == "ui_gauge" and n.get("name") == "TEMP"]
+    assert len(gauges) == 1
+    in_nodes = [n for n in flows if n["type"] == "mqtt in" and n.get("name") == "TEMP"]
+    assert len(in_nodes) == 1
+    assert in_nodes[0]["topic"] == "device/temperature"
+    # And the gauge lives in the MQTT group, not Modbus / OPC UA.
+    assert gauges[0]["group"] == "grp_mqtt_tags"
+
+
+def test_mqtt_text_task_creates_text_widget():
+    """MQTT-source text dtype (e.g. status/alarm enum strings) → ui_text."""
+    tasks = {
+        "STATUS": _mk_task(
+            "STATUS", protocol="mqtt", dtype="ascii",
+            mq_topic="device/status",
+        ),
+    }
+    flows = build_dashboard_flows(tasks)
+    texts = [n for n in flows if n["type"] == "ui_text" and n.get("name") == "STATUS"]
+    assert len(texts) == 1
+    in_nodes = [n for n in flows if n["type"] == "mqtt in" and n.get("name") == "STATUS"]
+    assert len(in_nodes) == 1
+    assert in_nodes[0]["topic"] == "device/status"
+    assert texts[0]["group"] == "grp_mqtt_tags"
+
+
+def test_mqtt_tasks_dont_generate_control_widgets():
+    """MQTT-source tasks are read-only — no ui_switch / ui_numeric write path."""
+    tasks = {
+        "TEMP": _mk_task("TEMP", protocol="mqtt", dtype="f32",
+                         mq_topic="device/temperature"),
+    }
+    flows = build_dashboard_flows(tasks, include_controls=True)
+    fns = [n for n in flows if n["type"] == "function"]
+    outs = [n for n in flows if n["type"] == "mqtt out"]
+    assert not any("TEMP" in n.get("name", "") for n in fns)
+    assert not any("TEMP" in n.get("name", "") for n in outs)
+    # And no "Modbus/OPC UA Commands" group for mqtt-only configs.
+    group_names = {n["name"] for n in flows if n["type"] == "ui_group"}
+    assert "Modbus Commands" not in group_names
+    assert "OPC UA Commands" not in group_names
+
+
+def test_mqtt_mixed_with_other_protocols_splits_into_three_groups():
+    """When all three protocols are present, each gets its own group + widgets."""
+    tasks = {
+        "TI-101": _mk_task("TI-101", protocol="modbus", dtype="f32"),
+        "PRESSURE": _mk_task("PRESSURE", protocol="opcua", dtype="f32"),
+        "TEMP": _mk_task("TEMP", protocol="mqtt", dtype="f32",
+                         mq_topic="device/temperature"),
+    }
+    flows = build_dashboard_flows(tasks)
+    # Each tag lives in its protocol's group.
+    groups_for_tag = {
+        "TI-101": "grp_modbus_tags",
+        "PRESSURE": "grp_opc_ua_tags",
+        "TEMP": "grp_mqtt_tags",
+    }
+    for tag, expected_group in groups_for_tag.items():
+        gauge = next(n for n in flows
+                     if n["type"] == "ui_gauge" and n.get("name") == tag)
+        assert gauge["group"] == expected_group, f"{tag} in wrong group"
+    # MQTT task uses its absolute topic.
+    in_topic = next(n["topic"] for n in flows
+                    if n["type"] == "mqtt in" and n.get("name") == "TEMP")
+    assert in_topic == "device/temperature"
+
+
+def test_mqtt_task_falls_back_to_prefix_path_when_mq_topic_empty():
+    """Defensive: a misconfigured MQTT task (no mq_topic) falls back to the
+    standard prefix/site/device/tag/value path so the dashboard still loads."""
+    tasks = {
+        "TEMP": _mk_task("TEMP", protocol="mqtt", dtype="f32", mq_topic=""),
+    }
+    flows = build_dashboard_flows(tasks)
+    in_topic = next(n["topic"] for n in flows
+                    if n["type"] == "mqtt in" and n.get("name") == "TEMP")
+    assert in_topic == "1052os/site1/plc1/TEMP/value"

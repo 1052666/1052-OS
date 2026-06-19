@@ -4,8 +4,13 @@ Exposes Modbus / OPC UA / MQTT via HTTP for the 1052-OS frontend.
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 import json
+import os
+import sys
+import threading
+import time
 
 import paho.mqtt.client as mqtt
 from fastapi import FastAPI, HTTPException
@@ -16,12 +21,13 @@ from pydantic import BaseModel
 from gateway.modbus_client import ModbusClient, ModbusConfig, ModbusMode
 from gateway.opcua_client import OpcuaClientWrapper, OpcuaConfig
 from gateway.mqtt_client import MqttClientWrapper, MqttConfig
-from gateway.tdengine_client import TdClient, TdConfig
+from gateway.tdengine_client import TdClient, TdConfig, ensure_tag_schema
 from gateway.collector import DataCollector, CollectTask
 from gateway.modbus_decoder import dtype_catalog, endian_catalog, DTYPES, ENDIANS
 
 from gateway.nodered_tags import build_tag_catalog
 from gateway.nodered_flows import build_flows_json
+from gateway.nodered_runtime import NodeRedRuntime
 from gateway.mqtt_publisher import MqttPublisher, MqttPublisherConfig
 from gateway.status_heartbeat import StatusHeartbeat
 from gateway.command_handler import CommandHandler
@@ -60,7 +66,44 @@ _audit_logger: WriteAuditLogger | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Load persisted TDengine config (overrides TdConfig defaults).
+    global _td_config
+    _td_config = _load_td_config()
+
+    # Auto-connect TDengine in a background thread. Non-blocking: gateway
+    # serves traffic immediately, TDengine becomes healthy when the daemon
+    # succeeds. Frontend polls /api/td/ping and flips the status indicator.
+    # If TDengine never comes up, /api/td/connect endpoint can be used manually.
+    # Disabled in test mode so unit tests don't waste 30s on a missing TDengine.
+    if not os.environ.get("GATEWAY_DISABLE_AUTOCONNECT"):
+        threading.Thread(
+            target=_try_auto_connect_td, args=(_td_config,),
+            daemon=True, name="tdengine-autoconnect",
+        ).start()
+
+    # Start Node-RED as an embedded child process so users can author new
+    # protocol drivers (modbus/opc ua/s7/...) by dragging nodes instead of
+    # writing Python. Failure here is non-fatal — gateway still serves the
+    # Python-driver path. Disabled in test mode so unit tests can mock _nodered
+    # without a real subprocess taking over.
+    global _nodered
+    if os.environ.get("GATEWAY_DISABLE_NODERED"):
+        _nodered = None
+    else:
+        _nodered = NodeRedRuntime()
+        try:
+            _nodered.start()
+        except Exception as e:
+            print(f"[startup] Node-RED failed to start: {e}", file=sys.stderr)
+            _nodered = None
     yield
+    # Stop Node-RED before closing TDengine so the iframe tab can show
+    # "stopped" cleanly.
+    if _nodered:
+        try:
+            _nodered.stop()
+        except Exception as e:
+            print(f"[shutdown] Node-RED stop error: {e}", file=sys.stderr)
     if _modbus and _modbus.connected:
         _modbus.disconnect()
     if _opcua:
@@ -455,54 +498,123 @@ class CollectTaskIn(BaseModel):
     ua_url: str = "opc.tcp://127.0.0.1:4840"
     ua_node_id: str = ""
     ua_dtype: str = ""           # OPC UA server-returned data type label (display only)
+    # MQTT source (third collection protocol)
+    mq_broker_host: str = "127.0.0.1"
+    mq_broker_port: int = 1883
+    mq_username: str | None = None
+    mq_password: str | None = None
+    mq_topic: str = ""
+    mq_qos: int = 0
+    mq_payload: str = "raw"      # raw | json
+    mq_field: str = "v"
+    mq_client_id: str = ""
+    site: str = "default"
+    device: str = ""
     table: str = "raw_data"
     col_map: dict[str, str] = {}
     interval: float = 1.0
 
 @app.post("/api/td/connect")
 def td_connect(config: TdConfigIn | None = None):
-    global _td, _td_config, _collector, _anomaly, _predictor, _reporter, _mqtt_publisher
-    global _heartbeat, _audit_logger, _command_handler
+    global _td_config
+    if config:
+        _td_config = TdConfig(
+            host=config.host, port=config.port,
+            user=config.user, password=config.password,
+            database=config.database,
+        )
     try:
-        if config:
-            _td_config = TdConfig(
-                host=config.host, port=config.port,
-                user=config.user, password=config.password,
-                database=config.database,
-            )
-        _td = TdClient(_td_config)
-        _td.connect()
-        _collector = DataCollector(_td_config)
-        _anomaly = AnomalyEngine(_td)
-        _predictor = TrendPredictor(_td)
-        _reporter = ReportGenerator(_anomaly, _predictor)
-        global _mqtt_publisher
-        if _mqtt_publisher is None:
-            _mqtt_publisher = MqttPublisher(MqttPublisherConfig())
-            _mqtt_publisher.start()
-        # Wire publisher into collector so its pollers can publish
-        if _collector and _collector.mqtt_publisher is None:
-            _collector.mqtt_publisher = _mqtt_publisher
-        if _mqtt_publisher:
-            _anomaly.mqtt_publisher = _mqtt_publisher
-        # Start status heartbeat (5s) once publisher is alive
-        if _heartbeat is None:
-            _heartbeat = StatusHeartbeat(_mqtt_publisher, lambda: health(), interval=5.0)
-            _heartbeat.start()
-        # Initialize WriteAuditLogger for Sub-3 (TDengine write_audit stable)
-        if _audit_logger is None and _td:
-            _audit_logger = WriteAuditLogger(_td)
-            _audit_logger.ensure_table()
-        # Initialize CommandHandler for Sub-3 (MQTT subscriber for NR writes)
-        if _command_handler is None and _audit_logger:
-            _command_handler = CommandHandler(
-                mqtt_client=_mqtt_publisher,  # publisher is also a paho mqtt client
-                audit=_audit_logger,
-            )
-            _command_handler.start()
-        return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
+        _connect_td_engine(_td_config)
+        _save_td_config(_td_config)
     except Exception as e:
         raise HTTPException(503, str(e))
+    return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
+
+
+# ── TDengine config persistence ───────────────────────
+# Stored at ~/.1052os/gateway/td-config.json so the user's last-used TDengine
+# server (host/port/user/password/database) survives gateway restarts. The
+# Node-RED editor lives at ~/.1052os/node-red/ — same parent dir convention.
+_TD_CONFIG_PATH = Path.home() / ".1052os" / "gateway" / "td-config.json"
+
+
+def _save_td_config(cfg: TdConfig) -> None:
+    try:
+        _TD_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _TD_CONFIG_PATH.write_text(json.dumps(cfg.to_dict(), indent=2))
+    except Exception as e:
+        print(f"[td-config] failed to persist: {e}", file=sys.stderr)
+
+
+def _load_td_config() -> TdConfig:
+    """Read persisted config; return defaults if missing/corrupt."""
+    try:
+        if _TD_CONFIG_PATH.exists():
+            d = json.loads(_TD_CONFIG_PATH.read_text())
+            return TdConfig.from_dict(d)
+    except Exception as e:
+        print(f"[td-config] failed to load: {e}, using defaults", file=sys.stderr)
+    return TdConfig()
+
+
+def _connect_td_engine(cfg: TdConfig) -> TdClient:
+    """Establish TDengine connection + wire dependent globals. Raises on failure.
+
+    Used by both the /api/td/connect endpoint (manual) and lifespan startup
+    (auto-connect). Updates _td_config as a side effect of the caller, not here.
+    """
+    global _td, _collector, _anomaly, _predictor, _reporter, _mqtt_publisher
+    global _heartbeat, _audit_logger, _command_handler
+    _td = TdClient(cfg)
+    _td.connect()
+    _collector = DataCollector(cfg)
+    _anomaly = AnomalyEngine(_td)
+    _predictor = TrendPredictor(_td)
+    _reporter = ReportGenerator(_anomaly, _predictor)
+    if _mqtt_publisher is None:
+        _mqtt_publisher = MqttPublisher(MqttPublisherConfig())
+        _mqtt_publisher.start()
+    if _collector and _collector.mqtt_publisher is None:
+        _collector.mqtt_publisher = _mqtt_publisher
+    if _mqtt_publisher:
+        _anomaly.mqtt_publisher = _mqtt_publisher
+    if _heartbeat is None:
+        _heartbeat = StatusHeartbeat(_mqtt_publisher, lambda: health(), interval=5.0)
+        _heartbeat.start()
+    if _audit_logger is None and _td:
+        _audit_logger = WriteAuditLogger(_td)
+        _audit_logger.ensure_table()
+    if _command_handler is None and _audit_logger:
+        _command_handler = CommandHandler(
+            mqtt_client=_mqtt_publisher,
+            audit=_audit_logger,
+        )
+        _command_handler.start()
+    return _td
+
+
+def _try_auto_connect_td(cfg: TdConfig, deadline_s: float = 30.0,
+                          interval_s: float = 2.0) -> bool:
+    """Background retry loop: keep trying until success or deadline.
+
+    Returns True if connected. Non-blocking from the caller's perspective
+    (spawn into a daemon thread). Logs results to stderr.
+    """
+    deadline = time.monotonic() + deadline_s
+    last_err: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            _connect_td_engine(cfg)
+            print(f"[startup] TDengine auto-connected to {cfg.host}:{cfg.port}",
+                  file=sys.stderr)
+            return True
+        except Exception as e:
+            last_err = e
+            time.sleep(interval_s)
+    print(f"[startup] TDengine auto-connect failed (giving up after "
+          f"{deadline_s:.0f}s): {last_err}", file=sys.stderr)
+    return False
+
 
 @app.get("/api/td/ping")
 def td_ping():
@@ -559,6 +671,51 @@ def td_write(body: TdWriteIn):
     _td.insert(body.table, datetime.now(timezone.utc), body.values)
     return {"ok": True}
 
+
+class TdInsertIn(BaseModel):
+    """Tag-driven insert for Node-RED and other generic producers.
+
+    Unlike /api/td/write (which requires a pre-existing table), /api/td/insert
+    auto-provisions a `{table}_{tag}` child under supertable `raw_data`.
+    """
+    site: str = "default"
+    device: str = "sim"
+    tag: str
+    value: float | int | str | bool
+    ts: datetime | None = None
+    dtype: str | None = None  # one of DOUBLE|BIGINT|NCHAR(255); inferred if None
+
+
+def _infer_dtype(value) -> str:
+    if isinstance(value, bool):
+        return "BIGINT"
+    if isinstance(value, (int, float)):
+        return "DOUBLE"
+    return "NCHAR(255)"
+
+
+_SAFE_TAG_RE = __import__("re").compile(r"[^A-Za-z0-9_/]")
+
+
+def _sanitize_tag(tag: str) -> str:
+    """Sanitize a tag id so it's safe in a TDengine table identifier."""
+    return _SAFE_TAG_RE.sub("_", tag)
+
+
+@app.post("/api/td/insert")
+def td_insert(body: TdInsertIn):
+    if not _td: raise HTTPException(503, "Not connected")
+    from datetime import datetime, timezone
+    dtype = body.dtype or _infer_dtype(body.value)
+    tag_id = _sanitize_tag(f"{body.site}/{body.device}/{body.tag}")
+    child = ensure_tag_schema(_td, "raw_data", tag_id, dtype)
+    # Coerce string→type-aware when dtype expects it. BOOLEAN→0/1 etc.
+    value = body.value
+    if dtype.startswith("DOUBLE") and isinstance(value, bool):
+        value = 1 if value else 0
+    _td.insert(child, body.ts or datetime.now(timezone.utc), {"v": value})
+    return {"ok": True, "table": child, "dtype": dtype}
+
 # ── Collector ─────────────────────────────────────────
 
 @app.post("/api/collector/add")
@@ -568,15 +725,67 @@ def collector_add(body: CollectTaskIn):
     _collector.add_task(task)
     return {"ok": True, "task": task.to_dict()}
 
+
+@app.get("/api/collector/schemas")
+def collector_schemas():
+    """Schema for every registered protocol driver.
+
+    The frontend uses this to dynamically render §A/§B/§C forms — adding a
+    new protocol only requires registering a driver, no server-side code
+    change. See `gateway/drivers/registry.py` and the Driver Protocol in
+    `gateway/drivers/base.py`.
+    """
+    from gateway.drivers import iter_drivers
+    return {
+        "ok": True,
+        "drivers": [d.describe() for d in iter_drivers()],
+    }
+
+
+@app.post("/api/collector/add_v2")
+def collector_add_v2(body: dict):
+    """Add a collector task using the driver config schema.
+
+    body shape: {"protocol": "<name>", "config": {...}, "site": ..., "device": ...,
+                 "table": ..., "interval": ..., "col_map": {...}}
+    The `config` dict is validated against `drivers[<protocol>].config_cls`.
+    Falls back to passing-through unknown protocols so legacy clients still work.
+    """
+    if not _collector:
+        raise HTTPException(503, "TDengine not connected")
+    from gateway.drivers import config_cls_for, try_driver
+    proto = body.get("protocol", "modbus")
+    driver = try_driver(proto)
+    if driver is None:
+        raise HTTPException(400, f"unknown protocol: {proto!r}")
+    # Validate per-protocol config (raises 422 on bad input).
+    cfg = driver.config_cls.model_validate(body.get("config") or {})
+    payload = body | {"protocol": proto}
+    # Map the validated config back onto the flat CollectTask fields so the
+    # rest of the stack (drivers, on-disk format, Node-RED flows) keeps
+    # working unchanged. Each driver's `config_to_task_fields` hook handles
+    # the protocol-specific mapping.
+    payload.update(driver.to_task_fields(cfg))
+    task = CollectTask.from_dict(payload)
+    _collector.add_task(task)
+    return {"ok": True, "task": task.to_dict()}
+
+
 @app.post("/api/collector/start")
-def collector_start(task_id: str):
+def collector_start(body: dict):
     if not _collector: raise HTTPException(503, "TDengine not connected")
+    task_id = body.get("task_id") or body.get("id")
+    if not task_id:
+        raise HTTPException(400, "missing task_id")
     _collector.start_task(task_id)
     return {"ok": True}
 
 @app.post("/api/collector/stop")
-def collector_stop(task_id: str):
+def collector_stop(body: dict):
     if not _collector: raise HTTPException(503, "TDengine not connected")
+    task_id = body.get("task_id") or body.get("id")
+    if not task_id:
+        raise HTTPException(400, "missing task_id")
     _collector.stop_task(task_id)
     return {"ok": True}
 
@@ -589,6 +798,168 @@ def collector_status():
 # ═══════════════════════════════════════════════════════
 #  NODE-RED BRIDGE
 # ═══════════════════════════════════════════════════════
+
+# Embedded Node-RED child process (see nodered_runtime.py). Started in
+# lifespan() and stopped on shutdown. May be None if startup failed.
+_nodered: NodeRedRuntime | None = None
+
+
+@app.get("/api/nodered/runtime")
+def nodered_runtime_status():
+    """Embedded Node-RED child process status (separate from MQTT bridge)."""
+    if _nodered is None:
+        return {"ok": True, "available": False, "running": False,
+                "reason": "Node-RED runtime not initialized (startup may have failed)"}
+    s = _nodered.status()
+    return {"ok": True, "available": True, **s}
+
+
+@app.post("/api/nodered/restart")
+def nodered_restart():
+    if _nodered is None:
+        raise HTTPException(503, "Node-RED runtime not available")
+    _nodered.stop()
+    _nodered.start()
+    return {"ok": True}
+
+
+@app.post("/api/nodered/reset-bootstrap")
+def nodered_reset_bootstrap():
+    if _nodered is None:
+        raise HTTPException(503, "Node-RED runtime not available")
+    _nodered.reset_bootstrap()
+    return {"ok": True, "note": "flows.json rewritten; redeploy from editor"}
+
+
+# ── Demo flow registry & install ───────────────────────────
+from gateway.demo_flows import list_demos, build_demo_flow, merge_into_flows, installed_demos
+
+
+@app.get("/api/nodered/demos")
+def nodered_list_demos():
+    """List available demo flows + which are currently installed."""
+    installed = []
+    if _nodered is not None:
+        try:
+            installed = installed_demos(_nodered.list_flows())
+        except Exception:
+            pass
+    return {"ok": True, "demos": list_demos(), "installed": installed}
+
+
+@app.post("/api/nodered/demos/{name}/install")
+def nodered_install_demo(name: str):
+    """Install (or re-install) a demo flow. Idempotent — replaces existing tab."""
+    if _nodered is None:
+        raise HTTPException(503, "Node-RED runtime not available")
+    try:
+        new_nodes = build_demo_flow(name, gateway_api_url=f"http://127.0.0.1:8766")
+    except KeyError:
+        raise HTTPException(404, f"unknown demo: {name}")
+    current = _nodered.list_flows()
+    merged = merge_into_flows(current, new_nodes)
+    result = _nodered.apply_flows(merged)
+    return {"ok": True, "demo": name, **result}
+
+
+# Reverse-proxy every other /nodered/* request to the embedded Node-RED.
+# Done with raw ASGI so WebSocket upgrades (Node-RED editor uses them
+# heavily) are forwarded transparently.
+import httpx  # promoted from dev to runtime dep in step 5
+from starlette.responses import Response as StarletteResponse
+from starlette.requests import Request as StarletteRequest
+
+
+@app.api_route("/nodered/{full_path:path}",
+               methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+async def nodered_proxy(full_path: str, request: StarletteRequest):
+    if _nodered is None:
+        raise HTTPException(503, "Node-RED runtime not available")
+    target = f"http://127.0.0.1:{_nodered.port}/{full_path}"
+    if request.url.query:
+        target += "?" + request.url.query
+    body = await request.body()
+    headers = {k: v for k, v in request.headers.items()
+               if k.lower() not in ("host", "content-length", "accept-encoding")}
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+        resp = await client.request(
+            request.method, target,
+            content=body, headers=headers,
+        )
+    out_headers = {k: v for k, v in resp.headers.items()
+                   if k.lower() not in ("transfer-encoding",
+                                        "content-length", "connection",
+                                        "content-encoding")}
+    # Rewrite Location so node-red's relative redirects (e.g. /ui/) land back
+    # under /nodered/ on the gateway. Without this, browsers follow /ui/
+    # directly and get a 404.
+    loc = resp.headers.get("location")
+    if loc:
+        if loc.startswith("/") and not loc.startswith("/nodered/"):
+            loc = f"/nodered{loc}"
+        out_headers["location"] = loc
+    return StarletteResponse(
+        content=resp.content,
+        status_code=resp.status_code,
+        headers=out_headers,
+        media_type=resp.headers.get("content-type"),
+    )
+    return StarletteResponse(
+        content=body,
+        status_code=resp.status_code,
+        headers=out_headers,
+        media_type=resp.headers.get("content-type"),
+    )
+
+
+from starlette.websockets import WebSocket
+
+
+@app.websocket("/nodered/{full_path:path}")
+async def nodered_ws(websocket: WebSocket, full_path: str):  # noqa: ARG001
+    """Forward WebSocket connections to embedded Node-RED."""
+    if _nodered is None:
+        await websocket.close(code=1011, reason="Node-RED runtime not available")
+        return
+    await websocket.accept()
+    target_url = f"ws://127.0.0.1:{_nodered.port}/{full_path}"
+    if websocket.url.query:
+        target_url += "?" + websocket.url.query
+    import websockets  # uvicorn[standard] pulls this in
+    async with websockets.connect(
+        target_url,
+        additional_headers=list(websocket.headers.items()),
+        max_size=None,
+    ) as upstream:
+        import asyncio
+
+        async def client_to_upstream():
+            try:
+                while True:
+                    msg = await websocket.receive()
+                    if msg["type"] == "websocket.receive":
+                        if "text" in msg:
+                            await upstream.send(msg["text"])
+                        elif "bytes" in msg:
+                            await upstream.send(msg["bytes"])
+                    elif msg["type"] == "websocket.disconnect":
+                        await upstream.close()
+                        return
+            except Exception:
+                return
+
+        async def upstream_to_client():
+            try:
+                async for msg in upstream:
+                    if isinstance(msg, str):
+                        await websocket.send_text(msg)
+                    else:
+                        await websocket.send_bytes(msg)
+            except Exception:
+                return
+
+        await asyncio.gather(client_to_upstream(), upstream_to_client())
+
 
 @app.get("/api/tags")
 def nodered_tags():
