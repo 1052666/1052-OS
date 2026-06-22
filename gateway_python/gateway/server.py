@@ -66,8 +66,9 @@ _audit_logger: WriteAuditLogger | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load persisted TDengine config (overrides TdConfig defaults).
-    global _td_config
+    # Load persisted driver and TDengine config (overrides defaults).
+    global _mb_config, _ua_config, _mq_config, _td_config
+    _load_driver_configs()
     _td_config = _load_td_config()
 
     # Auto-connect TDengine in a background thread. Non-blocking: gateway
@@ -233,6 +234,7 @@ def modbus_get_config():
 def modbus_set_config(body: ModbusConfigIn):
     global _mb_config
     _mb_config = ModbusConfig.from_dict(body.model_dump())
+    _save_driver_configs()
     return {"ok": True, "config": _mb_config.to_dict()}
 
 @app.post("/api/modbus/connect")
@@ -335,6 +337,7 @@ def ua_get_config():
 def ua_set_config(body: OpcuaConfigIn):
     global _ua_config
     _ua_config = OpcuaConfig.from_dict(body.model_dump())
+    _save_driver_configs()
     return {"ok": True, "config": _ua_config.to_dict()}
 
 @app.post("/api/opcua/connect")
@@ -410,6 +413,7 @@ def mqtt_get_config():
 def mqtt_set_config(body: MqttConfigIn):
     global _mq_config
     _mq_config = MqttConfig.from_dict(body.model_dump())
+    _save_driver_configs()
     return {"ok": True, "config": _mq_config.to_dict()}
 
 @app.post("/api/mqtt/connect")
@@ -529,6 +533,38 @@ def td_connect(config: TdConfigIn | None = None):
     except Exception as e:
         raise HTTPException(503, str(e))
     return {"ok": True, "message": f"Connected to {_td_config.host}:{_td_config.port}"}
+
+
+# ── Driver config persistence ─────────────────────────
+_DRIVER_CONFIG_PATH = Path.home() / ".1052os" / "gateway" / "driver-config.json"
+
+
+def _save_driver_configs() -> None:
+    try:
+        _DRIVER_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _DRIVER_CONFIG_PATH.write_text(json.dumps({
+            "modbus": _mb_config.to_dict(),
+            "opcua": _ua_config.to_dict(),
+            "mqtt": _mq_config.to_dict(),
+        }, indent=2))
+    except Exception as e:
+        print(f"[driver-config] failed to persist: {e}", file=sys.stderr)
+
+
+def _load_driver_configs() -> None:
+    global _mb_config, _ua_config, _mq_config
+    try:
+        if not _DRIVER_CONFIG_PATH.exists():
+            return
+        data = json.loads(_DRIVER_CONFIG_PATH.read_text())
+        if isinstance(data.get("modbus"), dict):
+            _mb_config = ModbusConfig.from_dict(data["modbus"])
+        if isinstance(data.get("opcua"), dict):
+            _ua_config = OpcuaConfig.from_dict(data["opcua"])
+        if isinstance(data.get("mqtt"), dict):
+            _mq_config = MqttConfig.from_dict(data["mqtt"])
+    except Exception as e:
+        print(f"[driver-config] failed to load: {e}, using defaults", file=sys.stderr)
 
 
 # ── TDengine config persistence ───────────────────────
