@@ -1,0 +1,97 @@
+{
+  "_comment": "和利时 MACS-K 系列 DCS 配置模板",
+  "_version": "1.0",
+  "_usage": "复制此文件为 config.json，修改通道列表后部署",
+
+  "modbus": {
+    "mode": "tcp",
+    "host": "192.168.1.100",
+    "port": 502,
+    "unit_id": 1,
+    "timeout": 3.0
+  },
+
+  "tdengine": {
+    "host": "localhost",
+    "port": 6041,
+    "user": "root",
+    "password": "taosdata",
+    "database": "hollysys_k"
+  },
+
+  "anomaly_channels": [
+    {
+      "id": "TI-101",
+      "table": "k_ai01_slot3_ch1",
+      "col": "ma",
+      "low": 3.8,
+      "high": 20.5,
+      "step_threshold": 1.0,
+      "drift_threshold": 0.1,
+      "drift_window": 60,
+      "description": "1#炉膛温度 K-AI01 3槽1通道"
+    },
+    {
+      "id": "PI-201",
+      "table": "k_ai01_slot3_ch2",
+      "col": "ma",
+      "low": 3.8,
+      "high": 20.5,
+      "step_threshold": 1.0,
+      "drift_threshold": 0.15,
+      "drift_window": 60,
+      "description": "主蒸汽压力 K-AI01 3槽2通道"
+    },
+    {
+      "id": "LI-301",
+      "table": "k_ai01_slot4_ch1",
+      "col": "ma",
+      "low": 3.9,
+      "high": 20.3,
+      "step_threshold": 0.5,
+      "drift_threshold": 0.08,
+      "drift_window": 120,
+      "description": "汽包水位 K-AI01 4槽1通道 (三取中)"
+    }
+  ],
+
+  "collector_tasks": [
+    {
+      "id": "ai_module_3",
+      "protocol": "modbus",
+      "mb_host": "127.0.0.1",
+      "mb_port": 502,
+      "mb_unit": 1,
+      "mb_address": 0,
+      "mb_count": 8,
+      "mb_register": "input",
+      "table": "k_ai01_slot3",
+      "col_map": {"0": "ch1_ma", "1": "ch2_ma", "2": "ch3_ma", "3": "ch4_ma", "4": "ch5_ma", "5": "ch6_ma", "6": "ch7_ma", "7": "ch8_ma"},
+      "interval": 1.0
+    }
+  ],
+
+  "modbus_register_map": {
+    "_doc": "K-AI01 模拟量输入模块 Modbus 寄存器映射",
+    "30001": "1通道 mA (0-65535 → 0-25mA)",
+    "30002": "2通道 mA",
+    "30003": "3通道 mA",
+    "30004": "4通道 mA",
+    "30005": "5通道 mA",
+    "30006": "6通道 mA",
+    "30007": "7通道 mA",
+    "30008": "8通道 mA",
+    "30009": "模块状态字",
+    "30010": "冷端温度"
+  },
+
+  "alarm_rules": {
+    "_doc": "DCS 报警规则参考",
+    "hi_hi": "≥ 20.5mA → 传感器故障/断线",
+    "hi": "≥ 20.0mA → 超量程上限",
+    "lo": "≤ 4.0mA → 超量程下限",
+    "lo_lo": "≤ 3.8mA → 断线",
+    "rate": "> 1.0mA/s → 突变/干扰",
+    "deviation": "> 2% → 三取中偏差过大"
+  }
+}

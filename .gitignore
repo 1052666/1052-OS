@@ -23,6 +23,38 @@ CHANGELOG.md
 .claude/
 *.egg-info/
 
+# macOS / Python / local caches
+.DS_Store
+**/.DS_Store
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.bak
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local scratch notes and agent handoff files
+2026-*.txt
+findings.md
+corrections.md
+implementation_plan.md
+spec.md
+task.md
+walkthrough.md
+agent-bridge/
+.agents/
+anime/
+projects/
+changes/
+
+# Local credentials / bridge configs
+/config/
+feishu_direct_ws.js
+feishu_direct_ws.js.*
+feishu_ws_test.js
+skills-lock.json
+
 # Playwright
 test-results/
 playwright-report/

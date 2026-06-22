@@ -1,0 +1,23 @@
+[project]
+name = "1052-os-industrial-gateway"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pymodbus>=3.7",
+    "asyncua>=1.1",
+    "paho-mqtt>=2.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pyserial>=3.5",
+    "taos-ws-py>=0.6.9",
+    "httpx>=0.27",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]

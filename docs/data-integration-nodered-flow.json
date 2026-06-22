@@ -1,0 +1,350 @@
+[
+  {
+    "id": "data_integration_tab",
+    "type": "tab",
+    "label": "数据对接接口 仿真",
+    "disabled": false,
+    "info": "数据对接接口.docx：报警信息数据推送 + 实时参数数据推送"
+  },
+  {
+    "id": "di_comment",
+    "type": "comment",
+    "z": "data_integration_tab",
+    "name": "数据对接接口：报警 putMonitorData；实时参数 putMonitorParamData",
+    "info": "",
+    "x": 420,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "di_init_inject",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "初始化配置",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "0.5",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 100,
+    "y": 100,
+    "wires": [
+      [
+        "di_init"
+      ]
+    ]
+  },
+  {
+    "id": "di_init",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "配置 qyid/baseUrl",
+    "func": "flow.set('di_qyid','588A7E39-4B56-486F-8430-C07705053259');\nflow.set('di_baseUrl','http://127.0.0.1:5904/web_service/ws/cz_alarm');\nflow.set('di_alarmCount',0);\nflow.set('di_paramCount',0);\nnode.status({fill:'green',shape:'dot',text:'mock=:5904'});\nreturn null;",
+    "outputs": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 300,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "di_alarm_normal",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "正常状态报警心跳 每60秒",
+    "props": [
+      {
+        "p": "payload",
+        "v": "0",
+        "vt": "str"
+      }
+    ],
+    "repeat": "60",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "normal",
+    "payload": "0",
+    "payloadType": "str",
+    "x": 130,
+    "y": 180,
+    "wires": [
+      [
+        "di_make_alarm"
+      ]
+    ]
+  },
+  {
+    "id": "di_alarm_manual_normal",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "手动推送正常状态 flag=0",
+    "props": [
+      {
+        "p": "payload",
+        "v": "0",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "normal",
+    "payload": "0",
+    "payloadType": "str",
+    "x": 140,
+    "y": 220,
+    "wires": [
+      [
+        "di_make_alarm"
+      ]
+    ]
+  },
+  {
+    "id": "di_alarm_active",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "手动推送报警状态 flag=1",
+    "props": [
+      {
+        "p": "payload",
+        "v": "1",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "alarm",
+    "payload": "1",
+    "payloadType": "str",
+    "x": 140,
+    "y": 260,
+    "wires": [
+      [
+        "di_make_alarm"
+      ]
+    ]
+  },
+  {
+    "id": "di_make_alarm",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "生成报警信息数组",
+    "func": "const qyid = flow.get('di_qyid');\nconst flag = String(msg.payload || '0');\nconst now = new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T',' ').slice(0,19);\nconst normal = flag === '0';\nconst base = [\n  {tankno:'BX10', detectorno:'A253010', riskname:'一号重大危险源'},\n  {tankno:'BX10', detectorno:'P253011', riskname:'一号重大危险源'},\n  {tankno:'LGYLK-01', detectorno:'LGBJQ-03/04', riskname:'二号重大危险源'}\n];\nmsg.payload = base.map((x, i) => {\n  const item = {qyid, tankno:x.tankno, detectorno:x.detectorno, riskname:x.riskname, flag};\n  if (!normal) {\n    item.starttime = now;\n    item.grade = i === 0 ? '04' : '03';\n    item.monitor_value = i === 0 ? '96.8' : (i === 1 ? '1.25' : '28.4');\n  }\n  return item;\n});\nmsg.url = (flow.get('di_baseUrl') || 'http://127.0.0.1:5904/web_service/ws/cz_alarm') + '/putMonitorData';\nmsg.headers = {'Content-Type':'application/json'};\nflow.set('di_alarmCount', (flow.get('di_alarmCount') || 0) + 1);\nnode.status({fill:normal?'green':'red',shape:'dot',text:(normal?'正常':'报警')+' '+msg.payload.length+'点'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 220,
+    "wires": [
+      [
+        "di_http",
+        "di_debug_req"
+      ]
+    ]
+  },
+  {
+    "id": "di_param_timer",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "实时参数 每5分钟",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "300",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "4",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 110,
+    "y": 360,
+    "wires": [
+      [
+        "di_make_param"
+      ]
+    ]
+  },
+  {
+    "id": "di_param_manual",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "手动推送实时参数",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 120,
+    "y": 400,
+    "wires": [
+      [
+        "di_make_param"
+      ]
+    ]
+  },
+  {
+    "id": "di_make_param",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "生成实时参数数组",
+    "func": "const qyid = flow.get('di_qyid');\nconst count = (flow.get('di_paramCount') || 0) + 1;\nflow.set('di_paramCount', count);\nmsg.payload = [\n  {qyid, tankno:'BX10', detectorno:'A253010', monitor_value:(20 + Math.sin(count/3)*3).toFixed(2)},\n  {qyid, tankno:'BX10', detectorno:'P253011', monitor_value:(0.85 + Math.random()*0.1).toFixed(2)},\n  {qyid, tankno:'LGYLK-01', detectorno:'LGBJQ-03/04', monitor_value:(18 + Math.random()*4).toFixed(2)}\n];\nmsg.url = (flow.get('di_baseUrl') || 'http://127.0.0.1:5904/web_service/ws/cz_alarm') + '/putMonitorParamData';\nmsg.headers = {'Content-Type':'application/json'};\nnode.status({fill:'blue',shape:'dot',text:'参数 '+msg.payload.length+'点'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 380,
+    "y": 380,
+    "wires": [
+      [
+        "di_http",
+        "di_debug_req"
+      ]
+    ]
+  },
+  {
+    "id": "di_http",
+    "type": "http request",
+    "z": "data_integration_tab",
+    "name": "POST 数据对接接口",
+    "method": "POST",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 660,
+    "y": 300,
+    "wires": [
+      [
+        "di_resp"
+      ]
+    ]
+  },
+  {
+    "id": "di_resp",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "响应状态",
+    "func": "const ok = msg.payload && msg.payload.result === true;\nnode.status({fill:ok?'green':'red',shape:'dot',text:ok?'成功':JSON.stringify(msg.payload).slice(0,40)});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 860,
+    "y": 300,
+    "wires": [
+      [
+        "di_debug_resp"
+      ]
+    ]
+  },
+  {
+    "id": "di_debug_req",
+    "type": "debug",
+    "z": "data_integration_tab",
+    "name": "上传请求体",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 670,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "di_debug_resp",
+    "type": "debug",
+    "z": "data_integration_tab",
+    "name": "平台响应",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1040,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "di_status_in",
+    "type": "http in",
+    "z": "data_integration_tab",
+    "name": "GET /api/data-integration/status",
+    "url": "/api/data-integration/status",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 500,
+    "wires": [
+      [
+        "di_status_fn"
+      ]
+    ]
+  },
+  {
+    "id": "di_status_fn",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "flow 状态",
+    "func": "msg.payload = {\n  qyid: flow.get('di_qyid'),\n  baseUrl: flow.get('di_baseUrl'),\n  counters: {\n    alarm: flow.get('di_alarmCount') || 0,\n    param: flow.get('di_paramCount') || 0\n  },\n  endpoints: ['/putMonitorData','/putMonitorParamData']\n};\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 390,
+    "y": 500,
+    "wires": [
+      [
+        "di_status_out"
+      ]
+    ]
+  },
+  {
+    "id": "di_status_out",
+    "type": "http response",
+    "z": "data_integration_tab",
+    "name": "",
+    "statusCode": "",
+    "headers": {},
+    "x": 590,
+    "y": 500,
+    "wires": []
+  }
+]

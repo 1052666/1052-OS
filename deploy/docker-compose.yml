@@ -1,0 +1,72 @@
+# 1052-OS Industrial Agent — Docker Compose
+# TDengine 时序库 + 工业网关(Modbus/OPC UA/MQTT) + 前端面板
+#
+# 启动: docker compose up -d
+# 停止: docker compose down
+# 状态: docker compose ps
+
+services:
+  # ═══════════════════════════════════════════════
+  # TDengine 时序数据库
+  # ═══════════════════════════════════════════════
+  tdengine:
+    image: tdengine/tdengine:latest
+    container_name: 1052os-tdengine
+    restart: unless-stopped
+    ports:
+      - "6030:6030"     # REST
+      - "6041:6041"     # WebSocket (Python client)
+      - "6043:6043"     # Monitor
+    environment:
+      TAOS_FQDN: tdengine
+    volumes:
+      - tdengine_data:/var/lib/taos
+      - tdengine_log:/var/log/taos
+    healthcheck:
+      test: ["CMD", "taos", "-s", "show databases"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ═══════════════════════════════════════════════
+  # 工业网关 (Modbus / OPC UA / MQTT / TDengine)
+  # ═══════════════════════════════════════════════
+  gateway:
+    build:
+      context: ../gateway_python
+      dockerfile: ../deploy/Dockerfile.gateway
+    container_name: 1052os-gateway
+    restart: unless-stopped
+    ports:
+      - "8765:8765"     # REST API
+    environment:
+      TD_HOST: tdengine
+      TD_PORT: "6041"
+      TD_USER: root
+      TD_PASS: taosdata
+      TD_DB: industrial
+    depends_on:
+      tdengine:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro       # 场景配置模板
+      - gateway_output:/app/output    # 报告输出目录
+
+  # ═══════════════════════════════════════════════
+  # 前端面板 (Nginx 静态)
+  # ═══════════════════════════════════════════════
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../deploy/Dockerfile.frontend
+    container_name: 1052os-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"       # 前端界面
+    depends_on:
+      - gateway
+
+volumes:
+  tdengine_data:
+  tdengine_log:
+  gateway_output:

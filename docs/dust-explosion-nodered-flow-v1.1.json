@@ -1,0 +1,563 @@
+[
+  {
+    "id": "dust_v11_tab",
+    "type": "tab",
+    "label": "粉尘涉爆上传 v1.1 仿真",
+    "disabled": false,
+    "info": "河北省粉尘涉爆企业监测预警系统数据上传接口文档 V1.1\n实现 2.1 rtsData、2.2 eventsData、2.3 videosData\nDES-CBC + Base64 + Hex"
+  },
+  {
+    "id": "dust_comment_arch",
+    "type": "comment",
+    "z": "dust_v11_tab",
+    "name": "流程：仿真数据 → 文档明文结构 → DES-CBC加密 → 平台HTTP接口 → 响应/Debug",
+    "info": "",
+    "x": 430,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "dust_init_inject",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "初始化配置",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "0.5",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 100,
+    "y": 100,
+    "wires": [
+      [
+        "dust_init_config"
+      ]
+    ]
+  },
+  {
+    "id": "dust_init_config",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "配置 qybm/key/baseUrl",
+    "func": "flow.set('qybm', '012345678912');\nflow.set('wgbm', '01234567891201');\nflow.set('secretKey', 'ab23dcef');\nflow.set('baseUrl', 'http://127.0.0.1:5903/rabbitmqfcsb');\nflow.set('videoCode', '01234567891234567890');\nflow.set('rtsCount', 0);\nflow.set('eventCount', 0);\nflow.set('videoCount', 0);\nnode.status({fill:'green', shape:'dot', text:'qybm=012345678912 mock=:5903'});\nreturn null;",
+    "outputs": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 310,
+    "y": 100,
+    "wires": []
+  },
+  {
+    "id": "dust_rts_timer",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "实时数据仿真 每30秒",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "30",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 120,
+    "y": 180,
+    "wires": [
+      [
+        "dust_make_rts"
+      ]
+    ]
+  },
+  {
+    "id": "dust_rts_manual",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "手动触发 rtsData",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 120,
+    "y": 220,
+    "wires": [
+      [
+        "dust_make_rts"
+      ]
+    ]
+  },
+  {
+    "id": "dust_make_rts",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "2.1 生成实时数据包",
+    "func": "const qybm = flow.get('qybm') || '012345678912';\nconst now = new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T',' ').slice(0,19);\nconst count = (flow.get('rtsCount') || 0) + 1;\nflow.set('rtsCount', count);\nconst base = [\n  ['0123456789120101001', 24 + Math.sin(count / 3) * 3 + Math.random()],\n  ['0123456789120102001', 45 + Math.cos(count / 4) * 5 + Math.random() * 2],\n  ['0123456789120103001', 0.8 + Math.sin(count / 5) * 0.15],\n  ['0123456789120104001', 12 + Math.random() * 3],\n  ['0123456789120105001', 0],\n  ['0123456789120106001', count % 9 === 0 ? 1 : 0]\n];\nmsg.payload = {\n  qybm,\n  data: {\n    rts: base.map(([tnm, val]) => ({tnm, ts: now, val: Number(val).toFixed(2)}))\n  }\n};\nmsg.dustEndpoint = 'rtsData';\nmsg.dustOuter = { qybm, wgbm: flow.get('wgbm') || (qybm + '01') };\nnode.status({fill:'blue', shape:'dot', text:`rts ${msg.payload.data.rts.length}点 ${now.slice(11)}`});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 350,
+    "y": 200,
+    "wires": [
+      [
+        "dust_encrypt"
+      ]
+    ]
+  },
+  {
+    "id": "dust_event_high",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "仿真报警：粉尘浓度超上上限",
+    "props": [
+      {
+        "p": "payload",
+        "v": "4",
+        "vt": "num"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "high",
+    "payload": "4",
+    "payloadType": "num",
+    "x": 150,
+    "y": 300,
+    "wires": [
+      [
+        "dust_make_event"
+      ]
+    ]
+  },
+  {
+    "id": "dust_event_clear",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "仿真消警：粉尘浓度恢复",
+    "props": [
+      {
+        "p": "payload",
+        "v": "0",
+        "vt": "num"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "clear",
+    "payload": "0",
+    "payloadType": "num",
+    "x": 140,
+    "y": 340,
+    "wires": [
+      [
+        "dust_make_event"
+      ]
+    ]
+  },
+  {
+    "id": "dust_make_event",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "2.2 生成传感报警数据",
+    "func": "const qybm = flow.get('qybm') || '012345678912';\nconst now = new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T',' ').slice(0,19);\nconst scd = Number(msg.payload);\nconst isClear = scd === 0;\nconst avx = isClear ? 38.2 : 126.8;\nconst event = {\n  ts: now,\n  oname: '0123456789120106001',\n  avx: avx.toFixed(4),\n  scd,\n  threshold: isClear ? 0 : 100.0,\n  content: isClear ? '粉尘浓度恢复正常，自动消警' : '粉尘浓度超上上限报警，请立即联锁除尘并检查清扫'\n};\nmsg.payload = { qybm, data: { events: [event] } };\nmsg.dustEndpoint = 'eventsData';\nmsg.dustOuter = { qybm };\nflow.set('eventCount', (flow.get('eventCount') || 0) + 1);\nnode.status({fill:isClear?'green':'red', shape:'dot', text:isClear?'消警':'报警 scd=4'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 370,
+    "y": 320,
+    "wires": [
+      [
+        "dust_alarm_tts",
+        "dust_hik_trigger",
+        "dust_encrypt"
+      ]
+    ]
+  },
+  {
+    "id": "dust_video_alarm",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "仿真视频报警：烟火识别",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 130,
+    "y": 420,
+    "wires": [
+      [
+        "dust_make_video"
+      ]
+    ]
+  },
+  {
+    "id": "dust_make_video",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "2.3 生成视频报警数据",
+    "func": "const qybm = flow.get('qybm') || '012345678912';\nconst now = new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T',' ').slice(0,19);\nconst img = msg.imgBase64 || 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/l0X9WQAAAABJRU5ErkJggg==';\nmsg.payload = {\n  qybm,\n  data: {\n    ts: now,\n    videoCode: flow.get('videoCode') || '01234567891234567890',\n    alarmType: msg.alarmType || 'SJ02001',\n    content: msg.content || '视频AI识别到粉尘区域疑似烟火事件'\n  }\n};\nmsg.dustEndpoint = 'videosData';\nmsg.dustOuter = { qybm, img };\nflow.set('videoCount', (flow.get('videoCount') || 0) + 1);\nnode.status({fill:'yellow', shape:'dot', text:'video img=' + Math.round(img.length / 1024) + 'KB'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 360,
+    "y": 420,
+    "wires": [
+      [
+        "dust_encrypt"
+      ]
+    ]
+  },
+  {
+    "id": "dust_local_image_inject",
+    "type": "inject",
+    "z": "dust_v11_tab",
+    "name": "上传本地照片视频报警",
+    "props": [
+      {
+        "p": "filename",
+        "v": "/Users/easonliu/Downloads/IMG_0843.JPG",
+        "vt": "str"
+      },
+      {
+        "p": "alarmType",
+        "v": "SJ02001",
+        "vt": "str"
+      },
+      {
+        "p": "content",
+        "v": "本地真实图片上传测试：第二张照片",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "x": 130,
+    "y": 470,
+    "wires": [
+      [
+        "dust_read_local_image"
+      ]
+    ]
+  },
+  {
+    "id": "dust_read_local_image",
+    "type": "file in",
+    "z": "dust_v11_tab",
+    "name": "读取本地图片文件",
+    "filename": "filename",
+    "filenameType": "msg",
+    "format": "",
+    "chunk": false,
+    "sendError": true,
+    "encoding": "none",
+    "allProps": false,
+    "x": 360,
+    "y": 470,
+    "wires": [
+      [
+        "dust_image_to_base64"
+      ]
+    ]
+  },
+  {
+    "id": "dust_image_to_base64",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "图片转 base64",
+    "func": "if (!Buffer.isBuffer(msg.payload)) {\n  msg.payload = Buffer.from(msg.payload);\n}\nif (msg.payload.length > 500 * 1024) {\n  node.error('图片超过文档限制 500KB: ' + msg.payload.length + ' bytes', msg);\n  return null;\n}\nmsg.imgBase64 = msg.payload.toString('base64');\nnode.status({fill:'green', shape:'dot', text: msg.filename + ' ' + Math.round(msg.payload.length / 1024) + 'KB'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 570,
+    "y": 470,
+    "wires": [
+      [
+        "dust_make_video"
+      ]
+    ]
+  },
+  {
+    "id": "dust_encrypt",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "DES-CBC 加密 data 字段",
+    "func": "const key = flow.get('secretKey') || 'ab23dcef';\nconst iv = '12345678';\nconst baseUrl = flow.get('baseUrl') || 'http://127.0.0.1:5901/rabbitmqfcsb';\nif (!CryptoJS) {\n  node.error('crypto-js 未加载，请确认 Node-RED 已启用 functionExternalModules 并安装 crypto-js', msg);\n  return null;\n}\nconst plain = JSON.stringify(msg.payload);\nconst encrypted = CryptoJS.DES.encrypt(\n  CryptoJS.enc.Utf8.parse(plain),\n  CryptoJS.enc.Utf8.parse(key),\n  { iv: CryptoJS.enc.Utf8.parse(iv), mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }\n);\nconst base64Text = encrypted.ciphertext.toString(CryptoJS.enc.Base64);\nconst hex = CryptoJS.enc.Utf8.parse(base64Text).toString(CryptoJS.enc.Hex).toUpperCase();\nconst outer = Object.assign({}, msg.dustOuter || {}, { data: hex });\nmsg.payload = outer;\nmsg.headers = {'Content-Type': 'application/json'};\nmsg.method = 'POST';\nmsg.url = `${baseUrl}/api/${msg.dustEndpoint}`;\nmsg._plain = plain;\nmsg._encryptedPreview = hex.slice(0, 96);\nnode.status({fill:'green', shape:'dot', text:`${msg.dustEndpoint} encrypted ${hex.length}`});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "CryptoJS",
+        "module": "crypto-js"
+      }
+    ],
+    "x": 610,
+    "y": 300,
+    "wires": [
+      [
+        "dust_debug_plain",
+        "dust_http"
+      ]
+    ]
+  },
+  {
+    "id": "dust_http",
+    "type": "http request",
+    "z": "dust_v11_tab",
+    "name": "POST 河北粉尘平台接口",
+    "method": "POST",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 850,
+    "y": 300,
+    "wires": [
+      [
+        "dust_handle_resp"
+      ]
+    ]
+  },
+  {
+    "id": "dust_handle_resp",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "响应状态",
+    "func": "const p = msg.payload || {};\nconst ok = p.code === 200;\nnode.status({fill: ok ? 'green' : 'red', shape:'dot', text: ok ? '操作成功' : JSON.stringify(p).slice(0,40)});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1050,
+    "y": 300,
+    "wires": [
+      [
+        "dust_debug_resp"
+      ]
+    ]
+  },
+  {
+    "id": "dust_debug_plain",
+    "type": "debug",
+    "z": "dust_v11_tab",
+    "name": "明文/加密预览",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 850,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "dust_debug_resp",
+    "type": "debug",
+    "z": "dust_v11_tab",
+    "name": "平台响应",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1230,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "dust_status_in",
+    "type": "http in",
+    "z": "dust_v11_tab",
+    "name": "GET /api/dust-v11/status",
+    "url": "/api/dust-v11/status",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 140,
+    "y": 520,
+    "wires": [
+      [
+        "dust_status_fn"
+      ]
+    ]
+  },
+  {
+    "id": "dust_status_fn",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "flow 状态",
+    "func": "msg.payload = {\n  qybm: flow.get('qybm'),\n  wgbm: flow.get('wgbm'),\n  baseUrl: flow.get('baseUrl'),\n  counters: {\n    rts: flow.get('rtsCount') || 0,\n    events: flow.get('eventCount') || 0,\n    videos: flow.get('videoCount') || 0\n  },\n  endpoints: ['/api/rtsData','/api/eventsData','/api/videosData']\n};\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 350,
+    "y": 520,
+    "wires": [
+      [
+        "dust_status_out"
+      ]
+    ]
+  },
+  {
+    "id": "dust_status_out",
+    "type": "http response",
+    "z": "dust_v11_tab",
+    "name": "",
+    "statusCode": "",
+    "headers": {},
+    "x": 540,
+    "y": 520,
+    "wires": []
+  },
+  {
+    "id": "dust_alarm_tts",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "报警内容转语音文本",
+    "func": "const event = msg.payload && msg.payload.data && msg.payload.data.events && msg.payload.data.events[0];\nif (!event) return null;\nif (Number(event.scd) <= 0) {\n  node.status({fill:'blue', shape:'ring', text:'消警不朗读'});\n  return null;\n}\nconst text = event.content || '粉尘涉爆监测发生报警';\nmsg.payload = '粉尘涉爆报警，' + text;\nnode.status({fill:'red', shape:'dot', text: msg.payload.slice(0, 24)});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 620,
+    "y": 360,
+    "wires": [
+      [
+        "dust_alarm_say"
+      ]
+    ]
+  },
+  {
+    "id": "dust_alarm_say",
+    "type": "exec",
+    "z": "dust_v11_tab",
+    "command": "/usr/bin/say -v Tingting",
+    "addpay": "payload",
+    "append": "",
+    "useSpawn": "false",
+    "timer": "",
+    "winHide": false,
+    "oldrc": false,
+    "name": "TTS 语音报警(Tingting/云熙替代)",
+    "x": 870,
+    "y": 360,
+    "wires": [
+      [],
+      [],
+      []
+    ]
+  },
+  {
+    "id": "dust_hik_trigger",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "报警触发海康抓拍",
+    "func": "const event = msg.payload && msg.payload.data && msg.payload.data.events && msg.payload.data.events[0];\nif (!event || Number(event.scd) <= 0) {\n  node.status({fill:'grey', shape:'ring', text:'非报警不抓拍'});\n  return null;\n}\nmsg.payload = '';\nmsg.alarmType = 'SJ02001';\nmsg.content = '传感器报警联动海康抓拍：' + (event.content || '现场报警');\nmsg.eventTs = event.ts;\nnode.status({fill:'yellow', shape:'dot', text:'触发海康抓拍'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 610,
+    "y": 410,
+    "wires": [
+      [
+        "dust_hik_snapshot"
+      ]
+    ]
+  },
+  {
+    "id": "dust_hik_snapshot",
+    "type": "exec",
+    "z": "dust_v11_tab",
+    "command": "curl --digest -sS --fail --max-time 10 -u ${HIKVISION_USER}:${HIKVISION_PASSWORD} http://${HIKVISION_HOST}/ISAPI/Streaming/channels/101/picture",
+    "addpay": "",
+    "append": "",
+    "useSpawn": "false",
+    "timer": "15",
+    "winHide": false,
+    "oldrc": false,
+    "name": "海康抓拍（环境变量配置）",
+    "x": 870,
+    "y": 410,
+    "wires": [
+      [
+        "dust_hik_to_base64"
+      ],
+      [],
+      []
+    ]
+  },
+  {
+    "id": "dust_hik_to_base64",
+    "type": "function",
+    "z": "dust_v11_tab",
+    "name": "海康 JPEG 转 base64",
+    "func": "if (!Buffer.isBuffer(msg.payload)) {\n  msg.payload = Buffer.from(msg.payload, 'binary');\n}\nif (msg.payload.length === 0) {\n  node.error('海康抓拍返回空图片', msg);\n  return null;\n}\nif (msg.payload.length > 500 * 1024) {\n  node.error('海康抓拍图片超过文档限制 500KB: ' + msg.payload.length + ' bytes', msg);\n  return null;\n}\nmsg.imgBase64 = msg.payload.toString('base64');\nmsg.alarmType = msg.alarmType || 'SJ02001';\nmsg.content = msg.content || '海康摄像头报警抓拍上传';\nnode.status({fill:'green', shape:'dot', text:'JPEG ' + Math.round(msg.payload.length / 1024) + 'KB'});\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1110,
+    "y": 410,
+    "wires": [
+      [
+        "dust_make_video"
+      ]
+    ]
+  }
+]

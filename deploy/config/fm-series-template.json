@@ -1,0 +1,43 @@
+{
+  "_comment": "和利时 MACS-FM 系列 DCS 配置模板",
+  "_version": "1.0",
+
+  "modbus": {
+    "mode": "tcp",
+    "host": "192.168.1.100",
+    "port": 502,
+    "unit_id": 1,
+    "timeout": 5.0
+  },
+
+  "tdengine": {
+    "host": "localhost",
+    "port": 6041,
+    "database": "hollysys_fm"
+  },
+
+  "anomaly_channels": [
+    {
+      "id": "TI-F01",
+      "table": "fm_ai_slot1",
+      "col": "ch1_ma",
+      "low": 3.8,
+      "high": 20.5,
+      "step_threshold": 1.0,
+      "drift_threshold": 0.1,
+      "drift_window": 30,
+      "description": "FM148A 模拟量输入 1槽1通道"
+    }
+  ],
+
+  "fm_module_types": {
+    "_doc": "FM 系列常用模块类型参考",
+    "FM148A": "8通道 AI (4-20mA) 模拟量输入",
+    "FM151A": "8通道 AO (4-20mA) 模拟量输出",
+    "FM161D": "16通道 DI (24VDC) 开关量输入",
+    "FM171B": "16通道 DO 开关量输出",
+    "FM147A": "8通道 RTD 热电阻输入",
+    "FM143":  "8通道 TC 热电偶输入",
+    "FM192B": "Profibus-DP 通讯模块"
+  }
+}

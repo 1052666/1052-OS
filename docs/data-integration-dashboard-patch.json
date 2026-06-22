@@ -1,0 +1,271 @@
+[
+  {
+    "id": "di_dash_comment",
+    "type": "comment",
+    "z": "data_integration_tab",
+    "name": "Dashboard 联调区：按钮触发 + 状态看板，对应 /dashboard/1052-debug",
+    "info": "这组节点放在数据对接接口流程内，方便在流程页直接看到 Dashboard 控件与触发链路。",
+    "x": 450,
+    "y": 620,
+    "wires": []
+  },
+  {
+    "id": "di_dash_tick",
+    "type": "inject",
+    "z": "data_integration_tab",
+    "name": "Dashboard 每3秒刷新",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "3",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "tick",
+    "payloadType": "str",
+    "x": 130,
+    "y": 680,
+    "wires": [
+      [
+        "di_dash_get_mock",
+        "di_dash_get_flow"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_get_mock",
+    "type": "http request",
+    "z": "data_integration_tab",
+    "name": "GET mock /api/status",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:5904/api/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 390,
+    "y": 660,
+    "wires": [
+      [
+        "di_dash_join",
+        "di_dash_chart_fn"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_get_flow",
+    "type": "http request",
+    "z": "data_integration_tab",
+    "name": "GET flow /api/data-integration/status",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:1880/api/data-integration/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 430,
+    "y": 720,
+    "wires": [
+      [
+        "di_dash_join"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_join",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "组合 Dashboard 数据",
+    "func": "const s = flow.get('di_dashboard_state') || {mock:{}, flow:{}};\nif (msg.req || msg.payload?.recent_raw || Object.prototype.hasOwnProperty.call(msg.payload || {}, 'alarm_count')) s.mock = msg.payload || {};\nelse s.flow = msg.payload || {};\nflow.set('di_dashboard_state', s);\nmsg.payload = s;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 700,
+    "y": 690,
+    "wires": [
+      [
+        "di_dash_tpl"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_tpl",
+    "type": "ui-template",
+    "z": "data_integration_tab",
+    "group": "1052_dbg_g_interface",
+    "page": "",
+    "ui": "",
+    "name": "数据对接 Dashboard 联调控件",
+    "order": 0,
+    "width": 12,
+    "height": 10,
+    "head": "",
+    "format": "\n<template>\n  <div>\n    <h2 style=\"margin:0 0 8px;color:#e2e8f0\">数据对接接口 Dashboard 联调</h2>\n    <div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:8px 0 12px\">\n      <button style=\"border:0;border-radius:10px;padding:13px 16px;background:#16a34a;color:white;font-weight:800\" @click=\"send({payload:'di_alarm_manual_normal'})\">推送正常 flag=0</button>\n      <button style=\"border:0;border-radius:10px;padding:13px 16px;background:#dc2626;color:white;font-weight:800\" @click=\"send({payload:'di_alarm_active'})\">推送报警 flag=1</button>\n      <button style=\"border:0;border-radius:10px;padding:13px 16px;background:#0284c7;color:white;font-weight:800\" @click=\"send({payload:'di_param_manual'})\">推送实时参数</button>\n    </div>\n    <div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px\">\n      <div style=\"background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px\"><div style=\"color:#94a3b8\">报警接口调用</div><div style=\"font-size:26px;font-weight:800;color:#22c55e\">{{ msg.payload.mock.alarm_count || 0 }}</div></div>\n      <div style=\"background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px\"><div style=\"color:#94a3b8\">参数接口调用</div><div style=\"font-size:26px;font-weight:800;color:#38bdf8\">{{ msg.payload.mock.param_count || 0 }}</div></div>\n      <div style=\"background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px\"><div style=\"color:#94a3b8\">flow计数</div><div style=\"font-size:26px;font-weight:800;color:#f59e0b\">{{ msg.payload.flow.counters?.alarm || 0 }}/{{ msg.payload.flow.counters?.param || 0 }}</div></div>\n    </div>\n    <h3>最近报警/参数</h3>\n    <pre style=\"max-height:320px;overflow:auto;background:#020617;color:#cbd5e1;padding:10px;border-radius:8px\">{{ JSON.stringify(msg.payload.mock.recent_raw || [], null, 2) }}</pre>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 980,
+    "y": 690,
+    "wires": [
+      [
+        "di_dash_trigger"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_trigger",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "Dashboard按钮→inject",
+    "func": "msg.method = 'POST';\nmsg.url = 'http://127.0.0.1:1880/inject/' + String(msg.payload);\nmsg.payload = '';\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1240,
+    "y": 690,
+    "wires": [
+      [
+        "di_dash_http"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_http",
+    "type": "http request",
+    "z": "data_integration_tab",
+    "name": "POST inject 触发仿真",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 1480,
+    "y": 690,
+    "wires": [
+      [
+        "di_dash_debug"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_debug",
+    "type": "debug",
+    "z": "data_integration_tab",
+    "name": "Dashboard触发结果",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "statusCode",
+    "statusType": "msg",
+    "x": 1710,
+    "y": 690,
+    "wires": []
+  },
+  {
+    "id": "di_dash_chart_fn",
+    "type": "function",
+    "z": "data_integration_tab",
+    "name": "提取参数趋势",
+    "func": "const out=[];\nfor (const rec of (msg.payload.recent_param || []).slice(-2)) {\n  for (const item of rec.items || []) {\n    const v = Number(item.monitor_value);\n    if (!Number.isNaN(v)) out.push({topic:item.detectorno, payload:v});\n  }\n}\nreturn [out];",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 680,
+    "y": 800,
+    "wires": [
+      [
+        "di_dash_chart"
+      ]
+    ]
+  },
+  {
+    "id": "di_dash_chart",
+    "type": "ui-chart",
+    "z": "data_integration_tab",
+    "group": "1052_dbg_g_interface",
+    "name": "数据对接参数趋势",
+    "label": "数据对接实时参数趋势",
+    "order": 1,
+    "chartType": "line",
+    "category": "topic",
+    "categoryType": "msg",
+    "xAxisLabel": "时间",
+    "xAxisProperty": "",
+    "xAxisPropertyType": "timestamp",
+    "xAxisType": "time",
+    "xAxisFormat": "HH:mm:ss",
+    "xAxisFormatType": "custom",
+    "xmin": "",
+    "xmax": "",
+    "yAxisLabel": "monitor_value",
+    "yAxisProperty": "payload",
+    "yAxisPropertyType": "msg",
+    "ymin": "",
+    "ymax": "",
+    "bins": 10,
+    "action": "append",
+    "stackSeries": false,
+    "pointShape": "circle",
+    "pointRadius": 2,
+    "showLegend": true,
+    "removeOlder": 10,
+    "removeOlderUnit": "60",
+    "removeOlderPoints": "",
+    "colors": [
+      "#38bdf8",
+      "#22c55e",
+      "#f59e0b",
+      "#ef4444"
+    ],
+    "textColor": [
+      "#cbd5e1"
+    ],
+    "textColorDefault": false,
+    "gridColor": [
+      "#334155"
+    ],
+    "gridColorDefault": false,
+    "width": 12,
+    "height": 5,
+    "className": "",
+    "interpolation": "linear",
+    "x": 940,
+    "y": 800,
+    "wires": [
+      []
+    ]
+  }
+]

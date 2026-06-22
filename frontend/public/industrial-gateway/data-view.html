@@ -1,0 +1,1493 @@
+<!doctype html>
+<!--
+  Industrial Gateway · Live Data View
+  Companion screen to dashboard — focused on showing REAL polled data
+  organized by driver. Auto-refreshes every 2.5s.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Industrial Gateway · Live Data</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --paper:        #f5f1e8;
+      --paper-warm:   #ede8d8;
+      --ink:          #0a0a0a;
+      --ink-2:        #2b2b2b;
+      --ink-3:        #5a5a55;
+      --ink-4:        #8b8680;
+      --rule:         #8b8680;
+      --rule-soft:    #c8c1b3;
+      --signal-red:   #c8102e;
+      --industrial:   #003049;
+      --caution:      #fcbf49;
+      --ok:           #2a6f3a;
+      --ok-soft:      #d9e7d5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Inter', system-ui, sans-serif;
+      font-feature-settings: 'tnum' 1, 'cv11' 1;
+      font-variant-numeric: tabular-nums;
+      font-size: 14px;
+      line-height: 1.55;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0 0 48px 0;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto auto auto;
+      align-items: center;
+      gap: 24px;
+      padding: 24px 32px 16px 32px;
+      border-bottom: 2px solid var(--ink);
+      margin-bottom: 32px;
+    }
+    .topbar-edition {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.15em;
+    }
+    .topbar-edition strong { color: var(--ink); font-weight: 700; }
+    .topbar-title h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .topbar-title .subtitle {
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .topbar-clock { text-align: right; }
+    .topbar-clock .time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .topbar-clock .date {
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .topbar-status {
+      display: flex; align-items: center; gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; letter-spacing: 0.1em;
+      padding: 4px 10px;
+      border: 1px solid currentColor;
+    }
+    .topbar-status .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor;
+    }
+    .topbar-status.online { color: var(--ok); }
+    .topbar-status.offline { color: var(--signal-red); }
+    .topbar-btn {
+      appearance: none;
+      background: var(--ink);
+      color: var(--paper);
+      border: 1px solid var(--ink);
+      padding: 6px 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      cursor: pointer;
+    }
+    .topbar-btn:hover { background: var(--ink-2); }
+    .topbar-btn.secondary {
+      background: transparent; color: var(--ink);
+    }
+    .topbar-btn.secondary:hover { background: var(--paper-warm); }
+
+    /* ── Section header ── */
+    .section {
+      margin: 0 32px 28px 32px;
+    }
+    .section-head {
+      display: flex; align-items: baseline; gap: 16px;
+      border-bottom: 1px solid var(--ink);
+      padding-bottom: 6px;
+      margin-bottom: 14px;
+    }
+    .section-head .num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--industrial);
+    }
+    .section-head h2 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .section-head .meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.05em;
+    }
+    .section-head .meta.live::before {
+      content: '●';
+      color: var(--ok);
+      margin-right: 4px;
+      animation: blink 1.6s infinite;
+    }
+    .section-head .meta.dead::before {
+      content: '○';
+      color: var(--signal-red);
+      margin-right: 4px;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── Driver card (one per driver) ── */
+    .driver-card {
+      background: var(--paper);
+      border: 1px solid var(--ink);
+    }
+    .driver-card-head {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .driver-card-head .name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+    .driver-card-head .endpoint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--paper-warm);
+      letter-spacing: 0.05em;
+    }
+    .driver-card-head .status {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      padding: 2px 8px;
+      border: 1px solid currentColor;
+    }
+    .driver-card-head .status.ok { color: #6ce07a; }
+    .driver-card-head .status.err { color: var(--caution); }
+    .driver-card-head .status.off { color: var(--ink-4); }
+
+    .driver-card-body {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .placeholder {
+      padding: 32px;
+      text-align: center;
+      color: var(--ink-3);
+      font-style: italic;
+      font-size: 12px;
+    }
+
+    /* ── Sub-panel ── */
+    .subpanel {
+      border: 1px solid var(--rule-soft);
+    }
+    .subpanel-head {
+      display: flex; align-items: baseline; gap: 8px;
+      padding: 6px 10px;
+      background: var(--paper-warm);
+      border-bottom: 1px solid var(--rule-soft);
+    }
+    .subpanel-head .label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--ink-2);
+    }
+    .subpanel-head .addr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+    }
+    .subpanel-head .meta {
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-4);
+    }
+    .subpanel-body {
+      padding: 10px;
+    }
+
+    /* ── Bit grid (coils / discrete) ── */
+    .bit-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 6px;
+    }
+    .bit {
+      display: flex; flex-direction: column;
+      align-items: center;
+      padding: 8px 4px;
+      background: var(--paper);
+      border: 1px solid var(--rule-soft);
+    }
+    .bit .addr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      color: var(--ink-3);
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+    .bit .indicator {
+      width: 24px; height: 24px;
+      border: 1.5px solid currentColor;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .bit.on  { color: var(--signal-red); }
+    .bit.off { color: var(--ink-4); }
+    .bit.on .indicator { background: var(--signal-red); color: var(--paper); }
+    .bit.off .indicator { background: var(--paper-warm); }
+    .bit.err .indicator { background: var(--caution); color: var(--ink); }
+
+    /* ── Data table (registers / floats) ── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .data-table th {
+      text-align: left;
+      font-weight: 500;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--ink);
+    }
+    .data-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--rule-soft);
+    }
+    .data-table td.idx {
+      color: var(--ink-4);
+      font-size: 10px;
+    }
+    .data-table td.addr {
+      color: var(--ink-3);
+      font-size: 10px;
+    }
+    .data-table td.val {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--industrial);
+    }
+    .data-table td.val.float { color: var(--signal-red); font-size: 16px; }
+    .data-table td.bytes {
+      color: var(--ink-3);
+      font-size: 10px;
+    }
+    .data-table tbody tr:hover { background: var(--paper-warm); }
+    .data-table select.de-dtype,
+    .data-table select.de-endian {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--ink-3);
+      padding: 2px 4px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+    }
+    .data-table select.de-dtype { width: 92px; }
+    .data-table select.de-endian { width: 64px; }
+    .data-table td.de-val {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--industrial);
+      min-width: 100px;
+    }
+    .data-table td.de-val.string { color: var(--ink); font-size: 12px; font-weight: 500; }
+    .data-table td.de-val.bit-true { color: var(--signal-red); }
+    .data-table td.de-val.bit-false { color: var(--ink-4); }
+    .data-table td.de-val.err { color: var(--signal-red); font-size: 11px; font-weight: 500; }
+
+    /* Bulk-decode toolbar */
+    .de-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0 10px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-bottom: 1px dashed var(--rule-soft);
+      margin-bottom: 6px;
+    }
+    .de-toolbar select {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--ink);
+      padding: 3px 6px;
+      cursor: pointer;
+    }
+    .de-toolbar button {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      background: var(--ink);
+      color: var(--paper);
+      border: 1px solid var(--ink);
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .de-toolbar button.ghost {
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .de-toolbar .de-hint {
+      margin-left: auto;
+      color: var(--ink-4);
+      font-size: 10px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    /* ── Task / message tables (OPC UA / MQTT) ── */
+    .data-table th.col-type, .data-table td.col-type {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.04em;
+    }
+    .data-table .type-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--ink);
+      color: var(--ink);
+      background: var(--paper);
+      font-size: 10px;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .data-table .type-badge.opcua { border-color: #1a4f8a; color: #1a4f8a; }
+    .data-table .type-badge.mqtt  { border-color: #8a4f1a; color: #8a4f1a; }
+    .data-table .type-badge.modbus { border-color: #1a8a4f; color: #1a8a4f; }
+    .data-table td.live-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--industrial);
+    }
+    .data-table td.live-val.json { color: #1a4f8a; font-weight: 500; font-size: 11px; }
+    .data-table td.live-val.string { color: var(--ink); font-weight: 500; }
+    .data-table td.live-val.err { color: var(--signal-red); font-size: 11px; font-weight: 500; }
+
+    .msg-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+    }
+    .msg-list .msg {
+      display: grid;
+      grid-template-columns: 70px 1fr 200px 70px;
+      gap: 12px;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--rule-soft);
+      align-items: baseline;
+    }
+    .msg-list .msg:hover { background: var(--paper-warm); }
+    .msg-list .msg .ts { color: var(--ink-3); font-size: 10px; }
+    .msg-list .msg .topic { color: var(--ink); font-weight: 700; font-size: 11px; word-break: break-all; }
+    .msg-list .msg .payload { color: var(--industrial); font-weight: 500; }
+    .msg-list .msg .payload.json { color: #1a4f8a; font-weight: 500; white-space: pre-wrap; }
+    .msg-list .msg .payload.string { color: var(--ink); }
+    .msg-list .msg .age { color: var(--ink-4); font-size: 10px; text-align: right; }
+    .msg-list .empty { color: var(--ink-4); padding: 20px; text-align: center; font-style: italic; }
+
+    .ua-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 0 10px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .ua-toolbar button {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      background: var(--ink);
+      color: var(--paper);
+      border: 1px solid var(--ink);
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+    }
+    .ua-toolbar button.ghost {
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .ua-toolbar input {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--ink);
+      padding: 3px 6px;
+      flex: 1;
+    }
+
+    /* Copy-row button in DECODE table */
+    .data-table td.de-action { padding: 4px 6px; }
+    .data-table button.de-copy {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: var(--paper);
+      color: var(--ink);
+      border: 1px solid var(--ink-3);
+      padding: 2px 6px;
+      cursor: pointer;
+      letter-spacing: 0;
+      line-height: 1;
+    }
+    .data-table button.de-copy:hover {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+    .data-table button.de-copy.copied {
+      background: var(--signal-red);
+      color: var(--paper);
+      border-color: var(--signal-red);
+    }
+
+    /* ── Error state ── */
+    .err-box {
+      background: rgba(200, 16, 46, 0.06);
+      border-left: 3px solid var(--signal-red);
+      padding: 8px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--signal-red);
+    }
+
+    /* ── 2-col grid for modbus subpanels ── */
+    .modbus-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 1100px) {
+      .modbus-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Footer ── */
+    .footer-rule {
+      margin: 32px 32px 0 32px;
+      padding-top: 12px;
+      border-top: 1px solid var(--ink);
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-edition">
+        EDITION <strong>1052</strong> · N°<strong>08</strong> · LIVE
+      </div>
+      <div class="topbar-title">
+        <h1>Live Data</h1>
+        <div class="subtitle">Real-time polled readings · by driver</div>
+      </div>
+      <div class="topbar-clock">
+        <div class="time" id="clock">--:--:--</div>
+        <div class="date" id="date">—</div>
+      </div>
+      <div class="topbar-status" id="status-pill">
+        <span class="dot"></span>
+        <span class="label">INIT</span>
+      </div>
+      <button class="topbar-btn" id="refresh-btn" type="button">↻ REFRESH</button>
+      <a class="topbar-btn secondary" href="./index.html" style="text-decoration:none;display:inline-block;">← DASHBOARD</a>
+    </header>
+
+    <!-- Section: MODBUS -->
+    <div class="section">
+      <div class="section-head">
+        <span class="num">§ 01</span>
+        <h2>MODBUS TCP</h2>
+        <span class="meta" id="mb-meta">—</span>
+      </div>
+      <div class="driver-card">
+        <div class="driver-card-head">
+          <span class="name">MODBUS</span>
+          <span class="endpoint" id="mb-endpoint">—</span>
+          <span class="status" id="mb-status-pill">…</span>
+        </div>
+        <div class="driver-card-body">
+          <div class="modbus-grid">
+            <!-- Coils -->
+            <div class="subpanel">
+              <div class="subpanel-head">
+                <span class="label">COILS</span>
+                <span class="addr">0x · 00001..00010</span>
+                <span class="meta" id="mb-coils-meta">—</span>
+              </div>
+              <div class="subpanel-body">
+                <div class="bit-grid" id="mb-coils-grid">
+                  <div class="placeholder">loading…</div>
+                </div>
+              </div>
+            </div>
+            <!-- Discrete inputs -->
+            <div class="subpanel">
+              <div class="subpanel-head">
+                <span class="label">DISCRETE INPUTS</span>
+                <span class="addr">1x · 10001..10010</span>
+                <span class="meta" id="mb-discrete-meta">—</span>
+              </div>
+              <div class="subpanel-body">
+                <div class="bit-grid" id="mb-discrete-grid">
+                  <div class="placeholder">loading…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modbus-grid">
+            <!-- Holding registers -->
+            <div class="subpanel">
+              <div class="subpanel-head">
+                <span class="label">HOLDING REGISTERS · DECODE</span>
+                <span class="addr">4x · 40001..40010</span>
+                <span class="meta" id="mb-hr-meta">—</span>
+              </div>
+              <div class="subpanel-body">
+                <div class="de-toolbar">
+                  <span>Bulk&nbsp;apply →</span>
+                  <select id="de-bulk-dtype">
+                    <option value="">— dtype —</option>
+                    <option value="u8">u8</option>
+                    <option value="i8">i8</option>
+                    <option value="u16">u16</option>
+                    <option value="i16">i16</option>
+                    <option value="u32">u32</option>
+                    <option value="i32">i32</option>
+                    <option value="u64">u64</option>
+                    <option value="i64">i64</option>
+                    <option value="f32">f32</option>
+                    <option value="f64">f64</option>
+                    <option value="bcd16">bcd16</option>
+                    <option value="bcd32">bcd32</option>
+                    <option value="bit:0">bit:0</option>
+                    <option value="ascii:2">ascii:2</option>
+                    <option value="utf8:2">utf8:2</option>
+                    <option value="time">time</option>
+                    <option value="duration">duration</option>
+                  </select>
+                  <select id="de-bulk-endian">
+                    <option value="ABCD">ABCD</option>
+                    <option value="CDAB">CDAB</option>
+                    <option value="BADC">BADC</option>
+                    <option value="DCBA">DCBA</option>
+                  </select>
+                  <button id="de-bulk-apply" type="button">APPLY ALL</button>
+                  <button id="de-bulk-reset" class="ghost" type="button">RESET</button>
+                  <span class="de-hint">每行 dtype/endian 可独立选 · 实时重新解码</span>
+                </div>
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>addr</th>
+                      <th>raw (u16)</th>
+                      <th>dtype</th>
+                      <th>endian</th>
+                      <th>decoded</th>
+                      <th>copy</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mb-hr-tbody">
+                    <tr><td colspan="7" class="placeholder">loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <!-- Float32 (fixed ABCD big-endian) -->
+            <div class="subpanel">
+              <div class="subpanel-head">
+                <span class="label">FLOAT32 · FIXED</span>
+                <span class="addr">ABCD big-endian · 1 float / 2 reg</span>
+                <span class="meta" id="mb-f32-meta">—</span>
+              </div>
+              <div class="subpanel-body">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>#</th><th>addr</th><th>value (float32)</th></tr>
+                  </thead>
+                  <tbody id="mb-f32-tbody">
+                    <tr><td colspan="3" class="placeholder">loading…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: OPC UA -->
+    <div class="section">
+      <div class="section-head">
+        <span class="num">§ 02</span>
+        <h2>OPC UA</h2>
+        <span class="meta" id="ua-meta">—</span>
+      </div>
+      <div class="driver-card">
+        <div class="driver-card-head">
+          <span class="name">OPC UA</span>
+          <span class="endpoint" id="ua-endpoint">—</span>
+          <span class="status off" id="ua-status-pill">— · —</span>
+        </div>
+        <div class="driver-card-body">
+          <div class="ua-toolbar">
+            <span>One-shot read →</span>
+            <input id="ua-read-node" type="text" placeholder="ns=2;s=Device1.Temp" />
+            <button id="ua-read-go" type="button">READ</button>
+            <span style="color: var(--ink-4); text-transform: none; letter-spacing: 0;">· 类型来自服务器 Variant (Double/Int32/Bool/String/DateTime…)</span>
+          </div>
+          <table class="data-table" id="ua-tasks-table">
+            <thead>
+              <tr>
+                <th>TAG</th>
+                <th>node id</th>
+                <th>type</th>
+                <th>last value</th>
+                <th>pts</th>
+                <th>interval</th>
+                <th>state</th>
+              </tr>
+            </thead>
+            <tbody id="ua-tasks-tbody">
+              <tr><td colspan="7" class="placeholder">no tasks configured — open CONFIGURE → OPC UA</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: MQTT -->
+    <div class="section">
+      <div class="section-head">
+        <span class="num">§ 03</span>
+        <h2>MQTT</h2>
+        <span class="meta" id="mqtt-meta">—</span>
+      </div>
+      <div class="driver-card">
+        <div class="driver-card-head">
+          <span class="name">MQTT</span>
+          <span class="endpoint" id="mqtt-endpoint">—</span>
+          <span class="status off" id="mqtt-status-pill">— · —</span>
+        </div>
+        <div class="driver-card-body">
+          <div class="ua-toolbar">
+            <span>Subscribe →</span>
+            <input id="mqtt-sub-topic" type="text" placeholder="sensors/#" />
+            <select id="mqtt-sub-qos" style="font-family: 'JetBrains Mono', monospace; font-size: 11px; border: 1px solid var(--ink); padding: 3px 6px;">
+              <option value="0">QoS 0</option>
+              <option value="1">QoS 1</option>
+              <option value="2">QoS 2</option>
+            </select>
+            <button id="mqtt-sub-go" type="button">SUBSCRIBE</button>
+            <button id="mqtt-clear" class="ghost" type="button">CLEAR BUFFER</button>
+            <span style="color: var(--ink-4); text-transform: none; letter-spacing: 0;">· 类型自动识别 (json / number / string / bool)</span>
+          </div>
+          <div class="msg-list" id="mqtt-msg-list">
+            <div class="empty">no messages — broker connected but nothing received yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: TDengine -->
+    <div class="section">
+      <div class="section-head">
+        <span class="num">§ 04</span>
+        <h2>TDengine</h2>
+        <span class="meta" id="td-meta">—</span>
+      </div>
+      <div class="driver-card">
+        <div class="driver-card-head">
+          <span class="name">TDENGINE</span>
+          <span class="endpoint" id="td-endpoint">—</span>
+          <span class="status off" id="td-status-pill">— · —</span>
+        </div>
+        <div class="driver-card-body">
+          <div class="placeholder" id="td-body">storage backend status</div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer-rule">
+      <span>1052-OS · INDUSTRIAL GATEWAY v0.4 · LIVE DATA VIEW</span>
+      <span id="footer-stamp">—</span>
+    </footer>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────
+    // Clock
+    // ─────────────────────────────────────────
+    const pad2 = (n) => String(n).padStart(2, '0')
+    const tickClock = () => {
+      const d = new Date()
+      const hh = pad2(d.getHours())
+      const mm = pad2(d.getMinutes())
+      const ss = pad2(d.getSeconds())
+      document.getElementById('clock').textContent = `${hh}:${mm}:${ss}`
+      const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+      document.getElementById('date').textContent = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`
+    }
+    tickClock()
+    setInterval(tickClock, 1000)
+
+    // ─────────────────────────────────────────
+    // API helpers
+    // ─────────────────────────────────────────
+    const api = async (path) => {
+      try {
+        const r = await fetch(path, { signal: AbortSignal.timeout(3000) })
+        if (!r.ok) return null
+        return await r.json()
+      } catch (e) { return null }
+    }
+    const postJSON = async (path, body) => {
+      const r = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.detail || d.message || `HTTP ${r.status}`)
+      return d
+    }
+
+    // 5/6 位数字 / 纯数字 → 协议地址
+    const parseMbAddress = (raw) => {
+      const s = String(raw || '').trim()
+      if (/^[0134]\d{5}$/.test(s) || /^[0134]\d{4}$/.test(s)) {
+        return parseInt(s.slice(1)) - 1
+      }
+      if (/^\d+$/.test(s)) return parseInt(s)
+      return 0
+    }
+    // 1-based Modbus 地址（用于显示）
+    const mbAddr1 = (zeroBased) => {
+      const n = zeroBased + 1
+      return String(n).padStart(5, '0')
+    }
+
+    // ─────────────────────────────────────────
+    // Render helpers
+    // ─────────────────────────────────────────
+    const setStatus = (id, kind, text) => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.className = `status ${kind}`
+      el.textContent = text
+    }
+
+    const setMeta = (id, text, mood) => {
+      const el = document.getElementById(id)
+      if (!el) return
+      el.className = `meta ${mood || ''}`
+      el.textContent = text
+    }
+
+    // Lightweight toast for inline feedback (e.g. "copied to clipboard")
+    const showToast = (msg, mood = '') => {
+      let t = document.getElementById('toast')
+      if (!t) {
+        t = document.createElement('div')
+        t.id = 'toast'
+        t.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;font-family:JetBrains Mono,monospace;font-size:12px;padding:10px 14px;background:#0a0a0a;color:#f5f1e8;border:1px solid #0a0a0a;max-width:420px;box-shadow:0 2px 12px rgba(0,0,0,0.15);transition:opacity 0.2s;'
+        document.body.appendChild(t)
+      }
+      t.style.borderColor = mood === 'error' ? '#c8102e' : mood === 'success' ? '#0a0a0a' : '#0a0a0a'
+      t.style.background  = mood === 'error' ? '#c8102e' : '#0a0a0a'
+      t.style.color       = mood === 'error' ? '#f5f1e8' : '#f5f1e8'
+      t.textContent = msg
+      t.style.opacity = '1'
+      clearTimeout(t._tm)
+      t._tm = setTimeout(() => { t.style.opacity = '0' }, 2200)
+    }
+
+    // 5 位 Modbus 地址 → 6 位（400001）显示
+    const toSixDigit = (fiveDigit) => {
+      // 输入 40001 → 400001（前缀 4 + 5位）
+      const s = String(fiveDigit)
+      if (s.length === 5 && /^[0134]/.test(s)) return s[0] + s
+      if (s.length === 6) return s
+      return s.padStart(5, '0')
+    }
+
+    const renderBitGrid = (containerId, values, addressPrefix) => {
+      const el = document.getElementById(containerId)
+      if (!values || values.length === 0) {
+        el.innerHTML = '<div class="placeholder">no data</div>'
+        return
+      }
+      el.innerHTML = values.map((v, i) => {
+        const cls = v === true ? 'on' : v === false ? 'off' : 'err'
+        const mark = v === true ? '1' : v === false ? '0' : '!'
+        const addr = addressPrefix + String(i + 1).padStart(5, '0')
+        return `<div class="bit ${cls}">
+          <div class="addr">${addr}</div>
+          <div class="indicator">${mark}</div>
+        </div>`
+      }).join('')
+    }
+
+    const renderHrTable = (tbodyId, words) => {
+      const tbody = document.getElementById(tbodyId)
+      if (!words || words.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="placeholder">no data</td></tr>'
+        tbody.dataset.words = '[]'
+        return
+      }
+      // Cache words for the bulk-apply handler
+      tbody.dataset.words = JSON.stringify(words)
+      tbody.innerHTML = words.map((w, i) => {
+        const addr = toSixDigit('4' + String(i + 1).padStart(4, '0'))
+        return `<tr data-row="${i}">
+          <td class="idx">${String(i).padStart(2, '0')}</td>
+          <td class="addr">${addr}</td>
+          <td class="val">${w}</td>
+          <td><select class="de-dtype" data-row="${i}">
+            <option value="">—</option>
+            <option value="u8">u8</option>
+            <option value="i8">i8</option>
+            <option value="u16">u16</option>
+            <option value="i16">i16</option>
+            <option value="u32">u32</option>
+            <option value="i32">i32</option>
+            <option value="u64">u64</option>
+            <option value="i64">i64</option>
+            <option value="f32">f32</option>
+            <option value="f64">f64</option>
+            <option value="bcd16">bcd16</option>
+            <option value="bcd32">bcd32</option>
+            <option value="bit:0">bit:0</option>
+            <option value="bit:1">bit:1</option>
+            <option value="bit:15">bit:15</option>
+            <option value="ascii:2">ascii:2</option>
+            <option value="ascii:4">ascii:4</option>
+            <option value="utf8:2">utf8:2</option>
+            <option value="utf8:3">utf8:3</option>
+            <option value="time">time</option>
+            <option value="duration">duration</option>
+          </select></td>
+          <td><select class="de-endian" data-row="${i}">
+            <option value="ABCD">ABCD</option>
+            <option value="CDAB">CDAB</option>
+            <option value="BADC">BADC</option>
+            <option value="DCBA">DCBA</option>
+          </select></td>
+          <td class="de-val" data-row="${i}">—</td>
+          <td class="de-action"><button class="de-copy" data-row="${i}" type="button" title="复制 tag=value 到剪贴板">⧉</button></td>
+        </tr>`
+      }).join('')
+      // Wire up dropdown changes
+      tbody.querySelectorAll('select.de-dtype, select.de-endian').forEach((sel) => {
+        sel.addEventListener('change', () => decodeAndRenderRow(tbodyId, words, parseInt(sel.dataset.row, 10)))
+      })
+      // Wire up copy buttons
+      tbody.querySelectorAll('button.de-copy').forEach((btn) => {
+        btn.addEventListener('click', () => copyDecodedRow(tbodyId, parseInt(btn.dataset.row, 10)))
+      })
+    }
+
+    // Copy a decoded row as `addr\ttag=value` to clipboard (Excel-friendly TSV).
+    // Falls back to a hidden textarea if Clipboard API is unavailable.
+    const copyTextToClipboard = async (text) => {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (e) {
+        try {
+          const ta = document.createElement('textarea')
+          ta.value = text
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+          return true
+        } catch (e2) {
+          return false
+        }
+      }
+    }
+
+    const copyDecodedRow = async (tbodyId, rowIdx) => {
+      const tbody = document.getElementById(tbodyId)
+      const cell = tbody.querySelector(`td.de-val[data-row="${rowIdx}"]`)
+      const btn  = tbody.querySelector(`button.de-copy[data-row="${rowIdx}"]`)
+      const text = (cell?.textContent || '').trim()
+      // Use the 6-digit Modbus address (e.g. 400001) as the tag, and the
+      // current decoded value as the value. This format pastes straight into
+      // a 2-column Excel sheet.
+      const tag = toSixDigit('4' + String(rowIdx + 1).padStart(4, '0'))
+      if (!text || text === '—' || text.startsWith('✕')) {
+        showToast(`✕ row ${rowIdx} has no decodable value (try picking a dtype)`, 'error')
+        return
+      }
+      const payload = `${tag}=${text}`
+      const ok = await copyTextToClipboard(payload)
+      if (ok) {
+        showToast(`✓ copied \`${payload}\` to clipboard`, 'success')
+        if (btn) {
+          const orig = btn.textContent
+          btn.classList.add('copied')
+          btn.textContent = '✓'
+          setTimeout(() => { btn.classList.remove('copied'); btn.textContent = orig }, 900)
+        }
+      } else {
+        showToast('✕ clipboard blocked by browser', 'error')
+      }
+    }
+
+    // ── Modbus decoder (JS port of modbus_decoder.py) ──
+    const DTYPES = ['u8','i8','u16','i16','u32','i32','u64','i64',
+                    'f32','f64','bcd16','bcd32','bit',
+                    'ascii','utf8','time','duration']
+    const ENDIANS = ['ABCD','CDAB','BADC','DCBA']
+
+    const wordsToBytes = (words, endian) => {
+      if (!words || words.length === 0) return new Uint8Array(0)
+      const w = (endian === 'BADC' || endian === 'DCBA') ? [...words].reverse() : [...words]
+      const swap = (endian === 'CDAB' || endian === 'DCBA')
+      const out = new Uint8Array(w.length * 2)
+      for (let i = 0; i < w.length; i++) {
+        const hi = (w[i] >> 8) & 0xFF
+        const lo = w[i] & 0xFF
+        if (swap) { out[i * 2] = lo; out[i * 2 + 1] = hi }
+        else      { out[i * 2] = hi; out[i * 2 + 1] = lo }
+      }
+      return out
+    }
+
+    const parseDtypeSpec = (raw) => {
+      const s = String(raw || '').trim()
+      if (!s) return null
+      const m = s.match(/^([a-z0-9]+)(?::(\d+))?$/i)
+      if (!m) return null
+      const dtype = m[1].toLowerCase()
+      const arg = m[2] ? parseInt(m[2], 10) : 0
+      if (!DTYPES.includes(dtype)) return null
+      return {
+        dtype,
+        bitIndex: dtype === 'bit' ? arg : 0,
+        stringLen: (dtype === 'ascii' || dtype === 'utf8') ? Math.max(1, arg || 1) : 1,
+      }
+    }
+
+    const registerFootprint = (dtype, stringLen = 1) => {
+      if (dtype === 'ascii' || dtype === 'utf8') {
+        if (stringLen <= 0) throw new Error('string_len must be > 0')
+        return Math.ceil(stringLen / 2)
+      }
+      const map = {
+        u8:1, i8:1, u16:1, i16:1, u32:2, i32:2, u64:4, i64:4,
+        f32:2, f64:4, bcd16:1, bcd32:2, bit:1, time:2, duration:2,
+      }
+      return map[dtype]
+    }
+
+    const decodeValue = (words, dtypeSpec, endian) => {
+      if (!dtypeSpec) throw new Error('no dtype selected')
+      const { dtype, bitIndex, stringLen } = dtypeSpec
+      if (!words || words.length === 0) throw new Error('empty input')
+      const need = registerFootprint(dtype, stringLen)
+      if (words.length < need) throw new Error(`${dtype} needs ${need} word(s), got ${words.length}`)
+
+      if (dtype === 'u8')  return words[0] & 0xFF
+      if (dtype === 'i8')  { const v = words[0] & 0xFF; return v >= 128 ? v - 256 : v }
+      if (dtype === 'u16') return words[0] & 0xFFFF
+      if (dtype === 'i16') { const v = words[0] & 0xFFFF; return v >= 0x8000 ? v - 0x10000 : v }
+
+      if (dtype === 'u32' || dtype === 'i32') {
+        const b = wordsToBytes(words.slice(0, 2), endian)
+        const dv = new DataView(b.buffer, b.byteOffset, b.byteLength)
+        return dtype === 'u32' ? dv.getUint32(0, false) : dv.getInt32(0, false)
+      }
+      if (dtype === 'u64' || dtype === 'i64') {
+        const b = wordsToBytes(words.slice(0, 4), endian)
+        let n = 0n
+        for (let i = 0; i < 8; i++) n = (n << 8n) | BigInt(b[i])
+        if (dtype === 'i64' && (b[0] & 0x80)) n -= 1n << 64n
+        return n
+      }
+      if (dtype === 'f32') {
+        const b = wordsToBytes(words.slice(0, 2), endian)
+        return new DataView(b.buffer, b.byteOffset, b.byteLength).getFloat32(0, false)
+      }
+      if (dtype === 'f64') {
+        const b = wordsToBytes(words.slice(0, 4), endian)
+        return new DataView(b.buffer, b.byteOffset, b.byteLength).getFloat64(0, false)
+      }
+      if (dtype === 'bcd16' || dtype === 'bcd32') {
+        const b = wordsToBytes(words.slice(0, dtype === 'bcd16' ? 1 : 2), endian)
+        let out = 0
+        for (const byte of b) {
+          const hi = (byte >> 4) & 0x0F
+          const lo = byte & 0x0F
+          if (hi > 9 || lo > 9) throw new Error(`invalid BCD digit 0x${byte.toString(16)}`)
+          out = out * 100 + hi * 10 + lo
+        }
+        return out
+      }
+      if (dtype === 'bit') {
+        if (bitIndex < 0 || bitIndex > 15) throw new Error('bit_index must be 0..15')
+        return ((words[0] >> bitIndex) & 1) === 1
+      }
+      if (dtype === 'ascii' || dtype === 'utf8') {
+        const b = wordsToBytes(words.slice(0, need), endian)
+        const enc = dtype === 'ascii' ? 'ascii' : 'utf-8'
+        return new TextDecoder(enc).decode(b).replace(/\x00+$/g, '').replace(/\s+$/g, '')
+      }
+      if (dtype === 'time') {
+        const b = wordsToBytes(words.slice(0, 2), endian)
+        return new DataView(b.buffer, b.byteOffset, b.byteLength).getUint32(0, false)
+      }
+      if (dtype === 'duration') {
+        const b = wordsToBytes(words.slice(0, 2), endian)
+        return new DataView(b.buffer, b.byteOffset, b.byteLength).getFloat32(0, false)
+      }
+      throw new Error('unknown dtype ' + dtype)
+    }
+
+    const formatDecoded = (val, dtype) => {
+      if (typeof val === 'bigint') return val.toString()
+      if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE'
+      if (typeof val === 'number') {
+        if (Number.isInteger(val)) return val.toString()
+        return Number.isFinite(val) ? val.toFixed(4).replace(/\.?0+$/, '') : String(val)
+      }
+      if (typeof val === 'string') return val
+      return String(val)
+    }
+
+    const decodeAndRenderRow = (tbodyId, words, rowIdx) => {
+      const tbody = document.getElementById(tbodyId)
+      const cell = tbody.querySelector(`td.de-val[data-row="${rowIdx}"]`)
+      if (!cell) return
+      const dtypeSel = tbody.querySelector(`select.de-dtype[data-row="${rowIdx}"]`)
+      const endianSel = tbody.querySelector(`select.de-endian[data-row="${rowIdx}"]`)
+      const spec = parseDtypeSpec(dtypeSel.value)
+      if (!spec) {
+        cell.className = 'de-val'
+        cell.textContent = '—'
+        return
+      }
+      try {
+        // grab the slice starting at rowIdx — needs enough words for the dtype
+        const need = registerFootprint(spec.dtype, spec.stringLen)
+        const slice = words.slice(rowIdx, rowIdx + need)
+        const v = decodeValue(slice, spec, endianSel.value)
+        cell.textContent = formatDecoded(v, spec.dtype)
+        cell.className = 'de-val'
+        if (spec.dtype === 'bit') cell.classList.add(v ? 'bit-true' : 'bit-false')
+        else if (spec.dtype === 'ascii' || spec.dtype === 'utf8') cell.classList.add('string')
+      } catch (e) {
+        cell.textContent = `✕ ${e.message}`
+        cell.className = 'de-val err'
+      }
+    }
+
+    // Re-decode all rows using current dropdown selections
+    const decodeAllRows = (tbodyId, words) => {
+      const tbody = document.getElementById(tbodyId)
+      const rows = tbody.querySelectorAll('tr[data-row]')
+      rows.forEach((tr) => decodeAndRenderRow(tbodyId, words, parseInt(tr.dataset.row, 10)))
+    }
+
+    // Bulk-apply toolbar (change every row's dtype+endian, then re-decode)
+    document.getElementById('de-bulk-apply').addEventListener('click', () => {
+      const dtSel = document.getElementById('de-bulk-dtype')
+      const enSel = document.getElementById('de-bulk-endian')
+      const tbody = document.getElementById('mb-hr-tbody')
+      if (dtSel.value) {
+        tbody.querySelectorAll('select.de-dtype').forEach((s) => { s.value = dtSel.value })
+      }
+      enSel.value // endian always has a value
+      tbody.querySelectorAll('select.de-endian').forEach((s) => { s.value = enSel.value })
+      // re-decode using current words (cached on tbody.dataset)
+      const words = JSON.parse(tbody.dataset.words || '[]')
+      decodeAllRows('mb-hr-tbody', words)
+    })
+    document.getElementById('de-bulk-reset').addEventListener('click', () => {
+      const tbody = document.getElementById('mb-hr-tbody')
+      tbody.querySelectorAll('select.de-dtype').forEach((s) => { s.value = '' })
+      tbody.querySelectorAll('select.de-endian').forEach((s) => { s.value = 'ABCD' })
+      const words = JSON.parse(tbody.dataset.words || '[]')
+      decodeAllRows('mb-hr-tbody', words)
+    })
+
+    const renderF32Table = (tbodyId, words) => {
+      const tbody = document.getElementById(tbodyId)
+      if (!words || words.length < 2) {
+        tbody.innerHTML = '<tr><td colspan="3" class="placeholder">no data</td></tr>'
+        return
+      }
+      const rows = []
+      for (let i = 0; i + 1 < words.length; i += 2) {
+        const buf = new ArrayBuffer(4)
+        const view = new DataView(buf)
+        view.setUint16(0, words[i], false)        // big-endian hi
+        view.setUint16(2, words[i + 1], false)    // big-endian lo
+        const f = view.getFloat32(0, false)
+        const addr = toSixDigit('4' + String(i + 1).padStart(4, '0'))
+        rows.push(`<tr>
+          <td class="idx">${String(i / 2).padStart(2, '0')}</td>
+          <td class="addr">${addr}</td>
+          <td class="val float">${f.toFixed(4)}</td>
+        </tr>`)
+      }
+      tbody.innerHTML = rows.join('')
+    }
+
+    // ── OPC UA: per-task table with live values from collector cache ──
+    const renderUaTasksTable = (tasks) => {
+      const tbody = document.getElementById('ua-tasks-tbody')
+      if (!tasks || tasks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="placeholder">no OPC UA collector tasks — open CONFIGURE → OPC UA § C</td></tr>'
+        return
+      }
+      const now = Date.now() / 1000
+      tbody.innerHTML = tasks.map((t) => {
+        const v = t.last_value
+        const vt = t.last_type || '—'
+        const ts = t.last_ts || 0
+        const age = ts > 0 ? fmtAge(now - ts) : '—'
+        let valCell = '<span style="color:var(--ink-4);">—</span>'
+        if (t.last_error) {
+          valCell = `<span class="err" style="color:var(--signal-red); font-size:11px;">✕ ${escapeHtml(t.last_error)}</span>`
+        } else if (v !== undefined && v !== null) {
+          valCell = `<span class="live-val">${escapeHtml(String(v))}</span>
+            <span class="type-badge opcua" style="margin-left:6px;">${escapeHtml(vt)}</span>
+            <span class="age" style="margin-left:8px; font-size:10px; color:var(--ink-4);">${age}</span>`
+        } else if (t.running) {
+          valCell = '<span style="color:var(--ink-4); font-size:10px;">polling…</span>'
+        }
+        return `<tr>
+          <td class="addr" style="color:var(--ink); font-weight:700;">${escapeHtml(t.id)}</td>
+          <td class="addr" style="word-break:break-all;">${escapeHtml(t.ua_node_id || '—')}</td>
+          <td class="col-type">${vt && vt !== '—' ? `<span class="type-badge opcua">${escapeHtml(vt)}</span>` : '<span style="color:var(--ink-4);">—</span>'}</td>
+          <td>${valCell}</td>
+          <td class="idx">${t.points ?? 0}</td>
+          <td class="idx">${t.interval ? t.interval.toFixed(1) + 's' : '—'}</td>
+          <td class="idx">${t.running ? '● running' : '○ idle'}</td>
+        </tr>`
+      }).join('')
+    }
+
+    document.getElementById('ua-read-go').addEventListener('click', async () => {
+      const nodeId = document.getElementById('ua-read-node').value.trim()
+      if (!nodeId) { showToast('✕ enter a node id', 'error'); return }
+      try {
+        const r = await postJSON('/industrial-gateway/api/opcua/read', { node_ids: [nodeId] })
+        if (r && r.results && r.results[0]) {
+          const n = r.results[0]
+          showToast(`✓ ${nodeId} = ${n.value} (${n.data_type})`, 'success')
+        } else if (r && r.value !== undefined) {
+          showToast(`✓ ${nodeId} = ${r.value} (${r.data_type})`, 'success')
+        } else {
+          showToast('✕ unexpected response shape', 'error')
+        }
+      } catch (e) {
+        showToast(`✕ ${e.message}`, 'error')
+      }
+    })
+
+    // ── MQTT: render buffered messages with type-aware formatting ──
+    const classifyMqttPayload = (s) => {
+      // Try JSON first
+      if (typeof s !== 'string') return { kind: 'string', display: String(s) }
+      const trimmed = s.trim()
+      if (!trimmed) return { kind: 'empty', display: '(empty)' }
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          const obj = JSON.parse(trimmed)
+          const pretty = JSON.stringify(obj, null, 2)
+          // Try to extract a primary scalar for the type label
+          let t = 'json'
+          if (Array.isArray(obj)) t = `array[${obj.length}]`
+          else if (typeof obj === 'object') t = `object{${Object.keys(obj).length}}`
+          return { kind: 'json', display: pretty, type: t }
+        } catch { /* fall through */ }
+      }
+      // Plain number / bool
+      if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(trimmed)) return { kind: 'number', display: trimmed, type: 'number' }
+      if (trimmed === 'true' || trimmed === 'false') return { kind: 'bool', display: trimmed, type: 'bool' }
+      if (trimmed === 'null') return { kind: 'null', display: 'null', type: 'null' }
+      return { kind: 'string', display: s.length > 200 ? s.slice(0, 200) + '…' : s, type: `string[${s.length}]` }
+    }
+
+    const fmtAge = (sec) => {
+      if (sec < 1) return `${(sec * 1000).toFixed(0)}ms`
+      if (sec < 60) return `${sec.toFixed(1)}s`
+      if (sec < 3600) return `${(sec / 60).toFixed(0)}m`
+      return `${(sec / 3600).toFixed(1)}h`
+    }
+
+    const renderMqttMessages = (msgs) => {
+      const el = document.getElementById('mqtt-msg-list')
+      if (!msgs || msgs.length === 0) {
+        el.innerHTML = '<div class="empty">no messages buffered — subscribe above to start receiving</div>'
+        return
+      }
+      const now = Date.now() / 1000
+      el.innerHTML = msgs.slice().reverse().map((m) => {
+        const ts = new Date((m.timestamp || 0) * 1000)
+        const hh = pad2(ts.getHours()), mm = pad2(ts.getMinutes()), ss = pad2(ts.getSeconds())
+        const cls = classifyMqttPayload(m.payload)
+        const clsName = cls.kind === 'json' ? 'json' : (cls.kind === 'string' ? 'string' : '')
+        const age = fmtAge(now - (m.timestamp || now))
+        return `<div class="msg">
+          <div class="ts">${hh}:${mm}:${ss}</div>
+          <div class="topic">${escapeHtml(m.topic)}</div>
+          <div class="payload ${clsName}">${escapeHtml(cls.display)}</div>
+          <div>
+            <span class="age">${age}</span>
+            ${cls.type ? `<span class="type-badge mqtt" style="margin-left:6px;">${escapeHtml(cls.type)}</span>` : ''}
+          </div>
+        </div>`
+      }).join('')
+    }
+
+    document.getElementById('mqtt-sub-go').addEventListener('click', async () => {
+      const topic = document.getElementById('mqtt-sub-topic').value.trim()
+      const qos = parseInt(document.getElementById('mqtt-sub-qos').value, 10)
+      if (!topic) { showToast('✕ enter a topic pattern', 'error'); return }
+      try {
+        const r = await postJSON('/industrial-gateway/api/mqtt/subscribe', { topic, qos })
+        showToast(`✓ subscribed to ${r.topic || topic}`, 'success')
+        refresh()
+      } catch (e) {
+        showToast(`✕ ${e.message}`, 'error')
+      }
+    })
+
+    document.getElementById('mqtt-clear').addEventListener('click', async () => {
+      try {
+        await postJSON('/industrial-gateway/api/mqtt/messages/clear', {})
+        showToast('✓ message buffer cleared', 'success')
+        refresh()
+      } catch (e) {
+        showToast(`✕ ${e.message}`, 'error')
+      }
+    })
+
+    // Minimal HTML escape used by OPC UA / MQTT renderers
+    const escapeHtml = (s) => String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+
+    const refresh = async () => {
+      const t0 = Date.now()
+
+      // 并行: 健康 + 各驱动状态 + Modbus 实时数据 + 采集任务 + MQTT 消息
+      const [health, mbStatus, uaStatus, mqttStatus, tdPing, mbHr, mbCoils, mbDiscrete, collectorStatus, mqttMsgs] = await Promise.all([
+        api('/industrial-gateway/api/health'),
+        api('/industrial-gateway/api/modbus/status'),
+        api('/industrial-gateway/api/opcua/status'),
+        api('/industrial-gateway/api/mqtt/status'),
+        api('/industrial-gateway/api/td/ping'),
+        postJSON('/industrial-gateway/api/modbus/read/holding', { address: 0, count: 10 }).catch((e) => ({ error: e.message })),
+        postJSON('/industrial-gateway/api/modbus/read/coils', { address: 0, count: 10 }).catch((e) => ({ error: e.message })),
+        postJSON('/industrial-gateway/api/modbus/read/discrete-inputs', { address: 0, count: 10 }).catch((e) => ({ error: e.message })),
+        api('/industrial-gateway/api/collector/status').catch(() => ({ ok: false, tasks: [] })),
+        api('/industrial-gateway/api/mqtt/messages?limit=20').catch(() => ({ ok: false, messages: [] })),
+      ])
+
+      // ── Top status ──
+      const online = !!health && health.ok === true
+      const pill = document.getElementById('status-pill')
+      pill.className = `topbar-status ${online ? 'online' : 'offline'}`
+      pill.querySelector('.label').textContent = online ? 'ONLINE' : 'OFFLINE'
+
+      // ── MODBUS 卡片 ──
+      const mbConn = !!mbStatus && mbStatus.connected
+      const mbCfg = (mbStatus && mbStatus.config) || {}
+      document.getElementById('mb-endpoint').textContent =
+        mbCfg.host ? `${mbCfg.host}:${mbCfg.port} · unit ${mbCfg.unit_id ?? 1}` : '—'
+
+      if (mbConn) {
+        setStatus('mb-status-pill', 'ok', '● CONNECTED')
+        setMeta('mb-meta', 'live · polling 2.5s', 'live')
+
+        // Coils
+        if (mbCoils && mbCoils.values) {
+          renderBitGrid('mb-coils-grid', mbCoils.values, '0')
+          setMeta('mb-coils-meta', `${mbCoils.values.length} bits`, 'live')
+        } else {
+          renderBitGrid('mb-coils-grid', [], '0')
+          const errMsg = mbCoils?.error || 'unknown error'
+          document.getElementById('mb-coils-grid').innerHTML =
+            `<div class="err-box" style="grid-column: 1 / -1;">✕ Coils read failed: ${errMsg}</div>`
+          setMeta('mb-coils-meta', 'read failed', 'dead')
+        }
+
+        // Discrete
+        if (mbDiscrete && mbDiscrete.values) {
+          renderBitGrid('mb-discrete-grid', mbDiscrete.values, '1')
+          setMeta('mb-discrete-meta', `${mbDiscrete.values.length} bits`, 'live')
+        } else {
+          const errMsg = mbDiscrete?.error || 'unknown error'
+          document.getElementById('mb-discrete-grid').innerHTML =
+            `<div class="err-box" style="grid-column: 1 / -1;">✕ Discrete read failed: ${errMsg}</div>`
+          setMeta('mb-discrete-meta', 'read failed', 'dead')
+        }
+
+        // Holding registers
+        if (mbHr && mbHr.values) {
+          renderHrTable('mb-hr-tbody', mbHr.values)
+          setMeta('mb-hr-meta', `${mbHr.values.length} registers`, 'live')
+          renderF32Table('mb-f32-tbody', mbHr.values)
+          setMeta('mb-f32-meta', `${Math.floor(mbHr.values.length / 2)} floats`, 'live')
+          // Re-apply user-selected dtypes to the new data so values stay live
+          decodeAllRows('mb-hr-tbody', mbHr.values)
+        } else {
+          const errMsg = mbHr?.error || 'unknown error'
+          document.getElementById('mb-hr-tbody').innerHTML =
+            `<tr><td colspan="7"><div class="err-box">✕ HR read failed: ${errMsg}</div></td></tr>`
+          document.getElementById('mb-hr-tbody').dataset.words = '[]'
+          document.getElementById('mb-f32-tbody').innerHTML =
+            `<tr><td colspan="3"><div class="err-box">float32 解析依赖 HR 数据</div></td></tr>`
+          setMeta('mb-hr-meta', 'read failed', 'dead')
+          setMeta('mb-f32-meta', 'read failed', 'dead')
+        }
+      } else {
+        setStatus('mb-status-pill', 'off', '○ DISCONNECTED')
+        setMeta('mb-meta', 'driver offline', 'dead')
+        const msg = mbStatus ? 'read skipped — driver not connected' : 'gateway not reachable'
+        const inner = `<div class="err-box">${msg}</div>`
+        document.getElementById('mb-coils-grid').innerHTML = inner
+        document.getElementById('mb-discrete-grid').innerHTML = inner
+        document.getElementById('mb-hr-tbody').innerHTML = `<tr><td colspan="7">${inner}</td></tr>`
+        document.getElementById('mb-hr-tbody').dataset.words = '[]'
+        document.getElementById('mb-f32-tbody').innerHTML = `<tr><td colspan="3">${inner}</td></tr>`
+      }
+
+      // ── OPC UA ──
+      const uaConn = !!uaStatus && uaStatus.connected
+      const uaCfg = (uaStatus && uaStatus.config) || {}
+      document.getElementById('ua-endpoint').textContent = uaCfg.url || '—'
+      if (uaConn) {
+        setStatus('ua-status-pill', 'ok', '● CONNECTED')
+        const uaTasks = (collectorStatus && collectorStatus.tasks || []).filter((t) => t.protocol === 'opcua')
+        renderUaTasksTable(uaTasks)
+        setMeta('ua-meta', uaTasks.length ? `${uaTasks.length} task(s)` : 'live', 'live')
+      } else {
+        setStatus('ua-status-pill', 'off', '○ OFFLINE')
+        setMeta('ua-meta', 'driver offline', 'dead')
+        document.getElementById('ua-tasks-tbody').innerHTML =
+          '<tr><td colspan="7" class="placeholder">driver not connected — open CONFIGURE → OPC UA</td></tr>'
+      }
+
+      // ── MQTT ──
+      const mqConn = !!mqttStatus && mqttStatus.connected
+      const mqCfg = (mqttStatus && mqttStatus.config) || {}
+      document.getElementById('mqtt-endpoint').textContent =
+        mqCfg.host ? `${mqCfg.host}:${mqCfg.port}` : '—'
+      if (mqConn) {
+        setStatus('mqtt-status-pill', 'ok', '● CONNECTED')
+        const msgs = (mqttMsgs && mqttMsgs.messages) || []
+        renderMqttMessages(msgs)
+        setMeta('mqtt-meta', msgs.length ? `${msgs.length} buffered` : 'live', 'live')
+      } else {
+        setStatus('mqtt-status-pill', 'off', '○ OFFLINE')
+        setMeta('mqtt-meta', 'broker offline', 'dead')
+        document.getElementById('mqtt-msg-list').innerHTML =
+          '<div class="empty">broker not connected — open CONFIGURE → MQTT</div>'
+      }
+
+      // ── TDengine ──
+      const tdOk = !!tdPing && tdPing.ok === true
+      document.getElementById('td-endpoint').textContent = tdOk ? (tdPing.database || '—') : '—'
+      if (tdOk) {
+        setStatus('td-status-pill', 'ok', '● CONNECTED')
+        setMeta('td-meta', `version ${tdPing.version || '?'}`, 'live')
+        document.getElementById('td-body').textContent = `TDengine ${tdPing.version} · database ${tdPing.database}`
+      } else {
+        setStatus('td-status-pill', 'err', '○ OFFLINE')
+        setMeta('td-meta', 'storage offline', 'dead')
+        document.getElementById('td-body').textContent = 'TDengine not connected — collector writes will fail. Open CONFIGURE → TDENGINE.'
+      }
+
+      // Footer stamp
+      const ms = Date.now() - t0
+      const d = new Date()
+      document.getElementById('footer-stamp').textContent =
+        `last refresh ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())} · ${ms}ms`
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+      refresh()
+    })
+
+    refresh()
+    setInterval(refresh, 2500)
+  </script>
+</body>
+</html>
