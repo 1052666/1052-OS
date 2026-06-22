@@ -160,6 +160,13 @@ cd gateway_python
 uv run uvicorn gateway.server:app --host 0.0.0.0 --port 18765
 ```
 
+如果当前只做 AIAAS/Agent 联调，不需要打开 Node-RED 编辑器，建议临时禁用内嵌 Node-RED，避免本机旧 `~/.1052os/node-red/flows.json` 里的历史仿真 flow 持续请求不存在的 mock 平台：
+
+```bash
+cd gateway_python
+GATEWAY_DISABLE_NODERED=1 uv run uvicorn gateway.server:app --host 0.0.0.0 --port 18765
+```
+
 也可以使用脚本：
 
 ```bash
@@ -214,6 +221,112 @@ data/
 - 异常/报警历史
 - 写入/控制审计
 - 采集器状态查询
+
+### AIAAS 精准曝气 Agent 桥接
+
+1052 Agent 已内置 AIAAS 只读诊断工具。启动 AIAAS FastAPI 后，1052 可以直接把“精准曝气系统”作为外部工艺系统读取：
+
+```bash
+export AIAAS_API_URL=http://127.0.0.1:8000
+```
+
+如果不设置 `AIAAS_API_URL`，默认读取 `http://127.0.0.1:8000`。
+
+已挂载到 `data-pack` 的工具：
+
+| 工具 | 说明 |
+| --- | --- |
+| `aiaas_get_state` | 读取 DO、NH4-N、风机频率、阀门开度、能耗和控制模式。 |
+| `aiaas_get_alarms` | 读取当前报警快照。 |
+| `aiaas_get_prediction_analysis` | 读取 AIAAS 预测分析、风险评分和操作建议。 |
+| `aiaas_explain_alarm` | 调用 AIAAS 知识库解释指定报警。 |
+| `aiaas_generate_daily_report` | 生成 AIAAS 曝气运行日报。 |
+| `aiaas_get_control_logs` | 读取最近控制决策日志和安全限幅记录。 |
+| `aiaas_factory_diagnose` | 执行 1052 工厂级综合会诊，合并 AIAAS 专科结论、采集链路、Node-RED/MQTT 状态和 TDengine 趋势证据。 |
+
+这些工具全部返回 `direct_control_allowed=false` 和 `recommendation_level=advisory_only`，只用于诊断、预测、报警解释和人工确认建议，不执行 PLC 写入、不切换控制模式、不修改 AIAAS 控制参数。
+
+其中 `aiaas_factory_diagnose` 会返回 `recommendation_level=factory_diagnosis_only`，适合回答：
+
+```text
+请做一次精准曝气综合诊断
+当前报警是不是采集或通信异常造成的？
+氨氮为什么上升，要不要加大曝气？
+过去 30 分钟 DO 和 NH4-N 的变化是否支持 AIAAS 判断？
+```
+
+1052 Agent 的回答应按：
+
+```text
+结论 → AIAAS 专科意见 → 1052 现场证据链 → 已排除项 → 可能原因 → 建议动作 → 安全边界 → 不确定性
+```
+
+1052 工业网关也可以订阅 AIAAS MQTT 遥测，把一条 JSON 遥测展开成 DO、NH4-N、风机频率、阀门开度、能耗等 TDengine tag，供 `industrial_*` 工具做现场证据链校验：
+
+```bash
+curl -X POST "http://127.0.0.1:18765/api/aiaas/bridge/bootstrap" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "broker_host": "127.0.0.1",
+    "broker_port": 1883,
+    "topic": "aiaas/plc/line-1/zone-1/telemetry",
+    "site": "demo",
+    "device": "aiaas_line_1_zone_1",
+    "start": true
+  }'
+```
+
+注册后可通过 `/api/tags` 看到 AIAAS 点位。每个 tag 都会带可直接查询的 `table` 和 `col` 字段，例如：
+
+```text
+table = raw_data_AIAAS_DO_MG_L
+col   = v
+```
+
+随后 1052 Agent 可用 `industrial_aggregate_timeseries` 对 `table + col` 查询近 30 分钟 DO、NH4-N、风压、风机频率等趋势，用于验证 AIAAS 专科结论是否被现场历史数据支持。
+
+端到端联调可使用内置 smoke 脚本。它会检查 AIAAS API、注册 1052 AIAAS MQTT 桥接、校验 tags，并可选发布一帧 AIAAS 当前状态到 MQTT，再严格验证 TDengine 聚合查询：
+
+```bash
+node scripts/aiaas-e2e-smoke.mjs \
+  --gateway-url http://127.0.0.1:18765 \
+  --table aiaas_smoke \
+  --seed-mqtt \
+  --strict-trends \
+  --trend-attempts 8 \
+  --poll-ms 1000
+```
+
+`--seed-mqtt` 只通过 MQTT 发布模拟遥测帧，不写 PLC，不修改 AIAAS 控制模式。
+
+如果 smoke 里出现以下错误，通常说明跑到旧网关进程或网关没有连上 TDengine/MQTT：
+
+```text
+/api/aiaas/bridge/bootstrap: 404
+/api/nodered/publish: 503 Publisher not initialized
+缺少 AIAAS tag: do_mg_l, nh4n_mg_l, pressure_kpa, blower_frequency_hz, valve_opening_pct
+```
+
+处理方式：
+
+```bash
+lsof -iTCP:18765 -sTCP:LISTEN -n -P
+kill <PID>
+cd /Users/easonliu/1052-OS/gateway_python
+GATEWAY_DISABLE_NODERED=1 uv run uvicorn gateway.server:app --host 0.0.0.0 --port 18765
+```
+
+然后重新运行 `scripts/aiaas-e2e-smoke.mjs`。最新网关应返回 `Bridge bootstrap`、`Seed MQTT frame`、`Required tags 5/5` 全部 PASS。
+
+典型问法：
+
+```text
+帮我诊断精准曝气系统当前状态
+解释当前高氨氮报警的可能原因
+预测未来 1 小时氨氮和 DO 风险
+生成今天精准曝气运行日报
+最近 AI 建议有没有被 PLC 限幅拦截
+```
 
 常用 API：
 
@@ -334,7 +447,13 @@ curl http://127.0.0.1:18765/api/health
 curl http://127.0.0.1:18765/api/nodered/runtime
 ```
 
-如果 `running` 不是 `true`，重启工业网关或 Node-RED runtime。
+如果 `running` 不是 `true`，先看 `reason` / `last_error`。常见情况是 1880 已被旧 Node-RED 占用；先确认并清理旧进程：
+
+```bash
+lsof -iTCP:1880 -sTCP:LISTEN -n -P
+```
+
+如果 Node-RED 能启动但日志里持续出现 `ECONNREFUSED 127.0.0.1:590x` 或 `${INFLUXDB_URL}`，一般是本机历史 flow 在请求旧 mock 平台，不影响 AIAAS bridge。AIAAS 联调可以用 `GATEWAY_DISABLE_NODERED=1` 启动 gateway。
 
 ### 3. 前端访问工业网关 502
 

@@ -197,6 +197,23 @@ describe('agent progressive disclosure helpers', () => {
     expect(describePackForRouting('data-pack')).toContain('SQL')
   })
 
+  it('mounts AIAAS precision aeration advisory tools through data-pack', () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['data-pack']))
+
+    expect(toolNames).toContain('aiaas_get_state')
+    expect(toolNames).toContain('aiaas_get_alarms')
+    expect(toolNames).toContain('aiaas_get_prediction_analysis')
+    expect(toolNames).toContain('aiaas_explain_alarm')
+    expect(toolNames).toContain('aiaas_generate_daily_report')
+    expect(toolNames).toContain('aiaas_get_control_logs')
+    expect(toolNames).toContain('aiaas_factory_diagnose')
+    expect(hasAgentTool('aiaas_get_state')).toBe(true)
+    expect(hasAgentTool('aiaas_get_prediction_analysis')).toBe(true)
+    expect(hasAgentTool('aiaas_factory_diagnose')).toBe(true)
+    expect(describePackForRouting('data-pack')).toContain('精准曝气')
+    expect(describePackForRouting('data-pack')).toContain('只读')
+  })
+
   it('mounts Intel Brief formatting through channel-pack', () => {
     const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['channel-pack']))
     expect(toolNames).toContain('intel_brief_format')

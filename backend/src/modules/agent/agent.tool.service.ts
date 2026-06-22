@@ -10,6 +10,7 @@ import { calendarTools } from './tools/calendar.tools.js'
 import { claudeCodeTools } from './tools/claude-code.tools.js'
 import { filesystemTools } from './tools/filesystem.tools.js'
 import { feishuTools } from './tools/feishu.tools.js'
+import { aiaasTools } from './tools/aiaas.tools.js'
 import { imageTools } from './tools/image.tools.js'
 import { intelTools } from './tools/intel.tools.js'
 import { industrialGatewayTools } from './tools/industrial-gateway.tools.js'
@@ -70,6 +71,7 @@ const AGENT_TOOLS: AgentTool[] = [
   ...uapisTools,
   ...filesystemTools,
   ...feishuTools,
+  ...aiaasTools,
   ...industrialGatewayTools,
   ...intelTools,
   ...wechatDesktopTools,

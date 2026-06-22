@@ -27,6 +27,7 @@ import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -162,6 +163,13 @@ module.exports = {{
 """
 
 
+def _port_in_use(port: int, host: str = "127.0.0.1") -> bool:
+    """Return True when another process is already listening on host:port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.25)
+        return sock.connect_ex((host, port)) == 0
+
+
 # ── Runtime class ───────────────────────────────────────
 
 
@@ -193,6 +201,7 @@ class NodeRedRuntime:
         # Process state
         self._proc: subprocess.Popen | None = None
         self._started_at: float | None = None
+        self._last_error: str | None = None
 
         # Supervisor state
         self._restart_history: list[float] = []
@@ -262,6 +271,9 @@ class NodeRedRuntime:
         self._ensure_prerequisites()
         self._write_settings_if_missing()
         self._seed_bootstrap_if_missing()
+        if _port_in_use(self.port):
+            self._last_error = f"Node-RED port {self.port} already in use"
+            raise RuntimeError(self._last_error)
 
         cmd = [
             "node-red",
@@ -280,6 +292,7 @@ class NodeRedRuntime:
             start_new_session=True,
         )
         self._started_at = time.time()
+        self._last_error = None
 
         # Start supervisor in background — daemon thread, exits naturally when
         # stop() is called.
@@ -353,6 +366,7 @@ class NodeRedRuntime:
             self.start()
         except Exception as e:
             print(f"[nodered] restart failed: {e}", file=sys.stderr)
+            self._last_error = str(e)
             self._proc = None
 
     # ── Status / readiness ───────────────────────────
@@ -372,6 +386,7 @@ class NodeRedRuntime:
                 else None
             ),
             "restart_count": len(self._restart_history),
+            "last_error": self._last_error,
         }
 
     def wait_ready(self, timeout: float = 30.0, poll_interval: float = 0.5) -> bool:

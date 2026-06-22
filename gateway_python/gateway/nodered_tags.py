@@ -11,12 +11,19 @@ def build_tag_catalog(tasks: dict) -> list[dict]:
     for tid, task in sorted(tasks.items()):
         device = getattr(task, "device", "") or getattr(task, "table", "raw_data")
         site = getattr(task, "site", "default")
+        stable = getattr(task, "table", "raw_data")
+        col_map = getattr(task, "col_map", {}) or {}
         out.append({
             "tag": tid,
             "site": site,
             "device": device,
             "protocol": task.protocol,
-            "table": task.table,
+            "table": f"{stable}_{tid}",
+            "stable": stable,
+            "col": "v",
+            "metric": col_map.get("metric", tid),
+            "unit": col_map.get("unit", ""),
+            "label": col_map.get("label", tid),
             "dtype": task.dtype,
             "endian": task.endian,
             "interval": task.interval,

@@ -123,6 +123,13 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'industrial_get_nodered_status',
     'industrial_get_audit_writes',
     'industrial_describe_data',
+    'aiaas_get_state',
+    'aiaas_get_alarms',
+    'aiaas_get_prediction_analysis',
+    'aiaas_explain_alarm',
+    'aiaas_generate_daily_report',
+    'aiaas_get_control_logs',
+    'aiaas_factory_diagnose',
     'orchestration_list',
     'orchestration_create',
     'orchestration_update',
@@ -216,7 +223,7 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'plan-pack':
       return '日程创建/查询/更新/删除、定时任务查看、PKM 知识检索。日程写入和 PKM 索引重建需用户确认。'
     case 'data-pack':
-      return '笔记、资源列表、SQL 数据源管理（MySQL/Oracle/SQLite/Hive）、SQL 文件管理、SQL 查询执行、SQL 变量管理、SSH 服务器管理、Shell 脚本管理及执行、SQL 编排（DAG 工作流）、工业网关数据查询（采集点位、时序趋势、聚合统计、报警异常、采集器状态、Node-RED 状态、写入审计、TDengine 表结构）、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。工业网关工具只读，不执行设备控制；SQL 写入、服务器操作、Shell 执行和 Wiki 写入默认需要用户确认。'
+      return '笔记、资源列表、SQL 数据源管理（MySQL/Oracle/SQLite/Hive）、SQL 文件管理、SQL 查询执行、SQL 变量管理、SSH 服务器管理、Shell 脚本管理及执行、SQL 编排（DAG 工作流）、工业网关数据查询（采集点位、时序趋势、聚合统计、报警异常、采集器状态、Node-RED 状态、写入审计、TDengine 表结构）、AIAAS 精准曝气系统只读诊断（实时状态、报警、预测分析、报警解释、日报和控制日志）、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。工业网关和 AIAAS 工具只读，不执行设备控制；SQL 写入、服务器操作、Shell 执行和 Wiki 写入默认需要用户确认。'
     case 'channel-pack':
       return '微信桌面、飞书等外部通道能力、Intel Center 工具箱的 Intel Brief 通道格式渲染和飞书工作区工具。桌面微信群聊入站消息会由通道自动回发，不要为了回复当前入站群消息申请本包；只有跨通道主动发送、查看桌面微信会话/群配置，或显式管理微信群聊记忆时才申请本包。'
   }

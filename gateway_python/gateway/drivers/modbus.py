@@ -233,27 +233,27 @@ class ModbusDriver:
 
     @staticmethod
     def decode_row(task, raw: list[int], col_type: str) -> dict:
-        """Decode raw 16-bit words into a single typed value under the task TAG."""
+        """Decode raw 16-bit words into the stable TDengine value column."""
         try:
             val = decode_value(
                 raw, task.dtype, task.endian,
                 bit_index=task.bit_index, string_len=task.string_len,
             )
         except DecoderError:
-            return {task.id: None}
+            return {"v": None}
         if col_type == "BIGINT":
             if isinstance(val, bool):
-                return {task.id: int(val)}
+                return {"v": int(val)}
             if isinstance(val, (int, float)):
-                return {task.id: int(val)}
-            return {task.id: None}
+                return {"v": int(val)}
+            return {"v": None}
         if col_type == "DOUBLE":
             if isinstance(val, (int, float)):
-                return {task.id: float(val)}
-            return {task.id: None}
+                return {"v": float(val)}
+            return {"v": None}
         if col_type.startswith("NCHAR"):
-            return {task.id: str(val) if val is not None else ""}
-        return {task.id: val}
+            return {"v": str(val) if val is not None else ""}
+        return {"v": val}
 
     @staticmethod
     def handle_write(host: str, port: int, unit_id: int, cmd: str, payload: dict) -> None:
@@ -286,23 +286,23 @@ class ModbusDriver:
                     if task.mb_register == "coils":
                         raw = mb.read_coils(task.mb_address, task.mb_count)
                         if task.dtype == "bit":
-                            row = {task.id: raw[0] if raw else False}
+                            row = {"v": raw[0] if raw else False}
                             decoded = raw[0] if raw else False
                         else:
                             word = 0
                             for i, v in enumerate(raw[:16]):
                                 if v:
                                     word |= (1 << i)
-                            row = {task.id: word}
+                            row = {"v": word}
                             decoded = word
                     elif task.mb_register == "input":
                         raw = mb.read_input_registers(task.mb_address, task.mb_count)
                         row = self.decode_row(task, raw, col_type)
-                        decoded = row.get(task.id)
+                        decoded = row.get("v")
                     else:
                         raw = mb.read_holding_registers(task.mb_address, task.mb_count)
                         row = self.decode_row(task, raw, col_type)
-                        decoded = row.get(task.id)
+                        decoded = row.get("v")
 
                     ctx.insert_row(self._table_for(task), row)
                     ctx.points_collected[task.id] = ctx.points_collected.get(task.id, 0) + 1
@@ -311,7 +311,7 @@ class ModbusDriver:
                 except Exception as e:
                     ctx.record_error(task, task.dtype, str(e))
                     try:
-                        ctx.insert_row(self._table_for(task), {task.id: None})
+                        ctx.insert_row(self._table_for(task), {"v": None})
                     except Exception:
                         pass
                 time.sleep(task.interval)

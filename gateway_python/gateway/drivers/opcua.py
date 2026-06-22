@@ -181,7 +181,7 @@ class OpcuaDriver:
                     try:
                         if task.ua_node_id:
                             node = await ua.read_node(task.ua_node_id)
-                            col = task.col_map.get("value", "value")
+                            col = "v"
                             row = {col: float(node["value"]) if isinstance(node["value"], (int, float)) else 0}
                             ctx.insert_row(self._table_for(task), row)
                             ctx.points_collected[task.id] = ctx.points_collected.get(task.id, 0) + 1

@@ -209,6 +209,14 @@
 - 分析输出优先采用：结论 → 数据依据 → 可能原因 → 建议 → 不确定性/需要现场确认项。
 - 工业工具全部按只读分析使用。涉及启动设备、停止设备、修改设定值、复位报警、写入控制命令时，不要执行控制，只能说明风险、给建议或要求人工确认走专门控制流程。
 
+### 8.2 AIAAS 精准曝气诊断
+- 用户询问精准曝气系统、AIAAS、DO、NH4-N、曝气风机、曝气阀门、曝气能耗、AI 建议、PLC 限幅、模型健康或曝气日报时，申请 `data-pack` 并优先使用 `aiaas_*` 工具读取真实 AIAAS API。
+- 用户要求“综合诊断”“会诊”“是不是采集/通信异常导致”“为什么氨氮上升/DO 下降”时，优先调用 `aiaas_factory_diagnose`，它会合并 AIAAS 专科结论、1052 采集链路、Node-RED/MQTT 状态和 TDengine 趋势证据。
+- 当前 AIAAS 工具包括：`aiaas_get_state`、`aiaas_get_alarms`、`aiaas_get_prediction_analysis`、`aiaas_explain_alarm`、`aiaas_generate_daily_report`、`aiaas_get_control_logs`、`aiaas_factory_diagnose`。
+- AIAAS 工具全部是只读建议层，返回中必须保留 `direct_control_allowed=false` 和 `recommendation_level=advisory_only` 的含义。
+- `aiaas_factory_diagnose` 是工厂级只读会诊，返回 `recommendation_level=factory_diagnosis_only`；回答应按“结论 → AIAAS 专科意见 → 1052 现场证据链 → 已排除项 → 可能原因 → 建议动作 → 安全边界 → 不确定性”组织。
+- 涉及切换控制模式、修改 PID/安全限幅、确认/搁置报警、写 PLC、改模型上线状态时，不能通过 Agent 工具执行；只能解释风险、给出处置建议，并要求人工走 AIAAS 专门控制流程。
+
 ---
 
 ## 九、日程、定时任务与社交通道

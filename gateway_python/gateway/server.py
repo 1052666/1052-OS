@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 from gateway.predictor import TrendPredictor
 
 from gateway.reporter import ReportGenerator
+from gateway.aiaas_bridge import AiaasBridgeConfig, build_aiaas_mqtt_tasks
 
 # ── Global state ───────────────────────────────────────
 
@@ -62,6 +63,7 @@ _mqtt_publisher: MqttPublisher | None = None
 _heartbeat: StatusHeartbeat | None = None
 _command_handler: CommandHandler | None = None
 _audit_logger: WriteAuditLogger | None = None
+_nodered_startup_error: str | None = None
 
 
 @asynccontextmanager
@@ -87,14 +89,17 @@ async def lifespan(app: FastAPI):
     # writing Python. Failure here is non-fatal — gateway still serves the
     # Python-driver path. Disabled in test mode so unit tests can mock _nodered
     # without a real subprocess taking over.
-    global _nodered
+    global _nodered, _nodered_startup_error
+    _nodered_startup_error = None
     if os.environ.get("GATEWAY_DISABLE_NODERED"):
+        _nodered_startup_error = "Node-RED disabled by GATEWAY_DISABLE_NODERED"
         _nodered = None
     else:
         _nodered = NodeRedRuntime()
         try:
             _nodered.start()
         except Exception as e:
+            _nodered_startup_error = str(e)
             print(f"[startup] Node-RED failed to start: {e}", file=sys.stderr)
             _nodered = None
     yield
@@ -845,7 +850,7 @@ def nodered_runtime_status():
     """Embedded Node-RED child process status (separate from MQTT bridge)."""
     if _nodered is None:
         return {"ok": True, "available": False, "running": False,
-                "reason": "Node-RED runtime not initialized (startup may have failed)"}
+                "reason": _nodered_startup_error or "Node-RED runtime not initialized (startup may have failed)"}
     s = _nodered.status()
     return {"ok": True, "available": True, **s}
 
@@ -1061,6 +1066,27 @@ async def nodered_proxy(request: StarletteRequest, full_path: str = ""):
 from starlette.websockets import WebSocket
 
 
+_WS_UPGRADE_HEADER_NAMES = {
+    "host",
+    "connection",
+    "upgrade",
+    "sec-websocket-accept",
+    "sec-websocket-extensions",
+    "sec-websocket-key",
+    "sec-websocket-protocol",
+    "sec-websocket-version",
+}
+
+
+def _nodered_ws_headers(headers) -> list[tuple[str, str]]:
+    """Forward app headers but let websockets build a fresh handshake."""
+    return [
+        (key, value)
+        for key, value in headers.items()
+        if key.lower() not in _WS_UPGRADE_HEADER_NAMES
+    ]
+
+
 @app.websocket("/nodered/{full_path:path}")
 async def nodered_ws(websocket: WebSocket, full_path: str):  # noqa: ARG001
     """Forward WebSocket connections to embedded Node-RED."""
@@ -1074,7 +1100,7 @@ async def nodered_ws(websocket: WebSocket, full_path: str):  # noqa: ARG001
     import websockets  # uvicorn[standard] pulls this in
     async with websockets.connect(
         target_url,
-        additional_headers=list(websocket.headers.items()),
+        additional_headers=_nodered_ws_headers(websocket.headers),
         max_size=None,
     ) as upstream:
         import asyncio
@@ -1112,6 +1138,33 @@ def nodered_tags():
     if not _collector:
         return {"ok": True, "tags": []}
     return {"ok": True, "tags": build_tag_catalog(_collector.tasks)}
+
+
+@app.post("/api/aiaas/bridge/bootstrap")
+def aiaas_bridge_bootstrap(body: AiaasBridgeConfig):
+    """Register AIAAS MQTT telemetry fields as read-only collector tasks.
+
+    Each AIAAS JSON field becomes a normal MQTT-source collector task, so
+    existing TDengine queries and 1052 Agent industrial_* tools can verify
+    AIAAS conclusions against local site history.
+    """
+    if not _collector:
+        raise HTTPException(503, "TDengine not connected")
+    tasks = build_aiaas_mqtt_tasks(body)
+    for task in tasks:
+        _collector.add_task(task)
+        if body.start:
+            _collector.start_task(task.id)
+    return {
+        "ok": True,
+        "topic": body.topic,
+        "tasks": [task.to_dict() for task in tasks],
+        "tags": build_tag_catalog({task.id: task for task in tasks}),
+        "safety": {
+            "direct_control_allowed": False,
+            "recommendation_level": "observer_only",
+        },
+    }
 
 
 @app.get("/api/nodered/status")

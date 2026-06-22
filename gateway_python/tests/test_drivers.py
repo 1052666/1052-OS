@@ -161,7 +161,7 @@ def test_modbus_driver_decode_row_double():
     from gateway.drivers.modbus import ModbusDriver
     t = CollectTask(id="T", protocol="modbus", dtype="u16")
     # 0x1234 as a single holding register.
-    assert ModbusDriver.decode_row(t, [0x1234], "BIGINT") == {"T": 0x1234}
+    assert ModbusDriver.decode_row(t, [0x1234], "BIGINT") == {"v": 0x1234}
 
 
 # ── OpcuaDriver behavior ───────────────────────────────────────────

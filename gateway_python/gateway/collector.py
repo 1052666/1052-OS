@@ -174,9 +174,10 @@ class DataCollector:
         self._running[task_id] = True
         self._points_collected[task_id] = 0
 
-        # Ensure table exists — 1 column per task (the decoded value under TAG)
+        # Ensure table exists — one stable value column per child table. The
+        # task id stays in the child table name/tag, while queries use "v".
         col_type = self._col_type_for_task(task)
-        columns = {task.id: col_type}
+        columns = {"v": col_type}
         self.td.ensure_supertable(task.table, columns, {"task_id": "NCHAR(64)"})
         child_table = f"{task.table}_{task.id}"
         self.td.ensure_table(child_table, task.table, {"task_id": task.id})

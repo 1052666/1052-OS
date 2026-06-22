@@ -6,6 +6,7 @@ Node.js being installed.
 """
 import json
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -119,6 +120,26 @@ def test_spawn_uses_node_red_with_userdir_and_port(monkeypatch, tmp_path):
     # start_new_session so we can kill the whole process group on stop.
     assert popen.call_args.kwargs.get("start_new_session") is True
     rt.stop()
+
+
+def test_start_fails_fast_when_port_is_already_bound(monkeypatch, tmp_path):
+    monkeypatch.setattr(nodered_runtime.shutil, "which",
+                        lambda c: f"/usr/bin/{c}")
+    popen = mock.MagicMock()
+    monkeypatch.setattr(nodered_runtime.subprocess, "Popen", popen)
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(1)
+    port = sock.getsockname()[1]
+    try:
+        rt = NodeRedRuntime(user_dir=tmp_path, port=port)
+        with pytest.raises(RuntimeError, match=f"port {port} already in use"):
+            rt.start()
+        assert rt.status()["last_error"] == f"Node-RED port {port} already in use"
+        popen.assert_not_called()
+    finally:
+        sock.close()
 
 
 def test_start_is_noop_if_already_running(monkeypatch, tmp_path):

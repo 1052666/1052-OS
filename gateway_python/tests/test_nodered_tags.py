@@ -25,6 +25,9 @@ def test_build_tag_catalog_modbus():
     cat = build_tag_catalog(tasks)
     assert len(cat) == 1
     assert cat[0]["tag"] == "440001"
+    assert cat[0]["table"] == "raw_data_440001"
+    assert cat[0]["stable"] == "raw_data"
+    assert cat[0]["col"] == "v"
     assert cat[0]["protocol"] == "modbus"
     assert cat[0]["dtype"] == "f32"
     assert cat[0]["endian"] == "CDAB"

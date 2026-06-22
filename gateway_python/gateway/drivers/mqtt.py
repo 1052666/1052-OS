@@ -217,31 +217,31 @@ class MqttDriver:
     def coerce_row(task, value, col_type: str) -> dict:
         """Match a decoded MQTT value to the TDengine column type."""
         if col_type.startswith("NCHAR"):
-            return {task.id: str(value) if value is not None else ""}
+            return {"v": str(value) if value is not None else ""}
         if col_type == "DOUBLE":
             if isinstance(value, bool):
-                return {task.id: float(value)}
+                return {"v": float(value)}
             if isinstance(value, (int, float)):
-                return {task.id: float(value)}
+                return {"v": float(value)}
             # Some simulators publish numbers as JSON strings ("42.5").
             if isinstance(value, str):
                 try:
-                    return {task.id: float(value)}
+                    return {"v": float(value)}
                 except (ValueError, TypeError):
-                    return {task.id: None}
-            return {task.id: None}
+                    return {"v": None}
+            return {"v": None}
         if col_type == "BIGINT":
             if isinstance(value, bool):
-                return {task.id: int(value)}
+                return {"v": int(value)}
             if isinstance(value, (int, float)):
-                return {task.id: int(value)}
+                return {"v": int(value)}
             if isinstance(value, str):
                 try:
-                    return {task.id: int(value)}
+                    return {"v": int(value)}
                 except (ValueError, TypeError):
-                    return {task.id: None}
-            return {task.id: None}
-        return {task.id: value}
+                    return {"v": None}
+            return {"v": None}
+        return {"v": value}
 
     def _run(self, task, ctx, col_type: str) -> None:
         """One paho-mqtt V2 client per task; survives transient broker outages."""
@@ -267,8 +267,8 @@ class MqttDriver:
                 row = self.coerce_row(task, decoded, col_type)
                 ctx.insert_row(self._table_for(task), row)
                 ctx.points_collected[task.id] = ctx.points_collected.get(task.id, 0) + 1
-                ctx.record_value(task, row[task.id], task.dtype)
-                ctx.publish_value(task, row[task.id], time.time())
+                ctx.record_value(task, row["v"], task.dtype)
+                ctx.publish_value(task, row["v"], time.time())
                 last_err.pop("err", None)
             except Exception as e:
                 last_err["err"] = str(e)

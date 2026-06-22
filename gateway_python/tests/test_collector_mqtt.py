@@ -113,28 +113,28 @@ def test_decode_json_payload_malformed_returns_none():
 
 def test_coerce_double_column_accepts_int_and_float():
     t = CollectTask(id="T", protocol="mqtt", dtype="f32")
-    assert MqttDriver.coerce_row(t, 1, "DOUBLE") == {"T": 1.0}
-    assert MqttDriver.coerce_row(t, 1.5, "DOUBLE") == {"T": 1.5}
+    assert MqttDriver.coerce_row(t, 1, "DOUBLE") == {"v": 1.0}
+    assert MqttDriver.coerce_row(t, 1.5, "DOUBLE") == {"v": 1.5}
 
 
 def test_coerce_double_column_rejects_string():
     t = CollectTask(id="T", protocol="mqtt", dtype="f32")
-    assert MqttDriver.coerce_row(t, "abc", "DOUBLE") == {"T": None}
+    assert MqttDriver.coerce_row(t, "abc", "DOUBLE") == {"v": None}
 
 
 def test_coerce_double_column_casts_bool_to_float():
     t = CollectTask(id="T", protocol="mqtt", dtype="bit")
-    assert MqttDriver.coerce_row(t, True, "DOUBLE") == {"T": 1.0}
+    assert MqttDriver.coerce_row(t, True, "DOUBLE") == {"v": 1.0}
 
 
 def test_coerce_nchar_column_stringifies():
     t = CollectTask(id="T", protocol="mqtt", dtype="ascii")
-    assert MqttDriver.coerce_row(t, "online", "NCHAR(255)") == {"T": "online"}
+    assert MqttDriver.coerce_row(t, "online", "NCHAR(255)") == {"v": "online"}
 
 
 def test_coerce_nchar_column_handles_none_as_empty():
     t = CollectTask(id="T", protocol="mqtt", dtype="ascii")
-    assert MqttDriver.coerce_row(t, None, "NCHAR(255)") == {"T": ""}
+    assert MqttDriver.coerce_row(t, None, "NCHAR(255)") == {"v": ""}
 
 
 # ── col_type selection (now on MqttDriver) ───────────────
@@ -181,9 +181,9 @@ def test_start_task_mqtt_creates_double_column():
     dc.add_task(t)
     dc.start_task("TEMP")
     dc.stop_task("TEMP")
-    # supertable declared with column "TEMP" of type DOUBLE.
+    # supertable declared with stable value column "v" of type DOUBLE.
     assert any(
-        name == "raw_data" and cols == {"TEMP": "DOUBLE"}
+        name == "raw_data" and cols == {"v": "DOUBLE"}
         for name, cols, _tags in td.tables
     )
     assert any(
@@ -201,7 +201,7 @@ def test_start_task_mqtt_creates_nchar_column_for_text():
     dc.start_task("STATUS")
     dc.stop_task("STATUS")
     assert any(
-        name == "raw_data" and cols == {"STATUS": "NCHAR(255)"}
+        name == "raw_data" and cols == {"v": "NCHAR(255)"}
         for name, cols, _tags in td.tables
     )
 
@@ -220,8 +220,8 @@ def test_driver_context_inserts_decoded_value_into_td():
     row = MqttDriver.coerce_row(task, decoded, col_type)
     ctx.insert_row("raw_data_TEMP", row)
     ctx.points_collected["TEMP"] = ctx.points_collected.get("TEMP", 0) + 1
-    ctx.record_value(task, row[task.id], task.dtype)
-    assert td.inserts[-1][2] == {"TEMP": 23.5}
+    ctx.record_value(task, row["v"], task.dtype)
+    assert td.inserts[-1][2] == {"v": 23.5}
     assert ctx.points_collected["TEMP"] == 1
     assert ctx.last_values["TEMP"]["value"] == 23.5
 
@@ -238,7 +238,7 @@ def test_driver_context_records_decode_error():
     ctx.insert_row("raw_data_TEMP", row)
     ctx.record_error(task, task.dtype, "decode failed")
     # No insert happened with a value, only the None row.
-    assert td.inserts[0][2] == {"TEMP": None}
+    assert td.inserts[0][2] == {"v": None}
     assert ctx.last_values["TEMP"]["err"] == "decode failed"
 
 
