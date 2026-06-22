@@ -853,13 +853,107 @@ def nodered_install_demo(name: str):
     if _nodered is None:
         raise HTTPException(503, "Node-RED runtime not available")
     try:
-        new_nodes = build_demo_flow(name, gateway_api_url=f"http://127.0.0.1:8766")
+        gateway_api_url = getattr(_nodered, "gateway_api_url", "http://127.0.0.1:8765")
+        new_nodes = build_demo_flow(name, gateway_api_url=gateway_api_url)
     except KeyError:
         raise HTTPException(404, f"unknown demo: {name}")
     current = _nodered.list_flows()
     merged = merge_into_flows(current, new_nodes)
     result = _nodered.apply_flows(merged)
     return {"ok": True, "demo": name, **result}
+
+
+# ── Protocol Library (Sub-6) ────────────────────────────────
+# One-click installable, parameterized flow templates for common
+# industrial protocols. Mirrors the demos endpoint shape, with
+# per-install params and a contrib-module precheck.
+
+from gateway.protocol_library import (
+    list_protocols as _list_protocols,
+    build_protocol_flow as _build_protocol_flow,
+    list_missing_modules as _list_missing_modules,
+    installed_protocols as _installed_protocols,
+    merge_into_flows as _merge_proto_flows,
+)
+
+
+@app.get("/api/nodered/protocols")
+def nodered_list_protocols():
+    """List available protocol templates + which are currently installed."""
+    installed = []
+    if _nodered is not None:
+        try:
+            installed = _installed_protocols(_nodered.list_flows())
+        except Exception:
+            pass
+    return {"ok": True, "protocols": _list_protocols(), "installed": installed}
+
+
+@app.get("/api/nodered/protocols/missing/{name}")
+def nodered_protocol_missing(name: str):
+    """Return the subset of `name`'s required_modules not currently installed.
+
+    Empty list = protocol is ready to install as-is.
+    """
+    try:
+        return {"ok": True, "name": name, "missing": _list_missing_modules(name, getattr(_nodered, "user_dir", None))}
+    except KeyError:
+        raise HTTPException(404, f"unknown protocol: {name}")
+
+
+@app.post("/api/nodered/protocols/{name}/install")
+def nodered_install_protocol(name: str, body: dict | None = None):
+    """Install a protocol flow with user-supplied params.
+
+    Body: {"params": {...}} — keys must match the protocol's `param_schema`.
+    Returns 409 if any required contrib module is missing; the UI then offers
+    a one-click install via `/install-module`.
+    """
+    if _nodered is None:
+        raise HTTPException(503, "Node-RED runtime not available")
+    body = body or {}
+    params = body.get("params", {})
+    try:
+        # Precheck: don't waste an install if contrib modules are missing.
+        missing = _list_missing_modules(name, getattr(_nodered, "user_dir", None))
+        if missing:
+            raise HTTPException(
+                409,
+                {"error": "missing_module", "name": name, "missing": missing},
+            )
+        gateway_api_url = getattr(_nodered, "gateway_api_url", "http://127.0.0.1:8765")
+        new_nodes = _build_protocol_flow(name, gateway_api_url=gateway_api_url, **params)
+    except KeyError:
+        raise HTTPException(404, f"unknown protocol: {name}")
+    current = _nodered.list_flows()
+    merged = _merge_proto_flows(current, new_nodes)
+    result = _nodered.apply_flows(merged)
+    return {
+        "ok": True,
+        "protocol": name,
+        "node_count": len(new_nodes),
+        **result,
+    }
+
+
+@app.post("/api/nodered/protocols/{name}/install-module")
+def nodered_install_protocol_module(name: str, body: dict | None = None):
+    """Install a missing contrib module (e.g. node-red-contrib-opcua).
+
+    Body: {"module": "node-red-contrib-opcua"}. The actual install is
+    asynchronous in Node-RED — restart the runtime to take effect.
+    """
+    if _nodered is None:
+        raise HTTPException(503, "Node-RED runtime not available")
+    body = body or {}
+    module = body.get("module", "").strip()
+    if not module:
+        raise HTTPException(400, "missing 'module' in body")
+    try:
+        result = _nodered.install_module(module)
+    except Exception as e:
+        raise HTTPException(500, f"install failed: {e}")
+    return {"ok": True, "installing": module, **result}
 
 
 # Reverse-proxy every other /nodered/* request to the embedded Node-RED.
@@ -870,11 +964,23 @@ from starlette.responses import Response as StarletteResponse
 from starlette.requests import Request as StarletteRequest
 
 
+@app.api_route("/nodered",
+               methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+async def nodered_proxy_root(request: StarletteRequest):
+    if request.url.query:
+        return StarletteResponse(status_code=307, headers={"location": f"/industrial-gateway/nodered/?{request.url.query}"})
+    return StarletteResponse(status_code=307, headers={"location": "/industrial-gateway/nodered/"})
+
+
 @app.api_route("/nodered/{full_path:path}",
                methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
-async def nodered_proxy(full_path: str, request: StarletteRequest):
+async def nodered_proxy(request: StarletteRequest, full_path: str = ""):
     if _nodered is None:
         raise HTTPException(503, "Node-RED runtime not available")
+    if full_path.startswith("dashboard/"):
+        parts = full_path.split("/")
+        if len(parts) >= 4 and parts[2] in {"assets", "favicon.ico", "favicon.svg", "apple-touch-icon.png"}:
+            full_path = "/".join([parts[0], parts[2], *parts[3:]])
     target = f"http://127.0.0.1:{_nodered.port}/{full_path}"
     if request.url.query:
         target += "?" + request.url.query
@@ -895,8 +1001,12 @@ async def nodered_proxy(full_path: str, request: StarletteRequest):
     # directly and get a 404.
     loc = resp.headers.get("location")
     if loc:
-        if loc.startswith("/") and not loc.startswith("/nodered/"):
-            loc = f"/nodered{loc}"
+        if loc.startswith("/dashboard/"):
+            loc = f"/industrial-gateway/nodered{loc}"
+        elif loc.startswith("/") and not loc.startswith("/nodered/"):
+            loc = f"/industrial-gateway/nodered{loc}"
+        elif loc.startswith("/nodered/"):
+            loc = f"/industrial-gateway{loc}"
         out_headers["location"] = loc
     return StarletteResponse(
         content=resp.content,

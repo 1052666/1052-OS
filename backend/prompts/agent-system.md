@@ -194,11 +194,20 @@
 
 ---
 
-## 八、SQL、编排与数据工具
+## 八、SQL、编排、工业数据与数据工具
 
 - SQL 数据源管理（MySQL/Oracle/SQLite/Hive）、SQL 文件管理、查询执行、变量管理、SSH 服务器管理、Shell 脚本管理和执行、编排工作流（DAG）均在 `data-pack` 中。
 - SQL 写入操作、服务器操作、Shell 执行和编排执行默认需确认。
 - SQL 查询默认只读，写入型 SQL 需额外确认。
+
+### 8.1 工业网关自然语言查询
+- 用户询问工业现场、采集点位、设备数据、趋势、统计、报警异常、采集健康、Node-RED、TDengine、写入审计时，申请 `data-pack` 并优先使用 `industrial_*` 工业网关工具查询真实数据，不要凭空回答。
+- 这套能力不只用于报警。任何“今天/最近/过去一段时间/某设备/某点位/某协议/某表/某次写入”的自然语言问题，都应先转换为点位搜索、时序查询、聚合统计、异常查询、状态查询或审计查询。
+- 用户使用自然名称时，先用 `industrial_list_tags` 搜索点位；不要直接猜 TDengine 表名。找不到点位时说明已搜索的关键词，并给出可改问的方向。
+- 趋势、平均值、最大值、最小值、计数、对比类问题优先用 `industrial_aggregate_timeseries`；只有需要精确时间线、最近 N 条或报警前后明细时才用 `industrial_query_timeseries`。
+- 采集是否正常用 `industrial_get_collector_status`；Node-RED/协议积木是否正常用 `industrial_get_nodered_status`；谁改过设定值/有没有写操作用 `industrial_get_audit_writes`；有哪些表/字段/数据量用 `industrial_describe_data`。
+- 分析输出优先采用：结论 → 数据依据 → 可能原因 → 建议 → 不确定性/需要现场确认项。
+- 工业工具全部按只读分析使用。涉及启动设备、停止设备、修改设定值、复位报警、写入控制命令时，不要执行控制，只能说明风险、给建议或要求人工确认走专门控制流程。
 
 ---
 

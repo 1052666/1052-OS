@@ -668,6 +668,47 @@
     .nr-demo-actions { display: flex; gap: 6px; }
     .nr-demo-actions .btn { font-size: 10px; padding: 3px 10px; }
 
+    /* ── Protocol Library (Sub-6) ─────────────────────── */
+    .nr-proto-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .nr-proto { border: 1px solid var(--rule); padding: 8px 10px; background: #f7f5ef; }
+    .nr-proto-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .nr-proto-title { font-weight: 600; font-size: 12px; color: var(--ink); flex: 1; line-height: 1.2; }
+    .nr-proto-cat { font-family: 'JetBrains Mono', monospace; font-size: 9px;
+                    color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.5px;
+                    padding: 1px 5px; border: 1px solid var(--rule); background: var(--paper); }
+    .nr-proto-desc { font-size: 10.5px; color: var(--ink-3); line-height: 1.4; margin-bottom: 6px; }
+    .nr-proto-mods { font-size: 9.5px; color: var(--ink-3); margin-bottom: 6px; line-height: 1.3; }
+    .nr-proto-mods code { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; background: var(--paper); padding: 0 3px; }
+    .nr-proto-mods.missing { color: #c04848; }
+    .nr-proto-mods.missing code { color: #c04848; }
+    .nr-proto-actions { display: flex; gap: 6px; }
+    .nr-proto-actions .btn { font-size: 10px; padding: 3px 10px; }
+
+    /* Modal for protocol install form */
+    .nr-modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+                   z-index: 10000; display: flex; align-items: center; justify-content: center; }
+    .nr-modal { background: var(--paper, #f7f5ef); border: 1px solid var(--ink, #2b2b2b);
+                padding: 18px 22px; max-width: 520px; width: 90%; max-height: 85vh;
+                overflow-y: auto; font-family: 'JetBrains Mono', monospace; }
+    .nr-modal h3 { font-size: 13px; font-weight: 600; margin: 0 0 4px 0; color: var(--ink); }
+    .nr-modal-desc { font-size: 11px; color: var(--ink-3); line-height: 1.4; margin-bottom: 12px; }
+    .nr-modal-banner { font-size: 11px; padding: 8px 10px; margin-bottom: 12px;
+                       border: 1px solid #c04848; background: #fff0f0; color: #c04848; }
+    .nr-modal-banner button { background: #c04848; color: #fff; border: 0; padding: 4px 10px;
+                              font-size: 10px; cursor: pointer; margin-left: 8px;
+                              font-family: 'JetBrains Mono', monospace; }
+    .nr-modal-banner button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .nr-modal-row { margin-bottom: 10px; }
+    .nr-modal-row label { display: block; font-size: 10px; color: var(--ink-3);
+                          text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 4px; }
+    .nr-modal-row input, .nr-modal-row select {
+      width: 100%; padding: 6px 8px; font-size: 12px; font-family: inherit;
+      background: #fff; border: 1px solid var(--rule); box-sizing: border-box; }
+    .nr-modal-help { font-size: 10px; color: var(--ink-3); margin-top: 3px; }
+    .nr-modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;
+                        padding-top: 10px; border-top: 1px solid var(--rule); }
+    .nr-modal-actions .btn { font-size: 11px; padding: 5px 14px; }
+
     .field {
       margin-bottom: 16px;
     }
@@ -1405,21 +1446,26 @@
       <!-- ═══ Node-RED editor (embedded iframe) ═══ -->
       <section class="drawer-section" data-section="nodered">
         <div class="nr-bar">
-          <span class="nr-title">Node-RED Editor</span>
-          <span class="nr-status" id="nr-status">○ checking…</span>
+          <span class="nr-title">Node-RED 编辑器</span>
+          <span class="nr-status" id="nr-status">○ 检查中…</span>
           <span class="nr-spacer"></span>
-          <button class="btn" id="nr-restart-btn" type="button" title="Restart Node-RED child process">↻ Restart</button>
-          <button class="btn" id="nr-reset-btn" type="button" title="Re-seed the bootstrap flow">⌂ Reset Bootstrap</button>
-          <button class="btn" id="nr-fullscreen-btn" type="button" title="Expand editor to full viewport (Esc to exit)">⛶ Fullscreen</button>
-          <a class="btn" href="/industrial-gateway/nodered" target="_blank" rel="noopener">↗ Open in new tab</a>
+          <button class="btn" id="nr-restart-btn" type="button" title="重启内嵌 Node-RED 进程">↻ 重启</button>
+          <button class="btn" id="nr-reset-btn" type="button" title="重新写入初始化流程">⌂ 重置初始化</button>
+          <button class="btn" id="nr-fullscreen-btn" type="button" title="全屏显示编辑器（按 Esc 退出）">⛶ 全屏</button>
+          <a class="btn" href="/industrial-gateway/nodered/" target="_blank" rel="noopener">↗ 新窗口打开</a>
         </div>
         <iframe id="nr-iframe"
-                src="/industrial-gateway/nodered"
+                src="/industrial-gateway/nodered/"
                 sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups allow-downloads"
                 referrerpolicy="no-referrer"></iframe>
 
-        <div class="nr-section-head">📦 示例 Flows</div>
+        <div class="nr-section-head">📦 示例流程</div>
         <div id="nr-demos" class="nr-demos">
+          <div class="nr-demo-skel">加载中…</div>
+        </div>
+
+        <div class="nr-section-head">📥 协议积木库 <span style="font-size:9px;color:var(--ink-3);font-weight:normal;letter-spacing:0;">— 一键安装工业协议模板</span></div>
+        <div id="nr-protocols" class="nr-proto-grid">
           <div class="nr-demo-skel">加载中…</div>
         </div>
 
@@ -1432,17 +1478,17 @@
       <!-- ═══ Node-RED Dashboard ═══ -->
       <section class="drawer-section" data-section="dashboard">
         <div class="nr-bar">
-          <span class="nr-title">Node-RED Dashboard</span>
+          <span class="nr-title">Node-RED 实时看板</span>
           <span class="nr-spacer"></span>
-          <button class="btn" id="dash-fullscreen-btn" type="button" title="Expand dashboard to full viewport (Esc to exit)">⛶ Fullscreen</button>
-          <a class="btn" href="/industrial-gateway/nodered/ui" target="_blank" rel="noopener">↗ Open in new tab</a>
+          <button class="btn" id="dash-fullscreen-btn" type="button" title="全屏显示看板（按 Esc 退出）">⛶ 全屏</button>
+          <a class="btn" href="/industrial-gateway/nodered/dashboard/1052-debug" target="_blank" rel="noopener">↗ 新窗口打开</a>
         </div>
         <iframe id="dash-iframe"
-                src="/industrial-gateway/nodered/ui"
+                src="/industrial-gateway/nodered/dashboard/1052-debug"
                 sandbox="allow-same-origin allow-scripts allow-forms allow-modals allow-popups"
                 referrerpolicy="no-referrer"></iframe>
         <div class="nr-help">
-          Node-RED 官方 <code>node-red-dashboard</code>。在 <code>Node-RED</code> tab 拖入 <code>ui_*</code> 节点即可在此处显示实时图表、仪表盘、按钮。
+          这里显示 Node-RED Dashboard 2 / FlowFuse Dashboard 页面 <code>/dashboard/1052-debug</code>。如果页面空白，先在 <code>Node-RED</code> tab 的 <code>Protocol Library</code> 安装 <code>1052 Debug Dashboard</code> 模板。
         </div>
       </section>
 
@@ -1623,7 +1669,7 @@
       { id: 'anomaly',   label: 'Anomaly',    desc: 'Threshold / step / drift detection', source: 'system' },
     ]
 
-    const renderProtocols = (health) => {
+    const renderProtocolMatrix = (health) => {
       const tbody = document.getElementById('protocol-tbody')
       if (!health) {
         tbody.innerHTML = '<tr><td colspan="6" class="empty-state">gateway offline</td></tr>'
@@ -1906,7 +1952,7 @@
 
       const online = !!health && health.ok === true
       updateStatus(online)
-      renderProtocols(health)
+      renderProtocolMatrix(health)
 
       // KPIs
       const sysHealth = calcHealth(health)
@@ -2157,7 +2203,7 @@
       bar.className = 'nr-fs-bar'
       const title = document.createElement('span')
       title.className = 'nr-fs-title'
-      title.textContent = iframeId === 'nr-iframe' ? 'Node-RED Editor — fullscreen' : 'Node-RED Dashboard — fullscreen'
+      title.textContent = iframeId === 'nr-iframe' ? 'Node-RED 编辑器 — 全屏' : 'Node-RED 实时看板 — 全屏'
       const spacer = document.createElement('span')
       spacer.className = 'nr-fs-spacer'
       const exitBtn = document.createElement('button')
@@ -3523,17 +3569,17 @@ LI-401  ns=2;s=Device1.Level     5.0  raw_data
         const r = await fetch('/industrial-gateway/api/nodered/runtime')
         const j = await r.json()
         if (!j.available) {
-          nrStatus.textContent = '○ unavailable'
+          nrStatus.textContent = '○ 不可用'
           nrStatus.className = 'nr-status bad'
         } else if (j.running) {
-          nrStatus.textContent = `● running · port ${j.port} · pid ${j.pid} · up ${j.uptime_s ?? 0}s`
+          nrStatus.textContent = `● 运行中 · 端口 ${j.port} · 进程 ${j.pid} · 已运行 ${j.uptime_s ?? 0}s`
           nrStatus.className = 'nr-status ok'
         } else {
-          nrStatus.textContent = '○ starting…'
+          nrStatus.textContent = '○ 启动中…'
           nrStatus.className = 'nr-status bad'
         }
       } catch (e) {
-        nrStatus.textContent = '✕ fetch failed'
+        nrStatus.textContent = '✕ 获取状态失败'
         nrStatus.className = 'nr-status bad'
       }
     }
@@ -3608,6 +3654,204 @@ LI-401  ns=2;s=Device1.Level     5.0  raw_data
       }
     }
     refreshDemos()
+
+    // ── Node-RED tab: Protocol Library (Sub-6) ──
+    const nrProtocolsEl = document.getElementById('nr-protocols')
+
+    // Map protocol category → emoji for visual grouping in the grid.
+    const CATEGORY_ICON = {
+      modbus: '🔌',
+      plc: '🏭',
+      iot: '📡',
+    }
+
+    const renderProtocols = (protocols, installed) => {
+      if (!nrProtocolsEl) return
+      if (!protocols || !protocols.length) {
+        nrProtocolsEl.innerHTML = '<div class="nr-demo-skel">无可用协议模板</div>'
+        return
+      }
+      const installedSet = new Set(installed || [])
+      // Sort by category, then name.
+      const sorted = [...protocols].sort((a, b) => {
+        if (a.category !== b.category) return a.category.localeCompare(b.category)
+        return a.name.localeCompare(b.name)
+      })
+      nrProtocolsEl.innerHTML = sorted.map(p => {
+        const icon = CATEGORY_ICON[p.category] || '⚙'
+        const isInstalled = installedSet.has(p.name)
+        const modList = (p.required_modules || [])
+          .map(m => `<code>${m}</code>`).join(', ')
+        const modLine = modList
+          ? `<div class="nr-proto-mods">需要: ${modList}</div>`
+          : `<div class="nr-proto-mods">无需额外 contrib 模块</div>`
+        return `
+          <div class="nr-proto" data-proto="${p.name}">
+            <div class="nr-proto-head">
+              <span style="font-size:14px;">${icon}</span>
+              <span class="nr-proto-title">${p.label}</span>
+              <span class="nr-proto-cat">${p.category}</span>
+            </div>
+            <div class="nr-proto-desc">${p.description}</div>
+            ${modLine}
+            <div class="nr-proto-actions">
+              <button class="btn" data-proto-install="${p.name}" type="button">
+                ${isInstalled ? '↻ 重新安装' : '+ 安装'}
+              </button>
+              ${isInstalled ? '<span class="nr-demo-installed">✓ 已装</span>' : ''}
+            </div>
+          </div>
+        `
+      }).join('')
+    }
+
+    // ── Modal helpers ──
+    const closeProtocolModal = () => {
+      const bg = document.getElementById('nr-proto-modal-bg')
+      if (bg) bg.remove()
+    }
+
+    const openProtocolModal = (proto) => {
+      closeProtocolModal()
+      const bg = document.createElement('div')
+      bg.className = 'nr-modal-bg'
+      bg.id = 'nr-proto-modal-bg'
+      const fields = proto.param_schema.map(f => {
+        const def = f.default == null ? '' : f.default
+        const ph = f.placeholder || ''
+        const help = f.help ? `<div class="nr-modal-help">${f.help}</div>` : ''
+        let input
+        if (f.type === 'select') {
+          // For 'select' the placeholder field is treated as option list
+          // (comma-separated, current default is selected).
+          const opts = (f.placeholder || '').split(',').map(s => s.trim()).filter(Boolean)
+          const allOpts = opts.includes(String(def)) ? opts : [String(def), ...opts]
+          input = `<select data-proto-field="${f.key}">${
+            [...new Set(allOpts)].map(o =>
+              `<option value="${o}"${String(o) === String(def) ? ' selected' : ''}>${o}</option>`
+            ).join('')
+          }</select>`
+        } else if (f.type === 'number') {
+          input = `<input type="number" data-proto-field="${f.key}" value="${def}" placeholder="${ph}">`
+        } else if (f.type === 'password') {
+          input = `<input type="password" data-proto-field="${f.key}" value="${def}" placeholder="${ph}">`
+        } else {
+          input = `<input type="text" data-proto-field="${f.key}" value="${def}" placeholder="${ph}">`
+        }
+        return `<div class="nr-modal-row">
+          <label>${f.label}</label>${input}${help}
+        </div>`
+      }).join('')
+
+      bg.innerHTML = `
+        <div class="nr-modal" role="dialog" aria-modal="true">
+          <h3>+ Install: ${proto.label}</h3>
+          <div class="nr-modal-desc">${proto.description}</div>
+          <div id="nr-proto-banner"></div>
+          <form id="nr-proto-form">${fields}</form>
+          <div class="nr-modal-actions">
+            <button class="btn" type="button" id="nr-proto-cancel">取消</button>
+            <button class="btn" type="button" id="nr-proto-confirm">安装</button>
+          </div>
+        </div>
+      `
+      document.body.appendChild(bg)
+
+      // Click outside the modal box to close.
+      bg.addEventListener('click', e => {
+        if (e.target === bg) closeProtocolModal()
+      })
+      document.getElementById('nr-proto-cancel').addEventListener('click', closeProtocolModal)
+      document.getElementById('nr-proto-confirm').addEventListener('click', async () => {
+        const form = document.getElementById('nr-proto-form')
+        const params = {}
+        form.querySelectorAll('[data-proto-field]').forEach(inp => {
+          const k = inp.dataset.protoField
+          let v = inp.value
+          // Cast numbers; the API expects ints/floats as numbers.
+          const schema = proto.param_schema.find(s => s.key === k)
+          if (schema && schema.type === 'number') {
+            v = v === '' ? null : Number(v)
+          }
+          params[k] = v
+        })
+        const confirmBtn = document.getElementById('nr-proto-confirm')
+        confirmBtn.disabled = true
+        confirmBtn.textContent = '… 安装中'
+        try {
+          await postJSON(`/industrial-gateway/api/nodered/protocols/${encodeURIComponent(proto.name)}/install`,
+                          { params })
+          closeProtocolModal()
+          showToast(`✓ ${proto.name} 已安装`, 'success')
+          await refreshProtocols()
+          const iframe = document.getElementById('nr-iframe')
+          if (iframe) iframe.src = iframe.src
+        } catch (e) {
+          // e.message is the HTTP detail body when present.
+          let detail = e.message
+          try {
+            const parsed = JSON.parse(e.message)
+            if (parsed && parsed.detail) {
+              const d = parsed.detail
+              if (d && d.error === 'missing_module') {
+                const banner = document.getElementById('nr-proto-banner')
+                const mods = (d.missing || []).map(m =>
+                  `<button type="button" data-install-mod="${m}">📦 install ${m}</button>`
+                ).join('')
+                banner.innerHTML = `<div class="nr-modal-banner">
+                  缺少 contrib 模块: ${d.missing.map(m => `<code>${m}</code>`).join(', ')}
+                  <br><span style="font-size:10px;">点击安装后等待 Node-RED 自动重启:</span> ${mods}
+                </div>`
+                banner.querySelectorAll('[data-install-mod]').forEach(b => {
+                  b.addEventListener('click', async () => {
+                    b.disabled = true
+                    b.textContent = '… 安装中'
+                    try {
+                      await postJSON(`/industrial-gateway/api/nodered/protocols/${encodeURIComponent(proto.name)}/install-module`,
+                                      { module: b.dataset.installMod })
+                      showToast(`📦 ${b.dataset.installMod} 安装中…稍后重启 Node-RED`, 'success')
+                      b.textContent = '✓ 已请求'
+                    } catch (err) {
+                      b.disabled = false
+                      b.textContent = `📦 install ${b.dataset.installMod}`
+                      showToast(`✕ ${err.message}`, 'error')
+                    }
+                  })
+                })
+                confirmBtn.disabled = false
+                confirmBtn.textContent = '安装'
+                return  // do not re-throw; the banner is the response
+              }
+              detail = JSON.stringify(d)
+            }
+          } catch (_) { /* not JSON, use raw */ }
+          showToast(`✕ ${detail}`, 'error')
+          confirmBtn.disabled = false
+          confirmBtn.textContent = '安装'
+        }
+      })
+    }
+
+    const refreshProtocols = async () => {
+      if (!nrProtocolsEl) return
+      try {
+        const r = await fetch('/industrial-gateway/api/nodered/protocols')
+        const j = await r.json()
+        if (!j.ok) throw new Error(j.detail || 'failed to load protocols')
+        renderProtocols(j.protocols, j.installed)
+        // Wire install buttons (use event delegation to survive re-renders).
+        nrProtocolsEl.querySelectorAll('[data-proto-install]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const name = btn.dataset.protoInstall
+            const proto = j.protocols.find(p => p.name === name)
+            if (proto) openProtocolModal(proto)
+          })
+        })
+      } catch (e) {
+        nrProtocolsEl.innerHTML = `<div class="nr-demo-skel">✕ ${e.message}</div>`
+      }
+    }
+    refreshProtocols()
 
     // MQTT message clear
     document.getElementById('mqtt-clear-btn').addEventListener('click', async () => {

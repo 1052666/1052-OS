@@ -1,0 +1,978 @@
+[
+  {
+    "id": "1052_dbg_tab",
+    "type": "tab",
+    "label": "Node-RED 采集调试页",
+    "disabled": false,
+    "info": "1052-OS 工业网关 Dashboard：协议仿真控制台、HJ212 报文监视器、粉尘涉爆报警看板、海康抓拍图片预览、实时参数趋势图、接口联调状态页"
+  },
+  {
+    "id": "1052_dbg_theme",
+    "type": "ui-theme",
+    "name": "1052 Dark Industrial",
+    "colors": {
+      "surface": "#111827",
+      "primary": "#38bdf8",
+      "bgPage": "#0b1020",
+      "groupBg": "#172033",
+      "groupOutline": "#2b3b55"
+    },
+    "sizes": {
+      "density": "default",
+      "pagePadding": "12px",
+      "groupGap": "12px",
+      "groupBorderRadius": "8px",
+      "widgetGap": "8px"
+    }
+  },
+  {
+    "id": "1052_dbg_ui",
+    "type": "ui-base",
+    "name": "1052-OS Dashboard",
+    "path": "/dashboard",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-control",
+      "ui-notification"
+    ],
+    "showPathInSidebar": false,
+    "showPageTitle": true,
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 5,
+    "showDisconnectNotification": true,
+    "allowInstall": true
+  },
+  {
+    "id": "1052_dbg_page",
+    "type": "ui-page",
+    "name": "1052 采集调试",
+    "ui": "1052_dbg_ui",
+    "path": "/1052-debug",
+    "icon": "hub",
+    "layout": "grid",
+    "theme": "1052_dbg_theme",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": 0,
+        "cols": 3
+      },
+      {
+        "name": "Tablet",
+        "px": 576,
+        "cols": 6
+      },
+      {
+        "name": "Small Desktop",
+        "px": 768,
+        "cols": 9
+      },
+      {
+        "name": "Desktop",
+        "px": 1024,
+        "cols": 12
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": true,
+    "disabled": false
+  },
+  {
+    "id": "1052_dbg_g_console",
+    "type": "ui-group",
+    "name": "协议仿真控制台",
+    "page": "1052_dbg_page",
+    "width": 12,
+    "height": 1,
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "1052_dbg_g_hj212",
+    "type": "ui-group",
+    "name": "HJ212 报文监视器",
+    "page": "1052_dbg_page",
+    "width": 12,
+    "height": 1,
+    "order": 2,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "1052_dbg_g_dust",
+    "type": "ui-group",
+    "name": "粉尘涉爆报警看板",
+    "page": "1052_dbg_page",
+    "width": 6,
+    "height": 1,
+    "order": 3,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "1052_dbg_g_camera",
+    "type": "ui-group",
+    "name": "海康抓拍图片预览",
+    "page": "1052_dbg_page",
+    "width": 6,
+    "height": 1,
+    "order": 4,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "1052_dbg_g_trend",
+    "type": "ui-group",
+    "name": "实时参数趋势图",
+    "page": "1052_dbg_page",
+    "width": 12,
+    "height": 1,
+    "order": 5,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "1052_dbg_g_interface",
+    "type": "ui-group",
+    "name": "接口联调状态页",
+    "page": "1052_dbg_page",
+    "width": 12,
+    "height": 1,
+    "order": 6,
+    "showTitle": true,
+    "className": "",
+    "visible": true,
+    "disabled": false,
+    "groupType": "default"
+  },
+  {
+    "id": "1052_dbg_style",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "",
+    "page": "",
+    "ui": "1052_dbg_ui",
+    "name": "Dashboard 工业暗色样式",
+    "order": 0,
+    "width": 0,
+    "height": 0,
+    "head": "",
+    "format": "\n<style>\n.nrdb-ui-widget, .v-card { font-family: ui-monospace, Menlo, Consolas, monospace; }\n.kpi-grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:10px; }\n.kpi { background:#0f172a; border:1px solid #334155; border-radius:8px; padding:10px; }\n.kpi .label { color:#94a3b8; font-size:12px; }\n.kpi .value { color:#e2e8f0; font-size:24px; font-weight:700; }\n.kpi.ok .value { color:#22c55e; } .kpi.warn .value { color:#f59e0b; } .kpi.bad .value { color:#ef4444; }\npre.mon { max-height:300px; overflow:auto; background:#020617; color:#cbd5e1; padding:10px; border-radius:8px; border:1px solid #1e293b; }\n.badge { display:inline-block; padding:2px 8px; border-radius:999px; background:#1e293b; color:#93c5fd; margin-right:6px; }\n.imgbox img { max-width:100%; border-radius:8px; border:1px solid #334155; background:#020617; }\n.small { color:#94a3b8; font-size:12px; }\n\n.sim-actions { display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin:8px 0 12px; }\n.simbtn { border:0; border-radius:10px; padding:14px 16px; color:white; font-weight:800; font-size:15px; cursor:pointer; box-shadow:0 6px 14px rgba(0,0,0,.25); }\n.simbtn:hover { filter:brightness(1.15); transform:translateY(-1px); }\n.simbtn.blue { background:#0284c7; } .simbtn.green { background:#16a34a; } .simbtn.purple { background:#7c3aed; } .simbtn.orange { background:#ea580c; } .simbtn.red { background:#dc2626; }\n\n.di-actions { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin:8px 0 12px; }\n.dibtn { border:0; border-radius:10px; padding:13px 16px; color:white; font-weight:800; cursor:pointer; box-shadow:0 6px 14px rgba(0,0,0,.25); }\n.dibtn:hover { filter:brightness(1.12); transform:translateY(-1px); }\n.dibtn.ok { background:#16a34a; } .dibtn.alarm { background:#dc2626; } .dibtn.param { background:#0284c7; }\n.di-table { width:100%; border-collapse:collapse; font-size:12px; }\n.di-table th, .di-table td { border-bottom:1px solid #334155; padding:6px 8px; text-align:left; }\n.di-table th { color:#93c5fd; }\n</style>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "site:style",
+    "className": "",
+    "x": 180,
+    "y": 60,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_tick",
+    "type": "inject",
+    "z": "1052_dbg_tab",
+    "name": "每3秒刷新状态",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "3",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "tick",
+    "payloadType": "str",
+    "x": 160,
+    "y": 130,
+    "wires": [
+      [
+        "1052_dbg_get_hj25",
+        "1052_dbg_get_hj17",
+        "1052_dbg_get_dust",
+        "1052_dbg_get_di",
+        "1052_dbg_get_di_flow"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_get_hj25",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "GET HJ212-2025 状态",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:5906/api/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 420,
+    "y": 130,
+    "wires": [
+      [
+        "1052_dbg_map_hj25"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_get_hj17",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "GET HJ212-2017 状态",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:5905/api/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 420,
+    "y": 170,
+    "wires": [
+      [
+        "1052_dbg_map_hj17"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_get_dust",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "GET 粉尘平台状态",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:5903/api/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 420,
+    "y": 210,
+    "wires": [
+      [
+        "1052_dbg_map_dust"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_get_di",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "GET 接口平台状态",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:5904/api/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 420,
+    "y": 250,
+    "wires": [
+      [
+        "1052_dbg_map_di"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_map_hj25",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "汇总 HJ212-2025",
+    "func": "\nconst p = msg.payload || {};\nmsg.topic = 'hj212_2025';\nmsg.payload = {name:'HJ212-2025', ok:true, frames:p.frame_count||0, detail:`init ${p.init_count||0} / electric ${p.electric_count||0} / process ${p.process_count||0} / multimedia ${p.multimedia_count||0} / voc ${p.voc_original_count||0}`, recent:p.recent||[]};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 650,
+    "y": 130,
+    "wires": [
+      [
+        "1052_dbg_join_status",
+        "1052_dbg_hj25_mon",
+        "1052_dbg_hj25_trend"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_map_hj17",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "汇总 HJ212-2017",
+    "func": "\nconst p = msg.payload || {};\nmsg.topic = 'hj212_2017';\nmsg.payload = {name:'HJ212-2017', ok:true, frames:p.frame_count||0, detail:'2011/2051/2061/2031 legacy compatible', recent:p.recent||[]};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 650,
+    "y": 170,
+    "wires": [
+      [
+        "1052_dbg_join_status",
+        "1052_dbg_hj17_mon",
+        "1052_dbg_hj17_trend"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_map_dust",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "汇总 粉尘涉爆",
+    "func": "\nconst p = msg.payload || {};\nmsg.topic = 'dust';\nmsg.payload = {name:'粉尘涉爆', ok:true, frames:p.frame_count||p.data_count||p.event_count||0, detail:`events ${p.event_count||0} / images ${p.image_count||p.video_count||0}`, raw:p};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 650,
+    "y": 210,
+    "wires": [
+      [
+        "1052_dbg_join_status",
+        "1052_dbg_dust_card"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_map_di",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "汇总 接口联调",
+    "func": "\nconst p = msg.payload || {};\nmsg.topic = 'interface';\nmsg.payload = {name:'数据对接接口', ok:true, frames:p.total_count||p.frame_count||p.alarm_count||p.param_count||0, detail:`alarm ${p.alarm_count||0} / param ${p.param_count||0}`, raw:p};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 650,
+    "y": 250,
+    "wires": [
+      [
+        "1052_dbg_join_status",
+        "1052_dbg_interface_card"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_join_status",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "生成协议控制台数据",
+    "func": "\nconst state = flow.get('debug_dashboard_status') || {};\nstate[msg.topic] = msg.payload;\nflow.set('debug_dashboard_status', state);\nmsg.payload = state;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 190,
+    "wires": [
+      [
+        "1052_dbg_console_tpl"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_console_tpl",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_console",
+    "page": "",
+    "ui": "",
+    "name": "协议状态 KPI",
+    "order": 1,
+    "width": 12,
+    "height": 3,
+    "head": "",
+    "format": "\n<template>\n  <div>\n    <div class=\"kpi-grid\">\n      <div v-for=\"(item,key) in msg.payload\" :key=\"key\" class=\"kpi ok\">\n        <div class=\"label\">{{ item.name }}</div>\n        <div class=\"value\">{{ item.frames }}</div>\n        <div class=\"small\">{{ item.detail }}</div>\n      </div>\n    </div>\n    <p class=\"small\">Dashboard URL: <span class=\"badge\">/dashboard/1052-debug</span>  刷新周期: 3s</p>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 1170,
+    "y": 190,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_hj25_mon",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "HJ212-2025 最近报文",
+    "func": "\nconst recent = msg.payload.recent || [];\nmsg.payload = {title:'HJ212-2025', recent: recent.slice(-5).reverse().map(r => ({time:r.time,type:r.type,crc:r.parsed?.crc_ok,st:r.parsed?.header?.ST,cn:r.parsed?.header?.CN,flag:r.parsed?.flag?.version,cp:r.parsed?.cp_raw,raw:r.raw}))};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 340,
+    "wires": [
+      [
+        "1052_dbg_hj_merge"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_hj17_mon",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "HJ212-2017 最近报文",
+    "func": "\nconst recent = msg.payload.recent || [];\nmsg.payload = {title:'HJ212-2017', recent: recent.slice(-5).reverse().map(r => ({time:r.time,type:'frame',crc:r.parsed?.crc_ok,st:r.parsed?.header?.ST,cn:r.parsed?.header?.CN,flag:r.parsed?.flag?.version,cp:r.parsed?.cp_raw,raw:r.raw}))};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 380,
+    "wires": [
+      [
+        "1052_dbg_hj_merge"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_hj_merge",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "缓存 HJ212 监视数据",
+    "func": "\nconst m = flow.get('debug_hj_monitor') || {};\nm[msg.payload.title] = msg.payload;\nflow.set('debug_hj_monitor', m);\nmsg.payload = m;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1080,
+    "y": 360,
+    "wires": [
+      [
+        "1052_dbg_hj_tpl2"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_hj_tpl2",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_hj212",
+    "page": "",
+    "ui": "",
+    "name": "HJ212 报文监视器",
+    "order": 0,
+    "width": 12,
+    "height": 8,
+    "head": "",
+    "format": "\n<template>\n  <div>\n    <div v-for=\"(block,name) in msg.payload\" :key=\"name\" style=\"margin-bottom:14px\">\n      <h3>{{ name }}</h3>\n      <div v-for=\"r in block.recent\" :key=\"r.time\" class=\"kpi\" style=\"margin-bottom:8px\">\n        <span class=\"badge\">{{ r.time }}</span><span class=\"badge\">ST={{ r.st }}</span><span class=\"badge\">CN={{ r.cn }}</span><span class=\"badge\">CRC={{ r.crc }}</span><span class=\"badge\">{{ r.flag }}</span>\n        <pre class=\"mon\">{{ r.raw }}</pre>\n      </div>\n    </div>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 1280,
+    "y": 360,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_dust_card",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "粉尘涉爆看板数据",
+    "func": "\nconst p = msg.payload.raw || {};\nmsg.payload = {summary: msg.payload, raw:p, last:p.recent?.slice?.(-1)?.[0] || p.last || null};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 470,
+    "wires": [
+      [
+        "1052_dbg_dust_tpl"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_dust_tpl",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_dust",
+    "page": "",
+    "ui": "",
+    "name": "粉尘涉爆报警看板",
+    "order": 0,
+    "width": 6,
+    "height": 7,
+    "head": "",
+    "format": "\n<template>\n  <div>\n    <div class=\"kpi-grid\">\n      <div class=\"kpi warn\"><div class=\"label\">报警/事件</div><div class=\"value\">{{ msg.payload.summary.frames }}</div><div class=\"small\">{{ msg.payload.summary.detail }}</div></div>\n      <div class=\"kpi\"><div class=\"label\">平台</div><div class=\"value\">5903</div><div class=\"small\">dust-explosion mock</div></div>\n    </div>\n    <pre class=\"mon\">{{ JSON.stringify(msg.payload.raw, null, 2) }}</pre>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 1160,
+    "y": 470,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_img_tick",
+    "type": "inject",
+    "z": "1052_dbg_tab",
+    "name": "每5秒刷新抓拍图",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "",
+    "payload": "img",
+    "payloadType": "str",
+    "x": 160,
+    "y": 560,
+    "wires": [
+      [
+        "1052_dbg_img_func"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_img_func",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "生成图片 URL",
+    "func": "\nmsg.payload = {url:'http://127.0.0.1:5903/api/last-video-image?ts=' + Date.now(), hint:'来自粉尘涉爆仿真平台 /api/last-video-image'};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 560,
+    "wires": [
+      [
+        "1052_dbg_img_tpl"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_img_tpl",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_camera",
+    "page": "",
+    "ui": "",
+    "name": "海康抓拍图片预览",
+    "order": 0,
+    "width": 6,
+    "height": 7,
+    "head": "",
+    "format": "\n<template>\n  <div class=\"imgbox\">\n    <p><span class=\"badge\">海康/本地图片预览</span><span class=\"small\">{{ msg.payload.hint }}</span></p>\n    <img :src=\"msg.payload.url\" @error=\"$event.target.style.display='none'\" @load=\"$event.target.style.display='block'\" />\n    <pre class=\"mon\">{{ msg.payload.url }}</pre>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 660,
+    "y": 560,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_hj25_trend",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "HJ212-2025 趋势值",
+    "func": "\nconst out=[];\nfor (const r of (msg.payload.recent||[]).slice(-3)) {\n  const f = r.parsed?.cp?.factors || {};\n  for (const [k,v] of Object.entries(f)) {\n    const val = Number(v.Rtd ?? v.Avg ?? v.Min ?? v.Max);\n    if (!Number.isNaN(val)) out.push({topic:'2025 '+k, payload:val});\n  }\n}\nreturn [out];\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 640,
+    "wires": [
+      [
+        "1052_dbg_chart"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_hj17_trend",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "HJ212-2017 趋势值",
+    "func": "\nconst out=[];\nfor (const r of (msg.payload.recent||[]).slice(-3)) {\n  const f = r.parsed?.cp?.factors || {};\n  for (const [k,v] of Object.entries(f)) {\n    const val = Number(v.Rtd ?? v.Avg ?? v.Min ?? v.Max);\n    if (!Number.isNaN(val)) out.push({topic:'2017 '+k, payload:val});\n  }\n}\nreturn [out];\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 680,
+    "wires": [
+      [
+        "1052_dbg_chart"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_chart",
+    "type": "ui-chart",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_trend",
+    "name": "实时参数趋势图",
+    "label": "HJ212 实时/历史参数趋势",
+    "order": 0,
+    "chartType": "line",
+    "category": "topic",
+    "categoryType": "msg",
+    "xAxisLabel": "时间",
+    "xAxisProperty": "",
+    "xAxisPropertyType": "timestamp",
+    "xAxisType": "time",
+    "xAxisFormat": "HH:mm:ss",
+    "xAxisFormatType": "custom",
+    "xmin": "",
+    "xmax": "",
+    "yAxisLabel": "值",
+    "yAxisProperty": "payload",
+    "yAxisPropertyType": "msg",
+    "ymin": "",
+    "ymax": "",
+    "bins": 10,
+    "action": "append",
+    "stackSeries": false,
+    "pointShape": "circle",
+    "pointRadius": 2,
+    "showLegend": true,
+    "removeOlder": 10,
+    "removeOlderUnit": "60",
+    "removeOlderPoints": "",
+    "colors": [
+      "#38bdf8",
+      "#22c55e",
+      "#f59e0b",
+      "#ef4444",
+      "#a78bfa"
+    ],
+    "textColor": [
+      "#cbd5e1"
+    ],
+    "textColorDefault": false,
+    "gridColor": [
+      "#334155"
+    ],
+    "gridColorDefault": false,
+    "width": 12,
+    "height": 7,
+    "className": "",
+    "interpolation": "linear",
+    "x": 1160,
+    "y": 660,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_interface_card",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "接口联调状态数据",
+    "func": "\nconst status = msg.payload.raw || {};\nconst flowState = flow.get('debug_di_flow_state') || {};\nconst recentAlarm = [];\nfor (const rec of (status.recent_alarm || []).slice(-5).reverse()) {\n  for (const [i, item] of (rec.items || []).entries()) {\n    recentAlarm.push({key: rec.time + ':a:' + i, time: rec.time, ...item});\n  }\n}\nconst recentParam = [];\nfor (const rec of (status.recent_param || []).slice(-5).reverse()) {\n  for (const [i, item] of (rec.items || []).entries()) {\n    recentParam.push({key: rec.time + ':p:' + i, time: rec.time, ...item});\n  }\n}\nmsg.payload = {\n  status,\n  flow: flowState,\n  endpoints: [\n    '/web_service/ws/cz_alarm/putMonitorData',\n    '/web_service/ws/cz_alarm/putMonitorParamData',\n    '/api/data-integration/status'\n  ],\n  recentAlarm: recentAlarm.slice(0, 12),\n  recentParam: recentParam.slice(0, 12)\n};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 910,
+    "y": 780,
+    "wires": [
+      [
+        "1052_dbg_interface_tpl"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_interface_tpl",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_interface",
+    "page": "",
+    "ui": "",
+    "name": "接口联调状态页",
+    "order": 0,
+    "width": 12,
+    "height": 10,
+    "head": "",
+    "format": "\n<template>\n  <div>\n    <h2 style=\"margin:0 0 8px;color:#e2e8f0\">数据对接接口联调控制台</h2>\n    <div class=\"di-actions\">\n      <button class=\"dibtn ok\" @click=\"send({payload:'di_alarm_manual_normal'})\">推送正常状态 flag=0</button>\n      <button class=\"dibtn alarm\" @click=\"send({payload:'di_alarm_active'})\">推送报警状态 flag=1</button>\n      <button class=\"dibtn param\" @click=\"send({payload:'di_param_manual'})\">推送实时参数</button>\n    </div>\n    <div class=\"kpi-grid\">\n      <div class=\"kpi ok\"><div class=\"label\">报警接口调用</div><div class=\"value\">{{ msg.payload.status.alarm_count || 0 }}</div><div class=\"small\">/putMonitorData</div></div>\n      <div class=\"kpi\"><div class=\"label\">参数接口调用</div><div class=\"value\">{{ msg.payload.status.param_count || 0 }}</div><div class=\"small\">/putMonitorParamData</div></div>\n      <div class=\"kpi\"><div class=\"label\">Node-RED 计数</div><div class=\"value\">{{ msg.payload.flow.counters?.alarm || 0 }}/{{ msg.payload.flow.counters?.param || 0 }}</div><div class=\"small\">flow context</div></div>\n    </div>\n    <p><span v-for=\"e in msg.payload.endpoints\" class=\"badge\" :key=\"e\">{{ e }}</span></p>\n    <h3>最近报警数据</h3>\n    <table class=\"di-table\"><thead><tr><th>时间</th><th>tankno</th><th>detectorno</th><th>flag</th><th>grade</th><th>monitor_value</th></tr></thead>\n      <tbody><tr v-for=\"row in msg.payload.recentAlarm\" :key=\"row.key\"><td>{{ row.time }}</td><td>{{ row.tankno }}</td><td>{{ row.detectorno }}</td><td>{{ row.flag }}</td><td>{{ row.grade }}</td><td>{{ row.monitor_value }}</td></tr></tbody></table>\n    <h3>最近实时参数</h3>\n    <table class=\"di-table\"><thead><tr><th>时间</th><th>tankno</th><th>detectorno</th><th>monitor_value</th></tr></thead>\n      <tbody><tr v-for=\"row in msg.payload.recentParam\" :key=\"row.key\"><td>{{ row.time }}</td><td>{{ row.tankno }}</td><td>{{ row.detectorno }}</td><td>{{ row.monitor_value }}</td></tr></tbody></table>\n    <pre class=\"mon\">{{ JSON.stringify(msg.payload.status, null, 2) }}</pre>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 1160,
+    "y": 780,
+    "wires": [
+      [
+        "1052_dbg_di_trigger_func"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_buttons_tpl",
+    "type": "ui-template",
+    "z": "1052_dbg_tab",
+    "group": "1052_dbg_g_console",
+    "page": "",
+    "ui": "",
+    "name": "协议仿真按钮",
+    "order": 0,
+    "width": 12,
+    "height": 3,
+    "head": "",
+    "format": "\n<template>\n  <div>\n    <h2 style=\"margin:0 0 8px;color:#e2e8f0\">协议仿真触发按钮</h2>\n    <div class=\"sim-actions\">\n      <button class=\"simbtn blue\" @click=\"send({payload:'hj212_2025_rtd'})\">HJ212-2025 实时</button>\n      <button class=\"simbtn green\" @click=\"send({payload:'hj212_2025_electric'})\">用电监控 ST=44</button>\n      <button class=\"simbtn purple\" @click=\"send({payload:'hj212_2025_voc'})\">VOC 原始数据</button>\n      <button class=\"simbtn orange\" @click=\"send({payload:'hj212_manual_rtd'})\">HJ212-2017 实时</button>\n      <button class=\"simbtn red\" @click=\"send({payload:'hj212_manual_min'})\">HJ212-2017 分钟</button>\n    </div>\n    <p class=\"small\">位置：页面顶部「协议仿真控制台」卡片第一行。点击后通过 Node-RED Admin API 调用现有 inject 节点。</p>\n  </div>\n</template>\n",
+    "storeOutMessages": true,
+    "passthru": true,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 160,
+    "y": 850,
+    "wires": [
+      [
+        "1052_dbg_trigger_func"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_trigger_func",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "调用现有 Inject 节点",
+    "func": "\nmsg.method = 'POST';\nmsg.url = 'http://127.0.0.1:1880/inject/' + String(msg.payload);\nmsg.payload = '';\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 440,
+    "y": 850,
+    "wires": [
+      [
+        "1052_dbg_trigger_http"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_trigger_http",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "POST /inject/{id}",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 700,
+    "y": 850,
+    "wires": [
+      [
+        "1052_dbg_trigger_debug"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_trigger_debug",
+    "type": "debug",
+    "z": "1052_dbg_tab",
+    "name": "debug dashboard trigger",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "statusCode",
+    "statusType": "msg",
+    "x": 960,
+    "y": 850,
+    "wires": []
+  },
+  {
+    "id": "1052_dbg_get_di_flow",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "GET Node-RED 数据对接状态",
+    "method": "GET",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "http://127.0.0.1:1880/api/data-integration/status",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 450,
+    "y": 820,
+    "wires": [
+      [
+        "1052_dbg_store_di_flow"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_store_di_flow",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "缓存数据对接 flow 状态",
+    "func": "flow.set('debug_di_flow_state', msg.payload || {});\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 720,
+    "y": 820,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "1052_dbg_di_trigger_func",
+    "type": "function",
+    "z": "1052_dbg_tab",
+    "name": "数据对接按钮触发 inject",
+    "func": "msg.method = 'POST';\nmsg.url = 'http://127.0.0.1:1880/inject/' + String(msg.payload);\nmsg.payload = '';\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 560,
+    "y": 900,
+    "wires": [
+      [
+        "1052_dbg_di_trigger_http"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_di_trigger_http",
+    "type": "http request",
+    "z": "1052_dbg_tab",
+    "name": "POST 数据对接 inject",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 820,
+    "y": 900,
+    "wires": [
+      [
+        "1052_dbg_di_trigger_debug"
+      ]
+    ]
+  },
+  {
+    "id": "1052_dbg_di_trigger_debug",
+    "type": "debug",
+    "z": "1052_dbg_tab",
+    "name": "debug 数据对接按钮",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "statusCode",
+    "statusType": "msg",
+    "x": 1080,
+    "y": 900,
+    "wires": []
+  }
+]
