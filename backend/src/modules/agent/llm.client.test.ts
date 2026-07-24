@@ -212,11 +212,10 @@ describe('chatCompletionStream', () => {
     apiKey: 'test-key',
   }
 
-  it('emits reasoning chunks wrapped in <think> blocks even when tools are present', async () => {
-    // Regression for the red-box bug: reasoning-only stream output used to be
-    // silently dropped when the request carried any tools, leaving content
-    // and tool_calls both empty and triggering the 502 "未找到有效的回复
-    // 内容或工具调用" error in the UI.
+  it('suppresses provider reasoning chunks from user-visible stream content', async () => {
+    // Provider reasoning is internal state. Runtime Trace can expose tool
+    // progress, but raw reasoning must not be saved or rendered as assistant
+    // message content.
     const fetchMock = vi.fn(async () =>
       streamResponseFromSseChunks([
         sseLine({ choices: [{ delta: { reasoning_content: 'thinking step one' } }] }),
@@ -245,11 +244,8 @@ describe('chatCompletionStream', () => {
       finishReason?: string
     }
 
-    expect(deltas.join('')).toContain('<think>')
-    expect(deltas.join('')).toContain('thinking step one and step two')
-    expect(deltas.join('')).toContain('</think>')
-    expect(message.content).toContain('<think>')
-    expect(message.content).toContain('</think>')
+    expect(deltas.join('')).toBe('')
+    expect(message.content).toBe('')
     expect(message.toolCalls).toEqual([])
     expect(message.finishReason).toBe('stop')
   })

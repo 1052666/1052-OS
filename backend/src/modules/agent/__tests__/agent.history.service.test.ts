@@ -87,4 +87,44 @@ describe('agent history /new persistence', () => {
     expect(await service.getChatHistory()).toEqual({ messages: [] })
     await expect(fs.readdir(path.join(tempDir, 'chat-history-backups'))).rejects.toThrow()
   })
+
+  it('strips assistant thinking blocks from stored visible history', async () => {
+    const service = await loadService()
+    await service.saveChatHistory(
+      [
+        {
+          id: 1,
+          ts: 1,
+          role: 'assistant',
+          content: '<think>\ninternal reasoning\n</think>\n\nVisible answer',
+          compactSummary: '<think>hidden</think>\nUseful summary',
+        },
+        {
+          id: 2,
+          ts: 2,
+          role: 'user',
+          content: '<think>user text is preserved</think>',
+        },
+      ],
+      'replace',
+    )
+
+    expect(await service.getChatHistory()).toEqual({
+      messages: [
+        {
+          id: 1,
+          ts: 1,
+          role: 'assistant',
+          content: 'Visible answer',
+          compactSummary: 'Useful summary',
+        },
+        {
+          id: 2,
+          ts: 2,
+          role: 'user',
+          content: '<think>user text is preserved</think>',
+        },
+      ],
+    })
+  })
 })

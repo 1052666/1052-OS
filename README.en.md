@@ -326,7 +326,7 @@ data/generated-images/
 
 ## External Channels
 
-The current build keeps the official WeChat Bot channel, Feishu Bot and WeCom webhooks. Local desktop-client automation is no longer shipped.
+The current build uses service-side channels: the official WeChat Bot channel, Feishu Bot and WeCom webhooks.
 
 Key capabilities:
 
@@ -336,8 +336,7 @@ Key capabilities:
 
 Notes:
 
-- WeChat and Feishu message echo is handled by backend channel services and does not depend on a local desktop client.
-- The desktop bridge, local listener script, window binding, group memory and desktop outbound tools have been removed.
+- WeChat and Feishu message echo is handled by backend channel services.
 
 ---
 

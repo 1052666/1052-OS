@@ -10,6 +10,13 @@ import styles from './chat.module.css'
 
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
+function stripThinkBlocks(content: string) {
+  return content
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '')
+    .trim()
+}
+
 function CodeBlock({ className, children }: { className?: string; children?: ReactNode }) {
   const [copied, setCopied] = useState(false)
   const language = className?.replace('language-', '') ?? ''
@@ -31,6 +38,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 }
 
 export function MarkdownView({ content }: { content: string }) {
+  const visibleContent = stripThinkBlocks(content)
   return (
     <div className={styles.markdown}>
       <ReactMarkdown
@@ -51,7 +59,7 @@ export function MarkdownView({ content }: { content: string }) {
           },
         }}
       >
-        {content}
+        {visibleContent}
       </ReactMarkdown>
     </div>
   )

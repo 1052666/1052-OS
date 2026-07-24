@@ -116,6 +116,16 @@ describe('agent progressive disclosure helpers', () => {
     expect(system).toContain('proactively request memory-pack')
   })
 
+  it('mounts scheduled-task management tools through plan-pack', () => {
+    const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['plan-pack']))
+    expect(toolNames).toContain('schedule_list_tasks')
+    expect(toolNames).toContain('schedule_create_task')
+    expect(toolNames).toContain('schedule_update_task')
+    expect(toolNames).toContain('schedule_delete_task')
+    expect(toolNames).toContain('schedule_run_task_now')
+    expect(describePackForRouting('plan-pack')).toContain('定时任务创建')
+  })
+
   it('mounts Wiki tools through data-pack and advertises the route in P0', async () => {
     const toolNames = getToolNamesForMountedPacks(expandMountedPacks(['data-pack']))
     expect(toolNames).toContain('wiki_summary')
@@ -203,7 +213,7 @@ describe('agent progressive disclosure helpers', () => {
     expect(toolNames).toContain('feishu_list_calendars')
     expect(hasAgentTool('intel_brief_format')).toBe(true)
     expect(describePackForRouting('channel-pack')).toContain('Intel Brief')
-    expect(describePackForRouting('channel-pack')).toContain('本机桌面客户端自动化已废弃')
+    expect(describePackForRouting('channel-pack')).toContain('后端通道服务自动回写')
   })
 
   it('advertises Intel Center as the preferred news and brief route in P0', async () => {

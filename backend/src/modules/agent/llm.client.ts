@@ -894,37 +894,12 @@ export async function* chatCompletionStream(
   const toolCallBuffer = new ToolCallBuffer()
   let buffer = ''
   let content = ''
-  let reasoningOpen = false
   let done = false
   let usage: LLMTokenUsage | undefined
   let finishReason: string | undefined
 
-  // Reasoning chunks are now ALWAYS streamed wrapped in <think>...</think>
-  // blocks. Frontend Chat.tsx renders them as collapsible "思考过程" panels;
-  // feishu/wechat services strip them before delivery. The
-  // previous suppressReasoning=true (when tools were present) caused
-  // reasoning-only model turns to be reported as empty and surfaced as red
-  // "未找到有效的回复内容或工具调用" errors in the UI.
   const emitContent = function* (chunk: string): Generator<string, void, void> {
     if (!chunk) return
-    if (reasoningOpen) {
-      const close = '\n</think>\n\n'
-      reasoningOpen = false
-      content += close
-      yield close
-    }
-    content += chunk
-    yield chunk
-  }
-
-  const emitReasoning = function* (chunk: string): Generator<string, void, void> {
-    if (!chunk) return
-    if (!reasoningOpen) {
-      const open = '<think>\n'
-      reasoningOpen = true
-      content += open
-      yield open
-    }
     content += chunk
     yield chunk
   }
@@ -967,7 +942,10 @@ export async function* chatCompletionStream(
       if (!delta) continue
 
       const reasoning = getStringField(delta, ['reasoning_content', 'reasoning', 'thinking'])
-      yield* emitReasoning(reasoning)
+      if (reasoning) {
+        // Provider reasoning is internal state. User-visible thinking and tool
+        // progress must come from Runtime Trace events, not assistant content.
+      }
 
       if (typeof delta.content === 'string' && delta.content.length > 0) {
         yield* emitContent(delta.content)
@@ -1015,17 +993,8 @@ export async function* chatCompletionStream(
     reader.releaseLock()
   }
 
-  if (reasoningOpen) {
-    const close = '\n</think>\n\n'
-    reasoningOpen = false
-    content += close
-    yield close
-  }
-
   const normalizedToolCalls = toolCallBuffer.finalize()
 
-  // Reasoning is now part of `content` (wrapped in <think>...</think>), so
-  // a reasoning-only turn no longer trips this check.
   // Instead of throwing when both are empty, return a graceful empty result.
   // The caller (agent service) decides how to handle it — e.g. if previous
   // rounds already produced deltas (image generation), the stream can still
@@ -1036,6 +1005,7 @@ export async function* chatCompletionStream(
       content: '',
       toolCalls: [],
       usage,
+      finishReason,
     }
   }
 
@@ -1122,7 +1092,6 @@ async function* adapterStream(
   const toolCallBuffer = new ToolCallBuffer()
   let buffer = ''
   let content = ''
-  let reasoningOpen = false
   let streamDone = false
   let usage: LLMTokenUsage | undefined
   let finishReason: string | undefined
@@ -1132,14 +1101,10 @@ async function* adapterStream(
     if (chunk.finishReason) finishReason = chunk.finishReason
     if (chunk.done) { streamDone = true; return }
 
-    // Reasoning → <think> blocks
     if (chunk.reasoning) {
-      if (!reasoningOpen) { const open = '<think>\n'; reasoningOpen = true; content += open; yield open }
-      content += chunk.reasoning; yield chunk.reasoning
+      // Provider reasoning is intentionally not streamed as assistant content.
     }
-    // Content → close reasoning if open
     if (chunk.content) {
-      if (reasoningOpen) { const close = '\n</think>\n\n'; reasoningOpen = false; content += close; yield close }
       content += chunk.content; yield chunk.content
     }
     // Tool call deltas
@@ -1179,8 +1144,6 @@ async function* adapterStream(
     clearIdleTimer(); detachExternal(); reader.releaseLock()
   }
 
-  if (reasoningOpen) { const close = '\n</think>\n\n'; content += close; yield close }
-
   const normalizedToolCalls = toolCallBuffer.finalize()
   if (content.length === 0 && normalizedToolCalls.length === 0) {
     return {
@@ -1188,6 +1151,7 @@ async function* adapterStream(
       content: '',
       toolCalls: [],
       usage,
+      finishReason,
     }
   }
 
