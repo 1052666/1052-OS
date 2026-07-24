@@ -362,7 +362,7 @@ export async function saveChatHistory(
     }
   }
 
-  const history: ChatHistory = { messages }
+  const history: ChatHistory = { messages: sanitizeStoredMessages(messages) }
   await writeJson(FILE, history)
   emitHistoryEvent({ reason })
   // Fire-and-forget: trigger auto-compaction if threshold exceeded
@@ -403,11 +403,14 @@ export async function updateChatMessage(
   if (index === -1) return null
 
   const next = updater(history.messages[index]!)
+  const sanitizedNext = sanitizeStoredMessage(next)
+  if (!sanitizedNext) return null
+
   const messages = [...history.messages]
-  messages[index] = next
+  messages[index] = sanitizedNext
   await writeJson(FILE, { messages })
   emitHistoryEvent({ reason, messageId: id })
-  return next
+  return sanitizedNext
 }
 
 export { sanitizeStoredMessages }

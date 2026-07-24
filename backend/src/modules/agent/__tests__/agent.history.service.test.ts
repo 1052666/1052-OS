@@ -127,4 +127,26 @@ describe('agent history /new persistence', () => {
       ],
     })
   })
+
+  it('sanitizes assistant thinking blocks before writing history updates', async () => {
+    const service = await loadService()
+    await service.appendChatMessage({
+      role: 'assistant',
+      content: '<think>hidden</think>\n\nVisible persisted reply',
+    })
+
+    const firstRead = await service.getChatHistory()
+    expect(firstRead.messages[0]?.content).toBe('Visible persisted reply')
+
+    await service.updateChatMessage(1, (message) => ({
+      ...message,
+      content: '<think>second hidden</think>\n\nVisible update',
+    }))
+
+    const raw = JSON.parse(
+      await fs.readFile(path.join(tempDir, 'chat-history.json'), 'utf-8'),
+    ) as { messages?: Array<{ content?: string }> }
+    expect(raw.messages?.[0]?.content).toBe('Visible update')
+    expect(raw.messages?.[0]?.content).not.toContain('<think>')
+  })
 })

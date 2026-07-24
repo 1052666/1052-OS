@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { config } from '../../config.js'
 import { redactSensitiveText } from './agent.redaction.service.js'
+import { stripThinkBlocks } from './agent.context-sanitizer.service.js'
 import type { Runtime1052Event } from './1052-kernel.types.js'
 
 const ROLLOUT_DIR = '1052-rollouts'
@@ -31,6 +32,7 @@ export function sanitizeRuntime1052RolloutEvent(event: Runtime1052Event): Runtim
   if (event.type === 'model-response') {
     sanitized = {
       ...event,
+      content: stripThinkBlocks(event.content),
       toolCalls: event.toolCalls.map((toolCall) => ({
         ...toolCall,
         arguments: isSensitive1052Tool(toolCall.name)
@@ -38,6 +40,8 @@ export function sanitizeRuntime1052RolloutEvent(event: Runtime1052Event): Runtim
           : toolCall.arguments,
       })),
     }
+  } else if (event.type === 'assistant-delta') {
+    sanitized = { ...event, content: stripThinkBlocks(event.content) }
   } else if (event.type === 'tool-call-started' && isSensitive1052Tool(event.name)) {
     sanitized = { ...event, argsPreview: REDACTED_1052_VALUE }
   } else if (event.type === 'approval-requested' && isSensitive1052Tool(event.name)) {

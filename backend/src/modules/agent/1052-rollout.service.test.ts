@@ -85,4 +85,25 @@ describe('1052 rollout store', () => {
     expect(persisted).not.toContain('sk-1234567890abcdef')
     expect(persisted).toContain('[REDACTED]')
   })
+
+  it('strips thinking blocks from persisted assistant rollout content', async () => {
+    const service = await import('./1052-rollout.service.js')
+    await service.appendRuntime1052RolloutEvent({
+      type: 'assistant-delta',
+      turnId: 'turn-thinking',
+      content: '<think>internal</think>\n\nVisible delta',
+    })
+    await service.appendRuntime1052RolloutEvent({
+      type: 'model-response',
+      turnId: 'turn-thinking',
+      step: 1,
+      content: '<think>hidden</think>\n\nVisible response',
+      toolCalls: [],
+    })
+
+    const records = await service.readRuntime1052Rollout('turn-thinking')
+    expect(records[0]?.event).toMatchObject({ type: 'assistant-delta', content: 'Visible delta' })
+    expect(records[1]?.event).toMatchObject({ type: 'model-response', content: 'Visible response' })
+    expect(JSON.stringify(records)).not.toContain('<think>')
+  })
 })
