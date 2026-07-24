@@ -82,6 +82,12 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'calendar_delete_event',
     'schedule_list_tasks',
     'schedule_list_runs',
+    'schedule_create_task',
+    'schedule_update_task',
+    'schedule_delete_task',
+    'schedule_pause_task',
+    'schedule_resume_task',
+    'schedule_run_task_now',
     'pkm_search',
     'pkm_summary',
     'pkm_reindex',
@@ -201,10 +207,10 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'settings-pack':
       return 'Agent 运行设置维护。用于在用户明确确认后切换 LLM Profile、设置任务级模型路由或更新早报偏好；读取状态和本地模型扫描已在 base-read-pack 中可用。'
     case 'plan-pack':
-      return '日程创建/查询/更新/删除、定时任务查看、PKM 知识检索。日程写入和 PKM 索引重建需用户确认。'
+      return '日程创建/查询/更新/删除、定时任务创建/查询/更新/删除/暂停/恢复/立即运行、PKM 知识检索。日程写入、定时任务写入、任务立即运行和 PKM 索引重建需用户确认。'
     case 'data-pack':
       return '笔记、资源列表、SQL 数据源管理（MySQL/Oracle/SQLite/Hive）、SQL 文件管理、SQL 查询执行、SQL 变量管理、SSH 服务器管理、Shell 脚本管理及执行、SQL 编排（DAG 工作流）、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。SQL 写入、服务器操作、Shell 执行和 Wiki 写入默认需要用户确认。'
     case 'channel-pack':
-      return '外部通道格式渲染和飞书工作区工具。包含 Intel Brief 的 Markdown、飞书卡片、微信文本和企业微信 Markdown 渲染，以及飞书日历、任务等工作区读取能力。官方微信 Bot 与飞书入站消息由通道服务自动回写，本机桌面客户端自动化已废弃。'
+      return '外部通道格式渲染和飞书工作区工具。包含 Intel Brief 的 Markdown、飞书卡片、微信文本和企业微信 Markdown 渲染，以及飞书日历、任务等工作区读取能力。官方微信 Bot、飞书和企业微信入站消息由后端通道服务自动回写。'
   }
 }

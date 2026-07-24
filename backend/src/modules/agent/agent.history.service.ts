@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { config } from '../../config.js'
 import { readJson, writeJson } from '../../storage.js'
+import { stripThinkBlocks } from './agent.context-sanitizer.service.js'
 import type { ChatHistory, StoredChatMessage, StoredRuntimeTrace } from './agent.types.js'
 
 const FILE = 'chat-history.json'
@@ -271,15 +272,19 @@ function sanitizeStoredMessage(value: unknown): StoredChatMessage | null {
     return null
   }
 
+  const visibleContent = role === 'assistant' ? stripThinkBlocks(content) : content
+  const visibleCompactSummary =
+    role === 'assistant' && compactSummary ? stripThinkBlocks(compactSummary) : compactSummary
+
   return {
     id,
     role,
-    content,
+    content: visibleContent,
     ts,
     error: error === true ? true : undefined,
     streaming: streaming === true ? true : undefined,
     usage: sanitizeUsage(usage),
-    compactSummary: compactSummary?.trim() ? compactSummary : undefined,
+    compactSummary: visibleCompactSummary?.trim() ? visibleCompactSummary : undefined,
     compactBackupPath: compactBackupPath?.trim() ? compactBackupPath : undefined,
     compactOriginalCount:
       compactOriginalCount && compactOriginalCount > 0
