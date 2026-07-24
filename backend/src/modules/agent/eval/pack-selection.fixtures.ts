@@ -83,8 +83,8 @@ export const PACK_SELECTION_FIXTURES: PackSelectionCase[] = [
   { id: 41, input: '帮我创建一个 MySQL 数据源连接', expectedPacks: ['data-pack'], tag: 'data' },
 
   // ── channel-pack ───────────────────────────────────────────────────
-  { id: 42, input: '给张三发一条微信消息', expectedPacks: ['channel-pack'], tag: 'channel' },
-  { id: 43, input: '列出微信桌面的会话', expectedPacks: ['channel-pack'], tag: 'channel' },
+  { id: 42, input: '把这份早报渲染成微信文本格式', expectedPacks: ['channel-pack'], tag: 'channel' },
+  { id: 43, input: '列出飞书任务', expectedPacks: ['channel-pack'], tag: 'channel' },
   { id: 44, input: '查看飞书日历', expectedPacks: ['channel-pack'], tag: 'channel' },
 
   // ── multi-pack ─────────────────────────────────────────────────────
@@ -92,6 +92,6 @@ export const PACK_SELECTION_FIXTURES: PackSelectionCase[] = [
   { id: 46, input: '读取项目代码然后生成一张架构图', expectedPacks: ['repo-pack', 'image-pack'], tag: 'multi' },
   { id: 47, input: '从 SQL 数据库查出销售数据，然后搜索行业对比', expectedPacks: ['data-pack', 'search-pack'], tag: 'multi' },
   { id: 48, input: '读一下 README 然后帮我写到 Wiki 里', expectedPacks: ['repo-pack', 'data-pack'], tag: 'multi' },
-  { id: 49, input: '用 Intel Center 采集今日情报，然后发到微信群', expectedPacks: ['skill-pack', 'channel-pack'], tag: 'multi' },
+  { id: 49, input: '用 Intel Center 采集今日情报，然后整理成微信文本', expectedPacks: ['skill-pack', 'channel-pack'], tag: 'multi' },
   { id: 50, input: '查看我的记忆列表，帮我把过时的删掉，然后搜索相关新信息补充', expectedPacks: ['memory-pack', 'search-pack'], tag: 'multi' },
 ]

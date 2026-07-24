@@ -1,0 +1,182 @@
+.today {
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+.commandDeck {
+  position: relative;
+  display: grid;
+  min-height: 238px;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(360px, 1.22fr);
+  align-items: end;
+  gap: clamp(24px, 5vw, 78px);
+  overflow: hidden;
+  padding: clamp(24px, 4vw, 48px);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(112deg, color-mix(in srgb, var(--bg-elevated) 96%, transparent), color-mix(in srgb, var(--bg-panel) 74%, transparent)),
+    var(--bg-panel);
+  box-shadow: var(--shadow-panel);
+}
+
+.commandDeck::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 48%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--success));
+  content: '';
+}
+
+.deckSignal {
+  position: absolute;
+  top: 24px;
+  right: 30px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.deckSignal span {
+  display: block;
+  width: 3px;
+  height: 12px;
+  background: var(--accent);
+  animation: signal 1.2s ease-in-out infinite alternate;
+}
+.deckSignal span:nth-child(2) { height: 21px; animation-delay: -0.4s; background: var(--success); }
+.deckSignal span:nth-child(3) { height: 8px; animation-delay: -0.75s; background: var(--warning); }
+
+.deckCopy {
+  display: grid;
+  gap: 8px;
+}
+.deckCopy > span { display: flex; align-items: center; gap: 7px; color: var(--accent); font-size: 11px; font-weight: 800; }
+.deckCopy h2 { max-width: 430px; font-size: 30px; font-weight: 620; line-height: 1.2; }
+.deckCopy p { max-width: 480px; color: var(--text-secondary); font-size: 12px; }
+
+.quickComposer {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.quickComposer textarea {
+  min-height: 112px;
+  padding: 16px 54px 16px 16px;
+  border-color: var(--line-default);
+  background: color-mix(in srgb, var(--bg-canvas) 72%, transparent);
+  font-size: 14px;
+  resize: none;
+}
+.quickComposer > button { position: absolute; right: 12px; bottom: 12px; border-color: var(--accent-strong); background: var(--accent); color: var(--text-inverse); }
+
+.statusBand {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+}
+
+.statusBand > button {
+  display: grid;
+  min-width: 0;
+  min-height: 76px;
+  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 14px;
+  border-right: 1px solid var(--line-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.statusBand > button:last-child { border-right: 0; }
+.statusBand > button:hover { background: var(--bg-hover); }
+.statusBand > button > span:nth-child(2) { display: grid; min-width: 0; }
+.statusBand small { color: var(--text-muted); font-size: 9px; }
+.statusBand strong { overflow: hidden; color: var(--text-primary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.statusIcon { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--line-subtle); border-radius: var(--radius-md); background: var(--bg-elevated); color: var(--accent); }
+.activeIcon { box-shadow: inset 0 0 0 1px var(--accent-soft), 0 0 22px rgba(99, 230, 226, 0.1); animation: active 1.8s ease-in-out infinite; }
+
+.approvalBand { margin-top: 14px; }
+.approvalBand > button { display: grid; width: 100%; min-height: 64px; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid rgba(241, 189, 98, 0.35); border-radius: var(--radius-lg); background: var(--warning-soft); color: var(--text-primary); cursor: pointer; text-align: left; }
+.approvalBand > button > span { color: var(--warning); }
+.approvalBand > button > div { display: grid; }
+.approvalBand small { color: var(--text-secondary); }
+.approvalAction { display: inline-flex; min-height: 30px; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: var(--radius-sm); background: var(--accent); color: var(--text-inverse) !important; font-size: 11px; font-weight: 700; }
+
+.dashboardGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.timeline,
+.taskList,
+.activityList,
+.memoryList { display: grid; margin: -6px -14px -14px; }
+
+.timelineItem { display: grid; min-height: 62px; grid-template-columns: 52px 9px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line-subtle); }
+.timelineItem:last-child { border-bottom: 0; }
+.timelineItem time { color: var(--accent); font-family: var(--font-mono); font-size: 10px; }
+.timelineItem > span { width: 7px; height: 7px; border: 2px solid var(--accent); border-radius: 50%; }
+.timelineItem div,
+.taskList button > span:nth-child(2),
+.activityList div > span,
+.memoryList button > span:nth-child(2) { display: grid; min-width: 0; }
+.timelineItem strong,
+.taskList strong,
+.activityList strong,
+.memoryList strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.timelineItem small,
+.taskList small,
+.activityList small,
+.memoryList small { overflow: hidden; color: var(--text-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+
+.taskList button,
+.memoryList button { display: grid; min-height: 58px; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 14px; border-bottom: 1px solid var(--line-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; text-align: left; }
+.taskList button:hover,
+.memoryList button:hover { background: var(--bg-hover); }
+.taskIcon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: var(--radius-md); background: var(--accent-soft); color: var(--accent); }
+
+.activityList > div { display: grid; min-height: 58px; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 14px; border-bottom: 1px solid var(--line-subtle); }
+.activityList svg { color: var(--text-muted); }
+.activityList time { color: var(--text-muted); font-family: var(--font-mono); font-size: 9px; }
+.memoryList button > svg { color: var(--accent); }
+
+.notificationList { display: grid; margin: -14px; }
+.notificationRow { display: grid; width: 100%; min-height: 68px; grid-template-columns: 8px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-subtle); background: transparent; color: var(--text-secondary); cursor: pointer; text-align: left; }
+.notificationRow:hover { background: var(--bg-hover); }
+.notificationRow > span:nth-child(2) { display: grid; min-width: 0; }
+.notificationRow strong { color: var(--text-primary); }
+.notificationRow small { overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }
+.notificationRow time { color: var(--text-muted); font-size: 10px; }
+.unread { background: var(--accent-soft); }
+.levelDot { width: 7px; height: 7px; border-radius: 50%; background: var(--info); }
+.success { background: var(--success); }
+.warning { background: var(--warning); }
+.error { background: var(--danger); }
+
+@keyframes signal { to { transform: scaleY(0.45); opacity: 0.5; } }
+@keyframes active { 50% { border-color: var(--accent-strong); } }
+
+@media (max-width: 1050px) {
+  .commandDeck { grid-template-columns: 1fr; gap: 20px; }
+  .statusBand { grid-template-columns: repeat(2, 1fr); }
+  .statusBand > button:nth-child(2) { border-right: 0; }
+  .statusBand > button:nth-child(-n+2) { border-bottom: 1px solid var(--line-subtle); }
+}
+
+@media (max-width: 760px) {
+  .commandDeck { min-height: 0; padding: 20px 16px 16px; }
+  .deckCopy h2 { font-size: 23px; }
+  .deckCopy p { display: none; }
+  .quickComposer textarea { min-height: 98px; }
+  .statusBand { grid-template-columns: 1fr 1fr; }
+  .statusBand > button { min-height: 68px; padding: 8px 9px; }
+  .statusBand > button:nth-child(2) { border-right: 0; }
+  .dashboardGrid { grid-template-columns: 1fr; }
+  .approvalBand > button { grid-template-columns: 28px minmax(0, 1fr); }
+  .approvalAction { display: none; }
+}

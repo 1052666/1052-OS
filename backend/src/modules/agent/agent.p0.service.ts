@@ -16,6 +16,7 @@ import {
 } from './agent.budget.service.js'
 import { summarizeCheckpointForInjection } from './agent.checkpoint.service.js'
 import { formatUapisDirectorySummary } from '../uapis/uapis.service.js'
+import { getAgentSystemPrompt } from './agent.prompt.service.js'
 import type { AgentCheckpoint, AgentPackName } from './agent.runtime.types.js'
 import type { LLMConversationMessage, LLMToolDefinition } from './llm.client.js'
 
@@ -96,7 +97,7 @@ function getRoutingPrompt() {
     '  * UAPIs → search-pack (uapis_call)',
     '  * Intel Center collect → skill-pack (intel_center_collect)',
     '  * Intel Center brief format → channel-pack (intel_brief_format)',
-    '  * Desktop WeChat proactive send/session/group memory tools -> channel-pack (wechat_desktop_send_message, wechat_group_memory_*)',
+    '  * Feishu workspace reads and channel formatting -> channel-pack',
     ...REQUESTABLE_PACKS.map((pack) => `- ${pack}: ${describePackForRouting(pack)}`),
     '- Start in P0 with no business tools.',
     '- If the user asks to generate, draw, design, render, create an image, illustration, poster, logo concept, cover, visual, wallpaper, avatar, or similar visual output, request image-pack and use image_generate. This route has priority over search-pack and UAPIs for image creation.',
@@ -105,19 +106,19 @@ function getRoutingPrompt() {
     '- terminal_run_readonly is only for allow-listed read-only inspection. Use terminal_run for scripts, file writes, builds, tests, and other commands that can modify local state when permission allows.',
     '- For news, current affairs, morning briefs, market moves, global intelligence, geopolitics, finance, tech-sector intelligence, or cross-sector causal analysis, first consider the installed intel-center Skill: request skill-pack, read intel-center, use intel_center_collect to collect raw intelligence, then analyze it following the Skill workflow.',
     '- intel_brief_format in channel-pack formats an already structured Intel Brief for Markdown, Feishu card, WeChat text, or WeCom markdown. It does not collect intelligence and does not send messages.',
-    '- If the current request is an inbound wechat_desktop group mention, the channel service will send your final answer automatically. Do not request channel-pack and do not call wechat_desktop_send_message just to reply to that current group message.',
-    '- Request channel-pack for desktop WeChat only when you need to proactively send a separate message to a WeChat chat, list desktop WeChat sessions/groups, or explicitly read/write WeChat group memory.',
+    '- Official WeChat Bot and Feishu inbound messages are delivered back by their channel services after generation; do not request channel-pack just to reply to the current inbound channel message.',
+    '- Local desktop messaging automation tools are not available. Do not invent removed external-channel tools.',
     '- If you need web search, page reading, or UAPIs lookup/call, request search-pack.',
     '- If you need to read, create, update, delete, suggest, confirm, or reject long-term memories or output profiles, request memory-pack.',
-    '- If the user explicitly asks to switch LLM profiles or configure task-level model routing, request settings-pack and wait for confirmation before changing settings unless full-access is enabled.',
-    '- If the user asks to enable, disable, or change morning brief time, request settings-pack and use agent_morning_brief_update after confirmation unless full-access is enabled.',
+    '- If the user explicitly asks to switch LLM profiles or configure task-level model routing, request settings-pack and emit the required settings tool call. Under the default profile, the 1052 runtime will request exact approval before execution.',
+    '- If the user asks to enable, disable, or change morning brief time, request settings-pack and use agent_morning_brief_update. Under the default profile, the 1052 runtime will request exact approval before execution.',
     '- If you need to read or maintain Wiki, ingest raw files, search structured knowledge pages, write synthesis, or lint Wiki health, request data-pack.',
     '- Wiki is not long-term memory: Wiki stores knowledge assets and source-backed synthesis; memory-pack stores durable user preferences, constraints, identity, and habits.',
     '- Output profiles are not raw knowledge storage: they are composition recipes that combine approved cognitive models, preferred writing style, and material scopes for a response.',
     '- If an output profile references Wiki/raw/material sources and the task needs the actual source content, request data-pack and read the referenced material instead of inventing it.',
-    '- For Wiki ingestion, read raw, summarize 3-5 key points and page split suggestions, then wait for confirmation before write tools unless full-access is enabled.',
-    '- For valuable answers that should be preserved, ask whether to write them into 综合分析/ before wiki_query_writeback unless full-access is enabled.',
-    '- For Wiki lint, preview first; automatic fixes, index rebuilds, and log appends are write operations that require confirmation unless full-access is enabled.',
+    '- For Wiki ingestion, read raw, summarize 3-5 key points and page split suggestions, then emit the required write tools. Under the default profile, the 1052 runtime will request exact approval before execution.',
+    '- For valuable answers that should be preserved, ask whether they belong in 综合分析/ before wiki_query_writeback; the 1052 runtime still enforces the active permission profile.',
+    '- For Wiki lint, preview first; automatic fixes, index rebuilds, and log appends are write operations governed by the active 1052 permission profile.',
     '- When the user explicitly says to remember something, memory-pack provides memory_create; set confirmed=true because the request itself is the confirmation.',
     '- When you infer a durable preference, recurring workflow rule, project convention, or output preference, proactively request memory-pack if needed and create a memory_suggest after the immediate task is handled. Do not wait for the user to say "remember" every time.',
     '- Use secure-memory tools in memory-pack for API keys, tokens, passwords, private config, and other sensitive values.',
@@ -159,7 +160,8 @@ export async function buildP0Messages(input: {
   mountedPacks?: readonly AgentPackName[]
   extraSections?: string[]
 }) {
-  const [coreRuleFiles, projectProfile, uapisSummary] = await Promise.all([
+  const [systemPrompt, coreRuleFiles, projectProfile, uapisSummary] = await Promise.all([
+    getAgentSystemPrompt(),
     getCoreRuleFiles(),
     getProjectProfileSummary(),
     getP0UapisSummary(),
@@ -170,6 +172,7 @@ export async function buildP0Messages(input: {
   const extraSections = input.extraSections ?? []
   const routingPrompt = getRoutingPrompt()
   const systemContent = [
+    systemPrompt,
     coreRules,
     projectProfile,
     checkpointSummary.text,
@@ -200,6 +203,7 @@ export async function buildP0Messages(input: {
     label: 'P0 prompt',
     limitTokens: P0_TOTAL_TOKEN_BUDGET,
     components: [
+      textBudgetComponent({ key: '1052-system-prompt', label: '1052 system prompt', text: systemPrompt }),
       textBudgetComponent({ key: 'core-rules', label: 'Core rules', text: coreRules }),
       textBudgetComponent({ key: 'project-profile', label: 'Project profile', text: projectProfile }),
       {

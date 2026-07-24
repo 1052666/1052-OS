@@ -6,6 +6,7 @@ import {
   updateChatMessage,
 } from '../../agent/agent.history.service.js'
 import { resolveAgentCommand } from '../../agent/agent.command.service.js'
+import { applyRuntimeTraceEvent } from '../../agent/agent.runtime-traces.js'
 import { sendMessageStream } from '../../agent/agent.service.js'
 import type { ChatMessage, StoredChatMessage, TokenUsage } from '../../agent/agent.types.js'
 import {
@@ -36,6 +37,7 @@ import {
   sendWechatMediaBuffer,
   sendWechatMediaFile,
 } from './wechat.media.js'
+import { unwrapMarkdownDocumentFence } from '../channel-text.js'
 import type {
   WechatAccountRecord,
   WechatAccountSummary,
@@ -210,7 +212,7 @@ async function buildWechatInboundContent(message: WechatMessage) {
 }
 
 function filterWechatMarkdown(text: string) {
-  return text
+  return unwrapMarkdownDocumentFence(text)
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/!\[[^\]]*]\([^)]*\)/g, '')
     .replace(/^#{1,6}\s+/gm, '')
@@ -751,7 +753,6 @@ async function handleInboundWechatMessage(
   let finalText = ''
   let usage: TokenUsage | undefined
   const channelAbort = new AbortController()
-  const channelTimeout = setTimeout(() => channelAbort.abort(), 10 * 60_000)
   try {
     const history = await getChatHistory()
     const chatMessages = toChatMessages(history.messages, assistantMessage.id)
@@ -778,6 +779,22 @@ async function handleInboundWechatMessage(
           assistantMessage.id,
           (current) => ({ ...current, usage }),
           'wechat-agent-usage',
+        )
+      } else {
+        await updateChatMessage(
+          assistantMessage.id,
+          (current) => ({
+            ...current,
+            meta: {
+              ...(current.meta ?? {}),
+              runtimeTraces: applyRuntimeTraceEvent(
+                current.meta?.runtimeTraces,
+                event,
+                finalText.length,
+              ),
+            },
+          }),
+          `wechat-agent-${event.type}`,
         )
       }
     }
@@ -810,9 +827,69 @@ async function handleInboundWechatMessage(
     )
   } catch (error) {
     const messageText = sanitizeError(error)
-    const failureSuffix = `\n\n⚠️ 微信通道出错：${messageText}`
     const contextToken =
       message.context_token ?? (await getWechatContextToken(account.accountId, peerId))
+    const partialText = finalText.trim()
+    if (partialText) {
+      let deliveryError = messageText
+      try {
+        await sendWechatRichMessage({
+          account,
+          peerId,
+          text: `${partialText}\n\n（回复生成在末尾中断，已先回传以上已生成内容。）`,
+          contextToken,
+        })
+        deliveryError = ''
+        await updateChatMessage(
+          assistantMessage.id,
+          (current) => ({
+            ...current,
+            streaming: false,
+            error: false,
+            content: current.content || partialText,
+            usage,
+            meta: {
+              ...current.meta,
+              delivery: {
+                status: 'sent',
+                targetChannel: 'wechat',
+                targetPeerId: peerId,
+                error: messageText,
+              },
+            },
+          }),
+          'wechat-agent-partial-sent',
+        )
+        return
+      } catch (deliveryFailure) {
+        deliveryError = `${messageText}; partial echo failed: ${sanitizeError(deliveryFailure)}`
+      }
+
+      await updateChatMessage(
+        assistantMessage.id,
+        (current) => ({
+          ...current,
+          streaming: false,
+          error: true,
+          content: current.content
+            ? `${current.content}\n\n⚠️ 微信回传失败：${deliveryError}`
+            : `⚠️ 微信回传失败：${deliveryError}`,
+          meta: {
+            ...current.meta,
+            delivery: {
+              status: 'failed',
+              targetChannel: 'wechat',
+              targetPeerId: peerId,
+              error: deliveryError,
+            },
+          },
+        }),
+        'wechat-agent-partial-send-failed',
+      )
+      throw error
+    }
+
+    const failureSuffix = `\n\n⚠️ 微信通道出错：${messageText}`
     let deliveryStatus: 'sent' | 'failed' = 'failed'
     let deliveryError = messageText
 
@@ -851,8 +928,6 @@ async function handleInboundWechatMessage(
       'wechat-agent-error',
     )
     throw error
-  } finally {
-    clearTimeout(channelTimeout)
   }
 
   void userMessage

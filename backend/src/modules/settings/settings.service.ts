@@ -8,6 +8,7 @@ import {
 } from '../calendar/calendar.schedule.service.js'
 import type {
   AgentSettings,
+  AgentPermissionProfile1052,
   AppearanceEffects,
   AppearanceSettings,
   AppearanceWaterEffectIntensity,
@@ -63,15 +64,15 @@ const DEFAULT_SETTINGS: Settings = {
   agent: {
     streaming: true,
     userPrompt: '',
-    fullAccess: false,
-    contextMessageLimit: 50,
+    permissionProfile: 'default',
+    contextMessageLimit: 160,
     progressiveDisclosureEnabled: true,
     providerCachingEnabled: true,
     checkpointEnabled: true,
     seedOnResumeEnabled: true,
     upgradeDebugEventsEnabled: true,
     autoCompactEnabled: true,
-    autoCompactThreshold: 100,
+    autoCompactThreshold: 80_000,
     morningBrief: {
       enabled: false,
       time: '09:30',
@@ -90,6 +91,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 type LegacyAgentSettings = Partial<Omit<AgentSettings, 'morningBrief'>> & {
   systemPrompt?: string
+  fullAccess?: boolean
   morningBrief?: Partial<MorningBriefSettings>
 }
 
@@ -468,6 +470,16 @@ async function syncMorningBriefScheduledTask(settings: MorningBriefSettings) {
 function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSettings {
   if (!agent) return DEFAULT_SETTINGS.agent
 
+  const rawPermissionProfile = (agent as { permissionProfile?: unknown }).permissionProfile
+  const permissionProfile: AgentPermissionProfile1052 =
+    rawPermissionProfile === 'read-only' ||
+    rawPermissionProfile === 'default' ||
+    rawPermissionProfile === 'danger-full-access'
+      ? rawPermissionProfile
+      : (agent as { fullAccess?: unknown }).fullAccess === true
+        ? 'danger-full-access'
+        : DEFAULT_SETTINGS.agent.permissionProfile
+
   return {
     streaming:
       typeof agent.streaming === 'boolean'
@@ -479,10 +491,7 @@ function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSe
         : typeof agent.systemPrompt === 'string'
           ? agent.systemPrompt
           : DEFAULT_SETTINGS.agent.userPrompt,
-    fullAccess:
-      typeof (agent as { fullAccess?: unknown }).fullAccess === 'boolean'
-        ? Boolean((agent as { fullAccess?: unknown }).fullAccess)
-        : DEFAULT_SETTINGS.agent.fullAccess,
+    permissionProfile,
     contextMessageLimit:
       typeof (agent as { contextMessageLimit?: unknown }).contextMessageLimit === 'number' &&
       Number.isFinite((agent as { contextMessageLimit?: unknown }).contextMessageLimit)
@@ -522,13 +531,14 @@ function normalizeAgentSettings(agent: LegacyAgentSettings | undefined): AgentSe
         : DEFAULT_SETTINGS.agent.autoCompactEnabled,
     autoCompactThreshold:
       typeof (agent as { autoCompactThreshold?: unknown }).autoCompactThreshold === 'number' &&
-      Number.isFinite((agent as { autoCompactThreshold?: unknown }).autoCompactThreshold)
+      Number.isFinite((agent as { autoCompactThreshold?: unknown }).autoCompactThreshold) &&
+      ((agent as { autoCompactThreshold?: number }).autoCompactThreshold ?? 0) >= 20_000
         ? Math.min(
             Math.max(
-              Math.round((agent as { autoCompactThreshold?: number }).autoCompactThreshold ?? 100),
-              20,
+              Math.round((agent as { autoCompactThreshold?: number }).autoCompactThreshold ?? 80_000),
+              20_000,
             ),
-            9999,
+            200_000,
           )
         : DEFAULT_SETTINGS.agent.autoCompactThreshold,
     morningBrief: normalizeMorningBriefSettings(
@@ -862,6 +872,8 @@ export function formatMorningBriefRuntimeContext(agent: AgentSettings): string {
     'Morning brief settings:',
     `- enabled: ${enabled ? 'true' : 'false'}`,
     `- preferred delivery time: ${time} Asia/Hong_Kong`,
+    '- Purpose: create a daily local Intel Center brief covering news, markets, cross-domain signals, risks, opportunities, and primary sources.',
+    '- Default destination: 1052 OS chat stream and notification center only.',
     '- Treat this as the user preference for daily Intel Center briefs. Do not create, modify, or send scheduled external deliveries unless the user asked for that change or the relevant permission mode allows it.',
   ].join('\n')
 }

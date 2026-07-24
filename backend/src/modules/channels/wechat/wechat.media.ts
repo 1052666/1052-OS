@@ -124,6 +124,15 @@ const EXT_BY_MIME: Record<string, string> = {
   'video/quicktime': '.mov',
   'video/webm': '.webm',
 }
+const LOCAL_FILE_EXT_PATTERN = Object.keys(MIME_BY_EXT)
+  .map((ext) => ext.slice(1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|')
+const INLINE_LOCAL_FILE_PATH_RE = new RegExp(
+  '([A-Za-z]:[\\\\/][^\\n\\r<>|"*?]+?\\.(?:' +
+    LOCAL_FILE_EXT_PATTERN +
+    '))(?=$|[\\s)\\]`，。；;,.!！?？])',
+  'gi',
+)
 
 function nowFolder() {
   const now = new Date()
@@ -462,6 +471,42 @@ function cleanMarkdownUrl(value: string) {
     .replace(/^`|`$/g, '')
 }
 
+function markdownDestination(value: string) {
+  const trimmed = value.trim()
+  if (trimmed.startsWith('<')) {
+    const end = trimmed.indexOf('>')
+    if (end > 0) return cleanMarkdownUrl(trimmed.slice(1, end))
+  }
+
+  const withoutTitle = trimmed.match(/^(.+?)(?:\s+["'][^"']*["'])$/)
+  return cleanMarkdownUrl(withoutTitle?.[1] ?? trimmed)
+}
+
+function hasKnownMediaExtension(value: string) {
+  try {
+    const pathname = /^https?:\/\//i.test(value) ? new URL(value).pathname : value
+    return Object.prototype.hasOwnProperty.call(MIME_BY_EXT, path.extname(pathname).toLowerCase())
+  } catch {
+    return false
+  }
+}
+
+function looksLikeOutboundMediaReference(value: string) {
+  const reference = cleanMarkdownUrl(value)
+  if (!reference) return false
+  if (
+    reference.startsWith('/api/agent/uploads/') ||
+    reference.startsWith('/api/generated-images/') ||
+    reference.startsWith('/api/channels/wechat/media/') ||
+    reference.startsWith('/api/channels/feishu/media/')
+  ) {
+    return true
+  }
+  if (reference.startsWith('file://')) return true
+  if (/^[A-Za-z]:[\\/]/.test(reference)) return true
+  return /^https?:\/\//i.test(reference) && hasKnownMediaExtension(reference)
+}
+
 function splitUrlPath(value: string) {
   return value
     .split('/')
@@ -536,20 +581,29 @@ async function resolveOutboundMediaReference(reference: string) {
 
 export async function extractOutboundWechatMedia(text: string): Promise<OutboundWechatMedia> {
   const references: string[] = []
+  const seenReferences = new Set<string>()
+  const pushReference = (raw: string) => {
+    const reference = raw.trim().replace(/[，。；;,.!！?？]+$/g, '')
+    if (!reference || seenReferences.has(reference)) return
+    seenReferences.add(reference)
+    references.push(reference)
+  }
   let cleaned = text
 
   cleaned = cleaned.replace(
-    /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+    /!\[[^\]]*]\(([^)]*)\)/g,
     (_match, raw: string) => {
-      references.push(raw)
+      pushReference(markdownDestination(raw))
       return ''
     },
   )
 
   cleaned = cleaned.replace(
-    /\[([^\]]+)]\(((?:\/api\/(?:agent\/uploads|generated-images|channels\/wechat\/media|channels\/feishu\/media)\/[^)\s]+)|(?:file:\/\/[^)\s]+))(?:\s+"[^"]*")?\)/g,
-    (_match, label: string, raw: string) => {
-      references.push(raw)
+    /\[([^\]]+)]\(([^)]*)\)/g,
+    (match, label: string, raw: string) => {
+      const reference = markdownDestination(raw)
+      if (!looksLikeOutboundMediaReference(reference)) return match
+      pushReference(reference)
       return label
     },
   )
@@ -557,22 +611,27 @@ export async function extractOutboundWechatMedia(text: string): Promise<Outbound
   cleaned = cleaned.replace(
     /(^|\s)((?:\/api\/(?:agent\/uploads|generated-images|channels\/wechat\/media|channels\/feishu\/media)\/[^\s)]+)|(?:file:\/\/[^\s)]+))/g,
     (match, prefix: string, raw: string) => {
-      references.push(raw)
+      pushReference(raw)
       return match.startsWith(prefix) ? prefix : ''
     },
   )
+
+  cleaned = cleaned.replace(INLINE_LOCAL_FILE_PATH_RE, (_match, raw: string) => {
+    pushReference(raw)
+    return ''
+  })
 
   cleaned = cleaned
     .split('\n')
     .map((line) => {
       const localPath = line.match(/^\s*-?\s*(?:本地路径|Local Path)\s*[：:]\s*(.+?)\s*$/i)
       if (localPath?.[1]) {
-        references.push(localPath[1])
+        pushReference(localPath[1])
         return ''
       }
       const standalonePath = line.match(/^\s*`?([A-Za-z]:[\\/].+?)`?\s*$/)
       if (standalonePath?.[1]) {
-        references.push(standalonePath[1])
+        pushReference(standalonePath[1])
         return ''
       }
       return line

@@ -6,8 +6,9 @@
  * action). Consumers use this:
  *
  * - Backend: emit a `dangerous` flag on `tool-started` events so the UI can show
- *   a warning badge when a write tool runs, independent of `fullAccess`.
- * - Backend (future): gate auto-injection of `confirmed: true` in `fullAccess`
+ *   a warning badge when a write tool runs, independent of the active profile.
+ * - Backend: gate auto-confirmation and read-only blocking through the 1052
+ *   permission profile.
  *   mode so destructive tools still require an explicit confirmation step.
  *
  * Classification is deterministic, name-based, and does NOT read tool metadata,
@@ -17,10 +18,11 @@
  *   1. If the name is in `READ_ONLY_OVERRIDES`, return 'read'.
  *   2. If the name is in `WRITE_OVERRIDES`, return 'write'.
  *   3. If the name matches any `WRITE_PATTERNS` regex, return 'write'.
- *   4. Otherwise default to 'read'.
+ *   4. If the name matches an explicitly read-only verb, return 'read'.
+ *   5. Otherwise default to 'write'.
  *
- * When in doubt, prefer adding a name to `WRITE_OVERRIDES` — false-positive
- * warnings are cheap, missed-warnings are not.
+ * Unknown tools fail closed as writes. False-positive approvals are cheaper
+ * than silently letting a new side-effecting tool bypass the 1052 runtime.
  */
 
 /** Tools whose names happen to match a write pattern but are actually read-only. */
@@ -74,6 +76,9 @@ const WRITE_OVERRIDES: ReadonlySet<string> = new Set([
  * it is expected to catch so reviewers can sanity-check the coverage.
  */
 const WRITE_PATTERNS: readonly RegExp[] = [
+  // State transitions and import/install/synchronization operations take
+  // precedence over read words that may also appear later in the name.
+  /(^|_)(install|import|sync|mount|index|pause|resume|strike|publish|archive|restore|activate|confirm|reject|approve|generate|interrupt|cancel)(_|$)/,
   // Common verb suffixes that imply mutation.
   // e.g. filesystem_write_file, memory_create, schedule_update_task, memory_delete,
   //      sql_datasource_create, wiki_page_write, wiki_log_append, wiki_ingest_commit,
@@ -84,7 +89,7 @@ const WRITE_PATTERNS: readonly RegExp[] = [
   /_(replace|insert|move|copy|append)(_|$)/,
   // e.g. sql_shell_file_execute, terminal_run, orchestration_execute, schedule_run_task
   /_(execute|run)(_|$)/,
-  // e.g. wechat_desktop_send_message, feishu_send_message
+  // e.g. feishu_send_message
   /_send(_|$)/,
   // e.g. websearch_set_source_enabled, uapis_set_api_enabled, uapis_bulk_set_enabled,
   //      agent_llm_set_task_route
@@ -93,6 +98,11 @@ const WRITE_PATTERNS: readonly RegExp[] = [
   // as writes because the values are sensitive. The read-only names are
   // `memory_secure_list` and `memory_secure_read`, handled below by the negative lookahead.
   /_secure_(write|update|delete)(_|$)/,
+]
+
+/** Verbs that clearly describe inspection or pure transformation. */
+const READ_PATTERNS: readonly RegExp[] = [
+  /(^|_)(list|read|search|summary|preview|status|stat|scan|inspect|format|logs?|recognize|test|check|validate|lookup|get|show)(_|$)/,
 ]
 
 /** Tool names that look like reads based on pattern but are declared as writes explicitly. */
@@ -108,7 +118,10 @@ export function classifyToolSafety(name: string): ToolSafetyClass {
   for (const pattern of WRITE_PATTERNS) {
     if (pattern.test(name)) return 'write'
   }
-  return 'read'
+  for (const pattern of READ_PATTERNS) {
+    if (pattern.test(name)) return 'read'
+  }
+  return 'write'
 }
 
 /** Convenience predicate for consumers that only care about the boolean. */

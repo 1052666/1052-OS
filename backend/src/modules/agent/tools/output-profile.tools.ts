@@ -100,7 +100,7 @@ export const outputProfileTools: AgentTool[] = [
   {
     name: 'output_profile_create',
     description:
-      'Create an output profile. Before calling, tell the user what profile will be stored and wait for explicit confirmation unless full-access is enabled.',
+      'Create an output profile. Tell the user what profile will be stored before calling. The 1052 runtime requests exact approval under the default profile; danger-full-access may execute directly.',
     parameters: {
       type: 'object',
       properties: {
@@ -122,7 +122,7 @@ export const outputProfileTools: AgentTool[] = [
   {
     name: 'output_profile_update',
     description:
-      'Update an output profile. Before calling, tell the user which profile will change and wait for explicit confirmation unless full-access is enabled.',
+      'Update an output profile. Tell the user which profile will change before calling. The 1052 runtime requests exact approval under the default profile; danger-full-access may execute directly.',
     parameters: {
       type: 'object',
       properties: {
@@ -142,7 +142,7 @@ export const outputProfileTools: AgentTool[] = [
   {
     name: 'output_profile_delete',
     description:
-      'Delete an output profile. Before calling, tell the user which profile will be removed and wait for explicit confirmation unless full-access is enabled.',
+      'Delete an output profile. Tell the user which profile will be removed before calling. The 1052 runtime requests exact approval under the default profile; danger-full-access may execute directly.',
     parameters: {
       type: 'object',
       properties: {

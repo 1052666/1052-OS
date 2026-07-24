@@ -24,7 +24,6 @@ type ClaudeCodeJsonOutput = {
 }
 
 const MAX_CAPTURE_CHARS = 60_000
-const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000
 const SESSION_EXPIRY_MS = 30 * 60 * 1000
 
 type SessionEntry = {
@@ -165,7 +164,6 @@ export const claudeCodeTools: AgentTool[] = [
       const startedAt = Date.now()
       let stdout = ''
       let stderr = ''
-      let timedOut = false
 
       child.stdout.setEncoding('utf8')
       child.stderr.setEncoding('utf8')
@@ -177,14 +175,6 @@ export const claudeCodeTools: AgentTool[] = [
         if (stderr.length < MAX_CAPTURE_CHARS + 4096) stderr += chunk
       })
 
-      const timeout = setTimeout(() => {
-        timedOut = true
-        child.kill()
-        setTimeout(() => {
-          try { child.kill('SIGKILL') } catch {}
-        }, 5000)
-      }, DEFAULT_TIMEOUT_MS)
-
       let exitCode: number | null
       try {
         exitCode = await new Promise<number | null>((resolve, reject) => {
@@ -192,18 +182,11 @@ export const claudeCodeTools: AgentTool[] = [
           child.once('exit', (code) => resolve(code))
         })
       } catch (err) {
-        clearTimeout(timeout)
         const message = err instanceof Error ? err.message : String(err)
         throw new Error(`claude_code: Failed to start Claude Code CLI: ${message}. Make sure "claude" is installed and in PATH.`)
-      } finally {
-        clearTimeout(timeout)
       }
 
       const durationMs = Date.now() - startedAt
-
-      if (timedOut) {
-        throw new Error(`claude_code: Timed out after ${Math.round(durationMs / 1000)}s. stdout: ${truncate(stdout.trim())}`)
-      }
 
       if (exitCode !== 0) {
         const errorDetail = truncate(stderr.trim() || stdout.trim()) || `exit code ${exitCode}`

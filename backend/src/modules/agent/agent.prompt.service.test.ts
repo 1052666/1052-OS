@@ -1,20 +1,13 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { getAgentSystemPrompt } from './agent.prompt.service.js'
 
-describe('agent prompt fallback', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.resetModules()
-  })
+describe('1052 agent system prompt', () => {
+  it('loads the rewritten 1052 runtime prompt', async () => {
+    const prompt = await getAgentSystemPrompt()
 
-  it('keeps the fallback system prompt aligned with agent-system.md', async () => {
-    const promptPath = path.resolve(process.cwd(), 'prompts', 'agent-system.md')
-    const expected = (await fs.readFile(promptPath, 'utf-8')).replace(/\r\n/g, '\n').trim()
-    vi.spyOn(fs, 'readFile').mockRejectedValue(new Error('prompt file unavailable'))
-
-    const { getAgentSystemPrompt } = await import('./agent.prompt.service.js')
-
-    await expect(getAgentSystemPrompt()).resolves.toBe(expected)
+    expect(prompt).toContain('1052 OS Agent System Prompt')
+    expect(prompt).toContain('Runtime Model')
+    expect(prompt).toContain('Permissions And Safety')
+    expect(prompt).not.toContain('鏃')
   })
 })

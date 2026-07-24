@@ -1,253 +1,172 @@
-<p align="center">
-  <a href="https://github.com/1052666/1052-OS">
-    <img src="./assets/readme/hero.svg" alt="1052 OS" />
-  </a>
-</p>
+# 1052 OS
 
-<h1 align="center">1052 OS</h1>
+1052 OS 是一个本地优先的个人 AI 操作系统。它把对话、工具调用、长期记忆、知识库、自动化任务、本地仓库、SQL 工作台和微信/飞书等外部通道放进同一套可观察、可审批、可恢复的运行时里。
+
+当前版本已经完成一轮前端重写：旧前端页面、旧 Mirror 视觉层和巨型全局样式被废弃，新的首页是「今日控制台」，核心体验围绕 Agent 对话、Runtime Loop、工具审批和运行检查器展开。
 
 <p align="center">
-  <a href="./README.en.md">English</a>
-</p>
-
-<p align="center">
-  <strong>本地优先、工具驱动、可接入社交通道的个人 AI 代理工作台</strong>
+  <img src="./assets/readme/hero.png" alt="1052 OS 今日控制台" width="860" />
 </p>
 
 <p align="center">
-  一个持续迭代中的桌面式 AI 工作系统：把聊天、工具、记忆、知识、任务、搜索、社交通道和本地工作区放进同一套可控环境里。
+  <a href="https://github.com/1052666/1052-OS"><img alt="GitHub Repository" src="https://img.shields.io/badge/GitHub-1052--OS-111827?style=for-the-badge&logo=github" /></a>
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6?style=for-the-badge&logo=typescript&logoColor=white" />
+  <img alt="React" src="https://img.shields.io/badge/React-18-149eca?style=for-the-badge&logo=react&logoColor=white" />
+  <img alt="Express" src="https://img.shields.io/badge/Express-4-111827?style=for-the-badge&logo=express&logoColor=white" />
 </p>
 
-<p align="center">
-  <a href="https://github.com/1052666/1052-OS/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/1052666/1052-OS?style=for-the-badge&logo=github" /></a>
-  <a href="https://github.com/1052666/1052-OS/network/members"><img alt="GitHub forks" src="https://img.shields.io/github/forks/1052666/1052-OS?style=for-the-badge&logo=github" /></a>
-  <a href="https://github.com/1052666/1052-OS/graphs/contributors"><img alt="Contributors" src="https://img.shields.io/github/contributors/1052666/1052-OS?style=for-the-badge" /></a>
-  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/1052666/1052-OS?style=for-the-badge" /></a>
-</p>
+## 目录
 
-<p align="center">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square&logo=typescript&logoColor=white" />
-  <img alt="React" src="https://img.shields.io/badge/React-18-149eca?style=flat-square&logo=react&logoColor=white" />
-  <img alt="Vite" src="https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite&logoColor=white" />
-  <img alt="Express" src="https://img.shields.io/badge/Express-4-111827?style=flat-square&logo=express&logoColor=white" />
-  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white" />
-</p>
-
----
-
-## 加入社区
-
-<table>
-  <tr>
-    <td width="280" valign="top">
-      <img src="./assets/readme/wechat-group-qr.png" alt="1052 OS 微信群二维码" width="260" />
-    </td>
-    <td valign="top">
-      <h3>交流、反馈、测试与共建</h3>
-      <p><strong>Telegram：</strong><a href="https://t.me/OS1052">https://t.me/OS1052</a></p>
-      <p><strong>微信群：</strong>扫描左侧二维码加入内测交流群</p>
-      <p><strong>GitHub：</strong><a href="https://github.com/1052666/1052-OS">https://github.com/1052666/1052-OS</a></p>
-      <p>欢迎提交 Bug、体验反馈、功能建议、Skill、工具方案与真实使用案例。</p>
-    </td>
-  </tr>
-</table>
-
----
-
-## 项目状态
-
-1052 OS 当前已经不是单一聊天页，而是一套围绕本地工作流构建的 AI 代理工作台。它把下面这些能力收敛到同一个系统里：
-
-- 聊天式 Agent 与渐进披露工具包
-- 本地文件、仓库、终端、SQL 与任务流
-- 长期记忆、Wiki、资源库、笔记与输出配方
-- 联网搜索、UAPIs 工具箱、Skill 中心
-- 日程、定时任务、通知中心
-- 微信、飞书、企业微信等社交通道
-
-当前版本的核心目标是：
-
-- 让 Agent 真正接触本地工作区，而不是只在聊天框里回答问题
-- 让工具调用、权限、上下文和数据沉淀都可见、可控、可回溯
-- 让网页聊天、定时任务、微信、飞书等入口共享同一套 Agent 能力
-- 让运行时数据默认保留在本地 `data/` 目录，而不是散落在外部服务里
-
----
-
-## 项目预览
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="./assets/readme/preview-chat.svg" alt="Chat workspace preview" />
-      <br />
-      <strong>Chat Workspace</strong>
-      <br />
-      流式输出、思考折叠、Markdown / Mermaid / 数学公式、上下文压缩、Token 统计、工具执行状态与统一聊天历史。
-    </td>
-    <td width="50%" valign="top">
-      <img src="./assets/readme/preview-files.svg" alt="Files and resources preview" />
-      <br />
-      <strong>Files, Notes, Resources</strong>
-      <br />
-      本地文件编辑、仓库浏览、笔记目录、资源卡片、Wiki 素材与 Agent 工作区统一管理。
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <img src="./assets/readme/preview-search.svg" alt="Search and skills preview" />
-      <br />
-      <strong>Search, Skills, Toolbox</strong>
-      <br />
-      聚合搜索、网页正文读取、UAPIs 工具箱、Skill 市场与按需挂载的能力包。
-    </td>
-    <td width="50%" valign="top">
-      <img src="./assets/readme/preview-schedule.svg" alt="Schedules and channels preview" />
-      <br />
-      <strong>Schedules + Social Channels</strong>
-      <br />
-      日程、定时任务、通知中心，以及微信、飞书、企业微信等外部触达通道。
-    </td>
-  </tr>
-</table>
-
----
+- [核心能力](#核心能力)
+- [界面预览](#界面预览)
+- [技术栈](#技术栈)
+- [项目结构](#项目结构)
+- [快速启动](#快速启动)
+- [配置与数据目录](#配置与数据目录)
+- [系统架构](#系统架构)
+- [Runtime Loop 技术流程](#runtime-loop-技术流程)
+- [上下文压缩机制](#上下文压缩机制)
+- [工具系统与审批](#工具系统与审批)
+- [外部通道闭环](#外部通道闭环)
+- [前端架构](#前端架构)
+- [后端 API 模块](#后端-api-模块)
+- [测试与验证](#测试与验证)
+- [开发约定](#开发约定)
 
 ## 核心能力
 
-| 模块 | 当前能力 |
+### 今日控制台
+
+- 聚合日程、定时任务、通知、近期记忆、运行状态和快捷输入。
+- 支持从首页直接发起 Agent 对话。
+- 单个模块请求失败时局部降级，不拖垮整个首页。
+
+### Agent 对话
+
+- 对话内容是主体，运行细节以「运行轨迹」折叠展示。
+- 工具调用、审批、上下文升级、压缩、错误和完成状态都进入 Runtime Trace。
+- 用户消息采用轻量文本布局，Agent 回复支持 Markdown、代码块、表格、数学公式和附件。
+- 长对话提供一键回到底部按钮，阅读历史和跟随最新消息互不干扰。
+
+### 工作区
+
+- 本地仓库索引、文件查看、仓库描述。
+- SQL 数据源、SQL 文件、变量、SSH 服务器、Shell 文件和查询工作台。
+- 编排任务可以连接 SQL、Shell、等待、调试等节点。
+
+### 知识系统
+
+- Notes、Wiki、PKM、资源库、长期记忆、敏感长期记忆和输出配置。
+- Wiki 用于源材料和结构化知识，Memory 用于用户偏好、长期事实和可复用上下文。
+- 输出配置用于定义 Agent 在特定场景下的表达方式、认知模型和素材范围。
+
+### 自动化
+
+- 日历事件与定时任务。
+- 执行记录、通知中心和任务结果回写。
+- 流程编排支持可视化编辑，复杂编辑器按路由懒加载。
+
+### 能力与连接
+
+- Skills、UAPIs、搜索源、工具箱。
+- 微信官方 Bot 通道、飞书事件/卡片通道、企业微信 Webhook。
+- 外部通道与网页端共享同一套 Agent Runtime，而不是各自维护独立机器人逻辑。
+
+## 界面预览
+
+| 今日控制台 | Agent 对话 |
 | --- | --- |
-| Chat | OpenAI 兼容聊天接口、SSE 流式输出、思考折叠、Markdown 渲染、上下文压缩、Token 统计、统一聊天历史 |
-| Agent Runtime | P0 路由、能力包挂载、checkpoint、预算报告、工具进度事件、工具超时保护 |
-| LLM 配置 | 多模型预设、任务级路由、Provider 识别、当前默认 `1052 API` 预设 |
-| 图像生成 | OpenAI compatible `/images/generations`、Gemini native、Gemini OpenAI compatible |
-| 文件系统 | 搜索、读取、新建、替换、插入、复制、移动、删除，适合 Agent 精准维护项目文件 |
-| 仓库 | 本地项目识别、README 预览、目录浏览、代码查看、图片预览、仓库打包导出 |
-| 终端 | 只读终端与执行型终端分离，支持多 shell、cwd 切换、状态追踪和中断 |
-| 笔记 | 真实文件树、Markdown 编辑、预览、搜索、拖拽与目录管理 |
-| 资源库 | 标题、正文、备注、标签、状态、链接资源与长文素材的结构化沉淀 |
-| 长期记忆 | 普通记忆、敏感记忆、记忆建议、运行时注入与确认机制 |
-| 输出配方 | 认知模型、写作风格、素材范围组合成可复用输出方案 |
-| Wiki | raw 素材、结构化页面、WikiLink、索引、lint、综合写入与知识沉淀 |
-| 搜索 | 聚合搜索、网页正文读取、搜索源管理、联网核实链路 |
-| Skill 中心 | 安装、删除、预览、热更新本地 Skill 包 |
-| UAPIs 工具箱 | API 目录、接口详情读取、结构化调用、按卡片启用与禁用 |
-| 日程与任务 | 普通日程、单次/循环/长期任务、Agent 回调、终端任务、结果回写 |
-| 微信桌面通道 | 独立社交通道面板、群聊监听、群级提示词、群权限、群记忆、主动发送 |
-| 微信扫码通道 | 扫码登录、重连、文本与媒体消息处理、任务推送 |
-| 飞书 / 企业微信 | 基础消息投递、机器人接入、通知联动 |
-| 日志与运行数据 | 所有运行时数据落地到本地 `data/`，便于排查与迁移 |
+| <img src="./assets/readme/preview-today.png" alt="今日控制台" /> | <img src="./assets/readme/preview-chat.png" alt="Agent 对话" /> |
 
----
+| 工作区 | 自动化 |
+| --- | --- |
+| <img src="./assets/readme/preview-workspace.png" alt="工作区" /> | <img src="./assets/readme/preview-automations.png" alt="自动化" /> |
 
-## 架构概览
-
-```mermaid
-flowchart LR
-  User[User] --> Frontend[React + Vite Frontend]
-  Frontend --> Backend[Express + TypeScript Backend]
-  Backend --> Agent[Agent Runtime]
-  Agent --> LLM[LLM Providers]
-  Agent --> Image[Image Providers]
-  Agent --> Packs[Capability Packs]
-
-  Packs --> Repo[Repo + Files + Terminal]
-  Packs --> Search[Search + UAPIs]
-  Packs --> Memory[Memory + Output Profiles]
-  Packs --> Data[Wiki + Raw + Notes + Resources + SQL]
-  Packs --> Plan[Calendar + Scheduled Tasks]
-  Packs --> Skills[Skills]
-  Packs --> Channels[WeChat / Feishu / WeCom]
-
-  Backend --> Store[(local data/)]
-  Store --> Workspace[agent-workspace]
-  Store --> Wiki[wiki/raw + wiki/pages]
-  Store --> Logs[logs]
-```
+## 技术栈
 
 ### 前端
 
-- React 18
-- Vite 5
-- TypeScript
+- React 18 + Vite + TypeScript strict mode
 - React Router
-- React Markdown
-- Mermaid
-- KaTeX
-- Vitest
+- TanStack Query
+- Zustand
+- Zod
+- Radix UI
+- Lucide React
+- Motion
+- React Hook Form
+- CodeMirror
+- TanStack Table / Virtual
+- React Flow
+- Mermaid / KaTeX / Markdown 渲染
 
 ### 后端
 
-- Node.js
-- Express
-- TypeScript
-- SSE 流式响应
-- OpenAI 兼容聊天与图像接口适配
-- Gemini 原生图像接口适配
-- Feishu / WeChat / WeCom channel services
-- 本地 JSON 数据存储
+- Node.js + Express + TypeScript ESM
+- Zod 契约校验
+- better-sqlite3
+- MySQL / SSH2
+- SSE 流式事件
+- 本地 JSON 文件存储
+- 微信、飞书、企业微信通道模块
 
----
+## 项目结构
 
-## 从零开始搭建
-
-### 1. 环境要求
-
-建议使用：
-
-- Node.js 20+
-- npm 10+
-- Git
-
-可运行平台：
-
-- Windows
-- macOS
-- Linux
-
-可选依赖：
-
-- 一个可用的聊天模型 API Key
-- 一个图像生成 API Key
-- 飞书、微信、企业微信相关开发配置
-- UAPIs API Key
-
-SQL 相关功能额外依赖：
-
-- Python 3.10+
-- `uv`
-
-如果你不使用 SQL 查询与编排能力，可以跳过 Python 和 `uv`。
-
-### 2. 克隆仓库
-
-```bash
-git clone https://github.com/1052666/1052-OS.git
-cd 1052-OS
+```text
+.
+├── backend/                    # Express API、Agent Runtime、工具和通道
+│   ├── prompts/                # Agent 系统提示词
+│   └── src/
+│       ├── modules/agent/      # 1052 Runtime、上下文、工具、审批、历史
+│       ├── modules/channels/   # 微信、飞书、企业微信
+│       ├── modules/settings/   # 模型、Agent、外观等设置
+│       ├── modules/sql/        # SQL 数据源、查询、变量、Shell
+│       ├── modules/wiki/       # Wiki 知识库
+│       ├── modules/memory/     # 长期记忆
+│       └── app.ts              # API 路由装配
+├── frontend/                   # 新版前端
+│   └── src/
+│       ├── app/                # 路由、导航、QueryClient
+│       ├── components/         # Shell、Chat、UI primitives
+│       ├── contracts/          # Zod API 契约
+│       ├── data/               # ApiClient
+│       ├── features/           # 工作区、知识、自动化、能力
+│       ├── pages/              # today/chat/workspace/knowledge/...
+│       ├── runtime/            # SSE reducer 与 Runtime Trace
+│       ├── state/              # Zustand 状态
+│       └── styles/             # 设计令牌、基础样式、主题
+├── docs/                       # 设计说明与运行时文档
+├── assets/readme/              # README 截图资源
+└── data/                       # 本地运行数据，默认不提交
 ```
 
-### 3. 安装后端依赖
+## 快速启动
+
+### 环境要求
+
+- Node.js 20+
+- npm
+- Windows、macOS 或 Linux
+- 可访问 OpenAI-compatible LLM 服务，或配置本地模型代理
+
+### 安装依赖
 
 ```bash
 cd backend
 npm install
-```
 
-### 4. 安装前端依赖
-
-```bash
 cd ../frontend
 npm install
 ```
 
-### 5. 启动后端
+### 启动后端
 
 ```bash
-cd ../backend
+cd backend
 npm run dev
 ```
 
-默认地址：
+默认监听：
 
 ```text
 http://localhost:10053
@@ -259,335 +178,334 @@ http://localhost:10053
 curl http://localhost:10053/api/health
 ```
 
-### 6. 启动前端
-
-另开一个终端：
+### 启动前端
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-默认地址：
+默认访问：
 
 ```text
 http://localhost:10052
 ```
 
-### 7. 首次配置 LLM
+前端 Vite 代理会把 `/api/*` 转发到 `http://localhost:10053`。如果后端地址不同，可以设置：
 
-打开设置页后，至少配置以下项目：
-
-- LLM Base URL
-- Model ID
-- API Key
-- 是否启用流式输出
-- 聊天上下文条数
-- Agent 权限与渐进披露开关
-
-当前默认预设已经改为：
-
-| 名称 | Base URL | Model ID |
-| --- | --- | --- |
-| 1052 API | `https://api.lxj.asia/v1` | `deepseek-v4-flash-search` |
-
-获取 API Key：
-
-- `https://api.lxj.asia/register?aff=UOBG`
-
-设置页也内置了常见预设，例如：
-
-- OpenAI
-- MiniMax
-- Gemini OpenAI
-- DeepSeek
-- Moonshot
-- OpenRouter
-- SiliconFlow
-- 智谱
-
-### 8. 配置图像生成
-
-图像生成支持以下接口：
-
-| API 格式 | Base URL 示例 | 说明 |
-| --- | --- | --- |
-| OpenAI compatible | `https://api.openai.com/v1` | 自动拼接 `/images/generations` |
-| MiniMax image | `https://api.minimaxi.com` | 自动拼接 `/v1/image_generation`，也兼容用户填入 `/v1` 后缀 |
-| Gemini native | `https://generativelanguage.googleapis.com/v1beta` | 自动拼接 `generateContent` |
-| Gemini OpenAI compatible | `https://generativelanguage.googleapis.com/v1beta/openai` | 使用 Gemini 的 OpenAI 兼容图像接口 |
-
-生成后的图片会保存到：
-
-```text
-data/generated-images/
+```bash
+BACKEND_URL=http://localhost:10053 npm run dev
 ```
 
----
+PowerShell 示例：
 
-## 微信桌面通道
-
-当前版本已经包含独立的微信桌面通道面板，和旧的扫码微信入口明确分离。
-
-主要能力：
-
-- 指定群聊窗口绑定
-- 独立启停监听
-- 群级别权限开关
-- 群级提示词追加
-- 群级记忆读写
-- 群聊中 `@机器人` 触发 Agent
-- Agent 从其他通道主动调用桌面微信发消息
-
-当前监听策略：
-
-- 启动后立即检查
-- 约 `1 秒` 轮询一次
-- `1.5 秒` 批次合并窗口
-- 保持聊天列表停留在底部
-- 约 `25 秒` 轻量聚焦一次绑定窗口
-
-说明：
-
-- 桌面微信自动化目前只在 Windows 环境下可用
-- 相关 Python 桥接与 `pywechat` 方案已内置在项目 `vendor/` 中
-
----
-
-## 数据目录
-
-运行时数据统一存放在项目根目录的 `data/` 下。首次运行会自动创建。
-
-常见结构：
-
-```text
-data/
-|-- agent-workspace/
-|-- channels/
-|-- generated-images/
-|-- logs/
-|-- memory/
-|-- notes/
-|-- resources/
-|-- skills/
-|-- wiki/
-|   |-- raw/
-|   `-- wiki/
-|-- chat-history.json
-`-- settings.json
+```powershell
+$env:BACKEND_URL="http://localhost:10053"
+npm run dev
 ```
 
-通常不应提交到 GitHub 的内容：
+## 配置与数据目录
 
-- `data/`
-- `node_modules/`
-- `dist/`
-- `.env`
-- 本地日志
-- 模型密钥
-- 渠道登录态
-- 聊天历史
+后端默认把用户数据写入仓库根目录下的 `data/`，该目录已被 `.gitignore` 排除。
 
----
+常见文件：
 
-## Agent 的工作方式
+| 路径 | 说明 |
+| --- | --- |
+| `data/settings.json` | 模型、Agent、外观、通道等设置 |
+| `data/chat-history.json` | 当前对话历史 |
+| `data/chat-history-backups/` | `/new` 和压缩历史产生的备份 |
+| `data/1052-rollouts/` | 1052 Runtime 每轮运行事件 |
+| `data/logs/` | 后端运行日志 |
+| `data/channels/wechat/` | 微信通道账号、媒体和状态 |
+| `data/channels/feishu/` | 飞书通道配置、媒体和状态 |
+| `data/generated-images/` | 生成图片静态资源 |
 
-1052 OS 的 Agent 不是单纯把用户消息转发给模型。它会根据权限、任务、上下文预算和能力包状态动态组织运行链路：
+可以通过环境变量改写数据目录：
 
-1. 用户从网页、微信、飞书或定时任务入口发起请求
-2. 后端注入系统提示词、运行时状态、权限模式、记忆、输出配方与上下文摘要
-3. P0 层先判断当前任务是否需要挂载额外能力包
-4. 按需挂载 `repo-pack`、`search-pack`、`memory-pack`、`data-pack`、`plan-pack`、`skill-pack`、`channel-pack`
-5. 执行工具调用，并把结果回流给模型继续推理
-6. 最终结果回写到聊天流、通知中心或外部社交通道
+```bash
+DATA_DIR=/absolute/path/to/data npm run dev
+```
 
-这套设计适合处理真正的工作任务，例如：
+端口通过 `PORT` 改写：
 
-- 阅读仓库并总结启动方式
-- 改本地文件的某几行配置
-- 把资料整理到资源库或 Wiki
-- 在定时任务里触发 Agent 或终端命令
-- 从网页端让模型主动发微信
-- 在群聊里基于群级记忆和提示词处理消息
+```bash
+PORT=10053 npm run dev
+```
 
----
+## 系统架构
 
-## 权限模型
+```mermaid
+flowchart LR
+  User["用户 / 外部通道"] --> Frontend["React 前端"]
+  User --> Channels["微信 / 飞书 / 企业微信"]
+  Frontend --> Api["Express /api"]
+  Channels --> Api
+  Api --> Runtime["1052 Runtime Kernel"]
+  Runtime --> Context["上下文构建与压缩"]
+  Runtime --> Tools["工具注册表与审批"]
+  Runtime --> LLM["OpenAI-compatible LLM"]
+  Tools --> Local["本地仓库 / SQL / 文件 / 日历 / Wiki / Memory"]
+  Runtime --> History["chat-history.json"]
+  Runtime --> Rollout["1052-rollouts JSONL"]
+  Runtime --> Frontend
+  Runtime --> Channels
+```
 
-1052 OS 默认采用保守权限：
+核心原则：
 
-- 读取、搜索、预览、状态检查通常可直接执行
-- 写入、删除、覆盖、安装、外部发送、执行命令等操作在非完全权限模式下需要明确确认
-- 用户可以在设置页开启“完全权限”
-- 长期记忆与敏感信息分层管理，避免密钥或登录态泄露到普通上下文里
+- 网页端、微信、飞书和定时任务共享同一个 Agent Runtime。
+- 工具调用不是隐藏动作，而是 Runtime 事件，可展示、可审批、可记录。
+- 对话历史、设置、记忆和文件默认保留在本地 `data/`。
+- 通道层不设置固定 10 分钟任务超时，任务生命周期由 Runtime、用户取消、模型流完成或具体工具自己的局部超时控制。
 
----
+## Runtime Loop 技术流程
 
-## 搜索、Skill 与工具箱
+1052 Runtime 位于 `backend/src/modules/agent/1052-kernel.ts`，它负责把一次用户输入推进为完整的 Agent 回合。
 
-### 搜索
+```mermaid
+sequenceDiagram
+  participant UI as 前端 / 通道
+  participant API as Agent API
+  participant K as 1052 Kernel
+  participant C as Context Runtime
+  participant L as LLM Client
+  participant T as Tool Router
+  participant H as History / Rollout
 
-项目支持：
+  UI->>API: POST /api/agent/chat/stream
+  API->>K: runRuntime1052KernelStream(history, options)
+  K->>H: turn-started
+  loop step <= maxSteps
+    K->>C: compactRuntime1052Conversation()
+    C-->>K: compacted or unchanged
+    K->>C: buildRuntime1052StepContext()
+    C-->>K: messages + tool definitions + mounted packs
+    K->>L: stream model response
+    L-->>K: delta / usage / tool_calls
+    K-->>UI: assistant-delta / runtime events
+    alt model requests tools
+      K->>T: routeRuntime1052ToolCalls()
+      T-->>UI: approval/tool-started/tool-finished
+      T-->>K: tool messages
+      K->>H: record tool results
+    else model finishes
+      K->>H: completeRuntime1052Session()
+      K-->>UI: done
+    end
+  end
+```
 
-- 聚合搜索
-- 网页正文读取
-- 搜索源管理
-- UAPIs 搜索类接口交叉验证
+关键事件：
 
-原则上，凡是会变化的信息都应该联网核实，例如：
+| RuntimeEvent | 含义 |
+| --- | --- |
+| `turn-started` | 新回合开始 |
+| `step-started` | 新模型 step 开始，包含工具包、上下文预算 |
+| `assistant-delta` | 模型流式输出文本 |
+| `model-response` | 模型完成一次采样，可能包含工具调用 |
+| `tool-call-started` | 工具开始执行 |
+| `tool-call-finished` | 工具完成或失败 |
+| `approval-requested` | 需要用户审批 |
+| `context-upgrade-*` | 上下文包升级 |
+| `conversation-compacted` | 对话上下文已压缩 |
+| `usage-recorded` | Token 使用量记录 |
+| `turn-aborted` | 回合被取消或模型流异常 |
 
-- 新闻
-- 价格
-- 产品规格
-- API 文档
-- 平台规则
-- 人物/职位变化
+前端的 `frontend/src/runtime/runtime.ts` 会把 SSE 事件归一化为可展示的 Runtime Trace，对话页再把这些轨迹折叠在 Agent 回复下方。
 
-### Skill 中心
+## 上下文压缩机制
 
-Skill 可以理解为可安装的能力包，通常由以下文件组成：
+1052 OS 的压缩不是简单删消息，而是面向长任务续跑的 checkpoint。
 
-- `SKILL.md`
-- 脚本
-- 模板
-- 参考资料
-- 辅助资源
+实现文件：
 
-项目支持：
+- `backend/src/modules/agent/1052-context-policy.ts`
+- `backend/src/modules/agent/1052-compaction-runtime.ts`
+- `backend/src/modules/agent/1052-context-runtime.ts`
+- `docs/1052-runtime-context-compaction.md`
 
-- 查看已安装 Skill
-- 搜索 Skill 市场
-- 安装 / 删除 Skill
-- 预览 Skill 文档
+流程：
 
-### UAPIs 工具箱
+1. Runtime 在每个 step 前估算当前会话 token。
+2. 达到自动压缩线后，生成 continuation summary。
+3. 新上下文由「最近真实用户消息」和「压缩摘要消息」组成。
+4. Runtime 发出 `conversation-compacted` 事件，前端显示为运行轨迹。
+5. 如果摘要模型失败，系统保留最近尾部窗口并标记 fallback，不中断用户任务。
 
-UAPIs 工具箱把接口目录做成可视化卡片，Agent 不会一次性吃下全部接口说明，而是先读取轻量索引，再按需展开具体 API。
+默认策略：
 
-推荐调用顺序：
+| 项目 | 默认值 | 说明 |
+| --- | ---: | --- |
+| 活动消息窗口 | 160 条 | 每轮最多带入近期有效消息 |
+| 自动压缩线 | 80,000 tokens | 达到后触发摘要压缩 |
+| 用户消息保留预算 | 8,000 tokens | 压缩后优先保留真实用户意图 |
+| 摘要分块大小 | 32,000 字符 | 超长 transcript 分块摘要 |
+| 兜底尾部窗口 | 60 条 | 摘要失败时保留最近消息 |
 
-1. `uapis_list_apis`
-2. `uapis_read_api`
-3. `uapis_call`
+旧设置里的「上下文消息上限」和「自动压缩阈值」仍可被后端读取，但新版设置页不再把这些数字暴露给普通用户，运行时使用自动策略。
 
----
+## 工具系统与审批
 
-## 本地开发命令
+工具由 `backend/src/modules/agent/1052-tool-registry.ts` 统一注册，再由 `1052-tool-router.ts` 路由执行。
 
-后端：
+工具元数据包括：
+
+- 工具名
+- 读/写安全分类
+- 是否有副作用
+- 是否需要确认
+- 是否支持并行
+- 是否有工具自身局部超时
+
+权限模型：
+
+| 模式 | 行为 |
+| --- | --- |
+| 默认模式 | 读操作可直接执行，写入、删除、终端、SQL 写入、外部消息等需要审批 |
+| full access | 用户显式开启后，允许自动确认副作用工具 |
+| read-only | 阻止副作用工具 |
+
+设计要点：
+
+- 全局工具执行不再设置固定 25 分钟 `Promise.race` 超时。
+- `claude_code` 不再由 1052 OS 在 10 分钟后强杀，等待 CLI 自身结束。
+- 终端命令、网络请求、扫码登录、审批等待仍保留各自必要的局部超时。
+- 工具输出会被包成 `{ ok, data }` 或 `{ ok: false, error }` 后回填模型上下文。
+- 超长工具输出会截断并附带 `_hint`，让模型收窄下一次查询。
+
+## 外部通道闭环
+
+微信和飞书不是独立机器人，它们把外部消息转为同一套 Chat History 和 Runtime 流。
+
+```mermaid
+flowchart TD
+  Inbound["微信/飞书入站消息"] --> Normalize["解析文本、图片、语音、文件"]
+  Normalize --> UserMsg["appendChatMessage(user)"]
+  UserMsg --> AssistantMsg["appendChatMessage(assistant streaming)"]
+  AssistantMsg --> Runtime["sendMessageStream + 1052 Kernel"]
+  Runtime --> Trace["写入 runtimeTraces"]
+  Runtime --> Partial["累积 finalText"]
+  Runtime --> SendBack["回传微信/飞书"]
+  SendBack --> Delivery["delivery.status = sent / failed"]
+  Runtime --> Web["网页端 SSE / history events 同步"]
+```
+
+通道策略：
+
+- 入站消息写入 `data/chat-history.json`，网页端会通过 history events 同步。
+- 工具调用、审批和压缩事件会进入消息 `meta.runtimeTraces`。
+- 如果模型流末尾中断但已经生成了正文，通道会先回传已生成内容，并把网页端状态标记为已回传而不是运行失败。
+- 通道层不再有 10 分钟整轮超时，长任务由 Runtime 和具体工具控制。
+- Markdown 整文档代码围栏会在外部通道发送前解包，避免微信/飞书收到一整段 ```markdown 包裹。
+
+## 前端架构
+
+新版前端位于 `frontend/src`，不复用旧 `frontend/src/api`、旧页面、旧 Mirror 主题和旧巨型 CSS。
+
+路由：
+
+| 路径 | 页面 |
+| --- | --- |
+| `/today` | 今日控制台 |
+| `/chat` | Agent 对话 |
+| `/workspace/*` | 本地仓库、SQL、数据源、Shell |
+| `/knowledge/*` | Notes、Wiki、Memory、PKM、资源、输出配置 |
+| `/automations/*` | 日历、定时任务、编排、执行记录 |
+| `/capabilities/*` | Skills、工具箱、搜索源、外部通道 |
+| `/settings/*` | 模型、Agent 权限、外观、系统维护 |
+
+实现约定：
+
+- `contracts/schemas.ts` 定义 Zod 请求/响应契约。
+- `data/api.ts` 提供统一 ApiClient。
+- `runtime/runtime.ts` 管理 SSE 流、取消、Runtime Trace reducer。
+- `components/shell` 负责主导航、命令面板、运行检查器和系统场。
+- `styles/tokens.css`、`styles/base.css` 和 CSS Modules 共同组成样式系统。
+- CodeMirror、React Flow、Mermaid 等重模块按路由懒加载。
+
+## 后端 API 模块
+
+主要路由在 `backend/src/app.ts` 装配：
+
+| 路由前缀 | 模块 |
+| --- | --- |
+| `/api/settings` | 设置、模型接入、本地模型发现 |
+| `/api/agent` | 对话、SSE、审批、上传、历史、迁移、用量 |
+| `/api/calendar` | 日历与定时任务 |
+| `/api/repository` | 本地仓库 |
+| `/api/notes` | 笔记 |
+| `/api/wiki` | Wiki |
+| `/api/pkm` | PKM 检索 |
+| `/api/memory` | 长期记忆 |
+| `/api/resources` | 资源库 |
+| `/api/output-profiles` | 输出配置 |
+| `/api/sql` | SQL 数据源、查询、文件、变量、服务器 |
+| `/api/orchestration` | 流程编排 |
+| `/api/websearch` | 搜索源和网页读取 |
+| `/api/skills` | Skill 管理 |
+| `/api/uapis` | UAPI 工具 |
+| `/api/appearance` | 外观主题 |
+| `/api/channels/wechat` | 微信官方 Bot 通道 |
+| `/api/channels/feishu` | 飞书事件和卡片通道 |
+| `/api/channels/wecom` | 企业微信 Webhook |
+| `/api/logs` | 后端运行日志 |
+
+## 测试与验证
+
+### 后端
 
 ```bash
 cd backend
+npm run test
 npm run build
-npm test
-npm run dev
 ```
 
-前端：
+常用定向测试：
+
+```bash
+npm run test -- 1052-kernel 1052-tool-runtime agent.history.service
+npm run test -- channel-text channel-media-extraction agent.runtime-traces
+```
+
+### 前端
 
 ```bash
 cd frontend
+npm run test
 npm run build
-npm test
-npm run dev
 ```
 
-默认端口：
+常用视觉和交互检查：
 
-```text
-Frontend: http://localhost:10052
-Backend:  http://localhost:10053
+```bash
+npm run test:visual
+npm run test:interactions
+npm run test:e2e
 ```
 
----
+### 本地联调
 
-## 目录结构
+1. 在 `backend/` 目录运行 `npm run dev`。
+2. 在 `frontend/` 目录运行 `npm run dev`。
+3. 打开 `http://localhost:10052`。
+4. 在设置页配置模型。
+5. 在 `/chat` 发起一次对话，检查运行轨迹、工具调用和右侧运行检查器。
 
-```text
-1052-OS/
-|-- assets/
-|   `-- readme/
-|-- backend/
-|   |-- prompts/
-|   |-- scripts/
-|   `-- src/
-|       |-- modules/
-|       |-- app.ts
-|       `-- index.ts
-|-- docs/
-|-- frontend/
-|   `-- src/
-|       |-- api/
-|       |-- components/
-|       |-- pages/
-|       `-- styles.css
-|-- vendor/
-|-- LICENSE
-|-- README.md
-`-- README.en.md
-```
+## 开发约定
 
-运行后会自动生成：
+- 不提交 `data/`、日志、运行产物和本地参考仓库。
+- 不把本地克隆的 `codex/` 或 `codex-official-release-*` 放进 1052 OS 仓库。
+- 新增前端能力优先放入新版 `frontend/src/features` 或 `frontend/src/pages`。
+- 新增后端 Agent 能力优先接入 1052 Runtime、工具注册表和 Zod 契约。
+- 涉及用户资产的迁移必须保持 `data/` 可恢复，不做静默破坏性清理。
+- 面向普通用户的设置尽量自动化，复杂参数留在运行策略中而不是直接暴露。
 
-```text
-data/
-```
+## 社区
 
----
-
-## 贡献者
-
-感谢所有参与测试、反馈、设计、代码提交和功能共建的贡献者。
+- GitHub: <https://github.com/1052666/1052-OS>
+- Telegram: <https://t.me/OS1052>
 
 <p>
-  <a href="https://github.com/1052666/1052-OS/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=1052666/1052-OS" alt="1052 OS contributors" />
-  </a>
+  <img src="./assets/readme/wechat-group-qr.png" alt="1052 OS 微信交流群二维码" width="220" />
 </p>
-
-贡献者列表会随着 GitHub 自动更新。如果你的贡献没有正确显示，通常是因为提交邮箱还没有绑定到 GitHub 账号。
-
----
-
-## Stars 与增长
-
-<p align="center">
-  <a href="https://star-history.com/#1052666/1052-OS&Date">
-    <img src="https://api.star-history.com/svg?repos=1052666/1052-OS&type=Date" alt="Star History Chart" />
-  </a>
-</p>
-
----
-
-## 常见问题
-
-### 1. 没有 API Key 可以启动吗？
-
-可以启动前后端和大部分本地面板，但 Agent 聊天至少需要配置一个可用的 LLM API Key。
-
-### 2. 默认模型现在是什么？
-
-当前默认预设是：
-
-- `1052 API`
-- Base URL: `https://api.lxj.asia/v1`
-- Model ID: `deepseek-v4-flash-search`
-
-### 3. `data/` 目录需要提交吗？
-
-不需要。`data/` 是运行时目录，包含设置、日志、聊天历史、记忆、资源、Skill、Wiki、渠道状态等本地数据。
-
-### 4. 桌面微信通道支持哪些平台？
-
-桌面微信自动化通道目前以 Windows 为主，其它平台可以继续使用网页面板、飞书、扫码微信等能力。
-
-### 5. 前后端默认端口是多少？
-
-- 前端：`10052`
-- 后端：`10053`
-
----
-
-## License
-
-This project is licensed under the [MIT License](./LICENSE).

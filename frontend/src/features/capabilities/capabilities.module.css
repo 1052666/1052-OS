@@ -1,0 +1,292 @@
+.capabilityGrid {
+  display: grid;
+  grid-template-columns: minmax(270px, .34fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.marketplace {
+  display: grid;
+  gap: 10px;
+}
+
+.skillHeader,
+.toolHeader,
+.channelHeader {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.skillHeader > span,
+.toolHeader > span,
+.channelHeader > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.skillHeader strong,
+.toolHeader strong,
+.channelHeader strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillHeader small,
+.toolHeader small,
+.channelHeader small {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillDetail {
+  display: grid;
+  gap: 14px;
+}
+
+.detailText {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.pathLine {
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.toolItem,
+.searchGroup,
+.channelItem,
+.marketItem {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.toolMeta,
+.sourceLine {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.callBox {
+  display: grid;
+  gap: 10px;
+}
+
+.resultBox {
+  overflow: auto;
+  max-height: 360px;
+  padding: 12px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: #06090b;
+  color: #c8d6d9;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+:global(:root[data-theme='light']) .resultBox {
+  background: #eef3f4;
+  color: #23363b;
+}
+
+.sourceMatrix {
+  display: grid;
+  gap: 12px;
+}
+
+.sourceList {
+  display: grid;
+  gap: 8px;
+}
+
+.sourceRow {
+  display: grid;
+  min-height: 42px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+}
+
+.sourceRow strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceRow small {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.channelBody {
+  display: grid;
+  gap: 10px;
+}
+
+.channelActions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.qrPanel {
+  display: grid;
+  grid-template-columns: 154px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.qrFrame {
+  display: grid;
+  width: 154px;
+  height: 154px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: #fff;
+  color: #0b1417;
+}
+
+.qrFrame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.qrMeta {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.qrMeta strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.qrMeta span,
+.qrMeta small,
+.emptyHint {
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.emptyHint {
+  padding: 10px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+}
+
+.formStack {
+  display: grid;
+  gap: 10px;
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.spin {
+  animation: spin 850ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .capabilityGrid,
+  .channelGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .skillHeader,
+  .toolHeader,
+  .channelHeader,
+  .sourceRow,
+  .inlineForm,
+  .qrPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .qrFrame {
+    width: min(100%, 188px);
+    height: auto;
+    aspect-ratio: 1;
+  }
+}

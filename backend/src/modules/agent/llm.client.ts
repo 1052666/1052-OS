@@ -901,7 +901,7 @@ export async function* chatCompletionStream(
 
   // Reasoning chunks are now ALWAYS streamed wrapped in <think>...</think>
   // blocks. Frontend Chat.tsx renders them as collapsible "思考过程" panels;
-  // feishu/wechat/wechat-desktop services strip them before delivery. The
+  // feishu/wechat services strip them before delivery. The
   // previous suppressReasoning=true (when tools were present) caused
   // reasoning-only model turns to be reported as empty and surfaced as red
   // "未找到有效的回复内容或工具调用" errors in the UI.

@@ -95,10 +95,12 @@ export type AppearanceSettings = {
   effects?: AppearanceEffects
 }
 
+export type AgentPermissionProfile1052 = 'read-only' | 'default' | 'danger-full-access'
+
 export type AgentSettings = {
   streaming: boolean
   userPrompt: string
-  fullAccess: boolean
+  permissionProfile: AgentPermissionProfile1052
   contextMessageLimit: number
   progressiveDisclosureEnabled: boolean
   providerCachingEnabled: boolean

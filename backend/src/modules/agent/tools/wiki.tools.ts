@@ -122,7 +122,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_raw_upload_from_agent_workspace',
     description:
-      'Copy a file from data/agent-workspace into data/wiki/raw. Write operation; requires confirmation unless full-access is enabled.',
+      'Copy a file from data/agent-workspace into data/wiki/raw. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: {
@@ -147,7 +147,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_page_write',
     description:
-      'Create or replace a structured Wiki page. Must maintain frontmatter, index, and operation log. Requires confirmation unless full-access is enabled.',
+      'Create or replace a structured Wiki page. Must maintain frontmatter, index, and operation log. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: {
@@ -172,7 +172,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_page_append_section',
     description:
-      'Append a section to a Wiki page and update index/log. Requires confirmation unless full-access is enabled.',
+      'Append a section to a Wiki page and update index/log. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: {
@@ -197,7 +197,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_ingest_commit',
     description:
-      'Commit an approved raw ingestion into Wiki pages, then rebuild index and append log. Requires confirmation unless full-access is enabled.',
+      'Commit an approved raw ingestion into Wiki pages, then rebuild index and append log. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: {
@@ -217,7 +217,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_query_writeback',
     description:
-      'Write a valuable answer or synthesis into 综合分析/. Requires confirmation unless full-access is enabled.',
+      'Write a valuable answer or synthesis into 综合分析/. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: {
@@ -240,7 +240,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_lint_fix',
     description:
-      'Apply small automatic Wiki lint fixes, currently index rebuild. Requires confirmation unless full-access is enabled.',
+      'Apply small automatic Wiki lint fixes, currently index rebuild. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: { confirmed: { type: 'boolean' } },
@@ -256,7 +256,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_index_rebuild',
     description:
-      'Rebuild data/wiki/wiki/索引.md generated area. Requires confirmation unless full-access is enabled.',
+      'Rebuild data/wiki/wiki/索引.md generated area. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: { confirmed: { type: 'boolean' } },
@@ -272,7 +272,7 @@ export const wikiTools: AgentTool[] = [
   {
     name: 'wiki_log_append',
     description:
-      'Append an audit entry to data/wiki/wiki/操作日志.md. Requires confirmation unless full-access is enabled.',
+      'Append an audit entry to data/wiki/wiki/操作日志.md. Write operation governed by the active 1052 permission profile.',
     parameters: {
       type: 'object',
       properties: {

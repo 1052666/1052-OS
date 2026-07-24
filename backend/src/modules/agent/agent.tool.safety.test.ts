@@ -34,9 +34,6 @@ describe('classifyToolSafety', () => {
       'websearch_list_engines',
       'websearch_search',
       'websearch_read_page',
-      'wechat_desktop_list_sessions',
-      'wechat_group_list',
-      'wechat_group_memory_list',
       'wiki_summary',
       'wiki_raw_list',
       'wiki_raw_read',
@@ -147,6 +144,8 @@ describe('classifyToolSafety', () => {
       'claude_code',
       // skills
       'skills_create',
+      'skills_install_from_url',
+      'skills_marketplace_install',
       'skills_delete',
       // websearch / uapis config
       'websearch_set_source_enabled',
@@ -157,11 +156,20 @@ describe('classifyToolSafety', () => {
       'image_generate',
       'pkm_reindex',
       // wechat
-      'wechat_desktop_send_message',
-      'wechat_group_memory_write',
-      // feishu
-      // (none of the current feishu tools are writes, but futures `feishu_send_message`
-      //  would be caught by _send pattern — exercised in the pattern test below)
+      // resources / scheduler state
+      'resources_strike',
+      'schedule_pause_task',
+      'schedule_resume_task',
+      // Feishu imports, mounts, indexing, and synchronization mutate remote state
+      'feishu_import_markdown_doc',
+      'feishu_sync_resources_doc',
+      'feishu_sync_notes_doc',
+      'feishu_sync_memory_doc',
+      'feishu_sync_resources_bitable',
+      'feishu_mount_doc_to_wiki',
+      'feishu_index_search_item',
+      'feishu_sync_resources_search',
+      // Future `feishu_send_message` tools are also caught by the `_send` pattern.
     ]
 
     for (const name of writeNames) {
@@ -181,5 +189,7 @@ describe('classifyToolSafety', () => {
     expect(classifyToolSafety('some_future_purge_records')).toBe('write')
     expect(classifyToolSafety('some_future_reset_counters')).toBe('write')
     expect(classifyToolSafety('some_future_list_archives')).toBe('read')
+    expect(classifyToolSafety('some_future_publish_records')).toBe('write')
+    expect(classifyToolSafety('ambiguous_future_tool')).toBe('write')
   })
 })

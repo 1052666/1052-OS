@@ -4,33 +4,14 @@ import type {
   LLMToolCall,
   LLMToolDefinition,
 } from './llm.client.js'
-import type { AgentTool } from './agent.tool.types.js'
-import { agentRuntimeTools } from './tools/agent-runtime.tools.js'
-import { calendarTools } from './tools/calendar.tools.js'
-import { claudeCodeTools } from './tools/claude-code.tools.js'
-import { filesystemTools } from './tools/filesystem.tools.js'
-import { feishuTools } from './tools/feishu.tools.js'
-import { imageTools } from './tools/image.tools.js'
-import { intelTools } from './tools/intel.tools.js'
-import { memoryTools } from './tools/memory.tools.js'
-import { notesTools } from './tools/notes.tools.js'
-import { orchestrationTools } from './tools/orchestration.tools.js'
-import { outputProfileTools } from './tools/output-profile.tools.js'
-import { repositoryTools } from './tools/repository.tools.js'
-import { resourcesTools } from './tools/resources.tools.js'
-import { scheduleTools } from './tools/schedule.tools.js'
-import { skillsTools } from './tools/skills.tools.js'
-import { sqlTools } from './tools/sql.tools.js'
-import { terminalTools } from './tools/terminal.tools.js'
-import { uapisTools } from './tools/uapis.tools.js'
-import { wechatDesktopTools } from './tools/wechat-desktop.tools.js'
-import { websearchTools } from './tools/websearch.tools.js'
-import { wikiTools } from './tools/wiki.tools.js'
-import { pkmTools } from './tools/pkm.tools.js'
-import { ocrTools } from './tools/ocr.tools.js'
 import { getSettings } from '../settings/settings.service.js'
-
-const TOOL_EXECUTION_TIMEOUT_MS = 25 * 60_000
+import {
+  canAutoConfirm1052Tool,
+  is1052ToolSideEffecting,
+  type ToolRuntime1052Snapshot,
+} from './1052-tool-runtime.js'
+import { resolve1052PermissionProfile } from './1052-permission-profile.js'
+import { runtime1052ToolRegistry } from './1052-tool-registry.js'
 
 /**
  * Maximum size, in characters, that a single tool result JSON is allowed to
@@ -51,33 +32,6 @@ export const MAX_TOOL_RESULT_CHARS = 80_000
 /** Safe upper bound on tool-event preview strings sent to the frontend. */
 const MAX_PREVIEW_CHARS = 240
 
-const AGENT_TOOLS: AgentTool[] = [
-  ...agentRuntimeTools,
-  ...calendarTools,
-  ...claudeCodeTools,
-  ...imageTools,
-  ...memoryTools,
-  ...outputProfileTools,
-  ...repositoryTools,
-  ...notesTools,
-  ...resourcesTools,
-  ...skillsTools,
-  ...scheduleTools,
-  ...websearchTools,
-  ...wikiTools,
-  ...pkmTools,
-  ...uapisTools,
-  ...filesystemTools,
-  ...feishuTools,
-  ...intelTools,
-  ...wechatDesktopTools,
-  ...sqlTools,
-  ...orchestrationTools,
-  ...terminalTools,
-  ...ocrTools,
-]
-const TOOL_MAP = new Map(AGENT_TOOLS.map((tool) => [tool.name, tool]))
-
 export type AgentToolRuntimeContext = {
   source?:
     | {
@@ -91,16 +45,6 @@ export type AgentToolRuntimeContext = {
         receiveId: string
         chatType: 'p2p' | 'group'
         senderOpenId?: string
-      }
-    | {
-        channel: 'wechat_desktop'
-        sessionId: string
-        sessionName: string
-        sessionType: 'direct' | 'group'
-        groupId?: string
-        senderName?: string
-        mentionedBot?: boolean
-        allowTools?: boolean
       }
 }
 
@@ -247,17 +191,6 @@ function formatResultPayload(value: unknown): string {
   return ''
 }
 
-function buildToolDefinition(tool: AgentTool): LLMToolDefinition {
-  return {
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-    },
-  }
-}
-
 function buildToolFailureMessage(
   toolCall: Pick<LLMToolCall, 'id' | 'function'>,
   toolName: string,
@@ -274,52 +207,25 @@ function buildToolFailureMessage(
   }
 }
 
-function toolTimeoutMessage(name: string, ms: number) {
-  return `Tool timed out: ${name} exceeded ${Math.floor(ms / 1000)}s`
-}
-
-async function withToolTimeout<T>(
-  promise: Promise<T>,
-  name: string,
-  ms = TOOL_EXECUTION_TIMEOUT_MS,
-): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | null = null
-
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => {
-          reject(new HttpError(504, toolTimeoutMessage(name, ms)))
-        }, ms)
-      }),
-    ])
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
-}
-
 export function getAgentToolDefinitions(): LLMToolDefinition[] {
-  return AGENT_TOOLS.map((tool) => buildToolDefinition(tool))
+  return runtime1052ToolRegistry.definitions()
+}
+
+export type Runtime1052ToolAuthorization = {
+  approved: boolean
+  approvalId?: string
+}
+
+export function getRuntime1052ToolSnapshot(): ToolRuntime1052Snapshot {
+  return runtime1052ToolRegistry.snapshot()
 }
 
 export function hasAgentTool(name: string) {
-  return TOOL_MAP.has(name)
+  return runtime1052ToolRegistry.has(name)
 }
 
 export function getAgentToolDefinitionsForNames(names: readonly string[]): LLMToolDefinition[] {
-  const seen = new Set<string>()
-  const tools: LLMToolDefinition[] = []
-
-  for (const name of names) {
-    if (seen.has(name)) continue
-    const tool = TOOL_MAP.get(name)
-    if (!tool) continue
-    seen.add(name)
-    tools.push(buildToolDefinition(tool))
-  }
-
-  return tools
+  return runtime1052ToolRegistry.definitions(names)
 }
 
 /** Max retries for transient tool execution errors (network, 502/503/429). */
@@ -344,10 +250,11 @@ function isRetriableToolError(error: unknown): boolean {
 export async function executeToolCall(
   toolCall: LLMToolCall,
   runtimeContext?: AgentToolRuntimeContext,
+  authorization?: Runtime1052ToolAuthorization,
 ): Promise<LLMConversationMessage> {
   const settings = await getSettings()
-  const fullAccess = settings.agent.fullAccess === true
-  const tool = TOOL_MAP.get(toolCall.function.name)
+  const permissionProfile = resolve1052PermissionProfile(settings.agent)
+  const tool = runtime1052ToolRegistry.get(toolCall.function.name)
 
   if (!tool) {
     return buildToolFailureMessage(
@@ -357,13 +264,41 @@ export async function executeToolCall(
     )
   }
 
+  if (
+    permissionProfile.sandboxPolicy.type === 'read-only' &&
+    is1052ToolSideEffecting(tool.name)
+  ) {
+    return buildToolFailureMessage(
+      toolCall,
+      tool.name,
+      `Tool ${tool.name} is blocked by the 1052 read-only permission profile.`,
+    )
+  }
+
+  const sideEffecting = is1052ToolSideEffecting(tool.name)
+  if (
+    sideEffecting &&
+    permissionProfile.approvalPolicy !== 'never' &&
+    authorization?.approved !== true
+  ) {
+    return buildToolFailureMessage(
+      toolCall,
+      tool.name,
+      `Tool ${tool.name} requires approval from the 1052 runtime.`,
+    )
+  }
+
   let lastError: Error | HttpError | null = null
 
   for (let attempt = 0; attempt <= MAX_TOOL_RETRIES; attempt += 1) {
     try {
       const parsedArgs = parseArguments(toolCall.function.arguments)
       const confirmedArgs =
-        fullAccess && parsedArgs && typeof parsedArgs === 'object' && !Array.isArray(parsedArgs)
+        (canAutoConfirm1052Tool(tool.name, permissionProfile) ||
+          (sideEffecting && authorization?.approved === true)) &&
+        parsedArgs &&
+        typeof parsedArgs === 'object' &&
+        !Array.isArray(parsedArgs)
           ? { ...(parsedArgs as Record<string, unknown>), confirmed: true }
           : parsedArgs
       const args =
@@ -373,7 +308,7 @@ export async function executeToolCall(
         !Array.isArray(confirmedArgs)
           ? { ...(confirmedArgs as Record<string, unknown>), __runtimeContext: runtimeContext }
           : confirmedArgs
-      const result = await withToolTimeout(tool.execute(args), tool.name)
+      const result = await tool.execute(args)
 
       return {
         role: 'tool',
@@ -396,29 +331,4 @@ export async function executeToolCall(
 
   const message = lastError?.message ?? '工具调用失败'
   return buildToolFailureMessage(toolCall, tool.name, message)
-}
-
-/**
- * Execute every tool call from a single assistant turn in parallel.
- *
- * When a model emits multiple tool_calls in one turn it is explicitly
- * signalling that the calls are independent and may be dispatched
- * concurrently (this is OpenAI's documented contract for parallel tool use).
- * `Promise.all` preserves the input order in its results, which we must keep
- * because OpenAI requires the subsequent tool messages to be ordered by
- * `tool_call_id` matching the assistant turn's tool_calls array.
- *
- * Each `executeToolCall` already wraps its body in try/catch and produces a
- * tool message regardless of success or failure, so `Promise.all` cannot
- * reject here.
- */
-export async function executeToolCalls(
-  toolCalls: LLMToolCall[],
-  runtimeContext?: AgentToolRuntimeContext,
-): Promise<LLMConversationMessage[]> {
-  if (toolCalls.length === 0) return []
-  if (toolCalls.length === 1) {
-    return [await executeToolCall(toolCalls[0], runtimeContext)]
-  }
-  return Promise.all(toolCalls.map((toolCall) => executeToolCall(toolCall, runtimeContext)))
 }

@@ -12,7 +12,7 @@ export const terminalTools: AgentTool[] = [
   {
     name: 'terminal_run',
     description:
-      'Run a local terminal command using the current platform shell. Windows supports PowerShell/CMD; Linux and macOS support bash/zsh/sh, with pwsh available when installed. Safe read-only commands may run directly. Commands that can modify files, processes, environment, git state, or system state require explicit user confirmation unless full-access mode is enabled in settings.',
+      'Run a local terminal command using the current platform shell. Windows supports PowerShell/CMD; Linux and macOS support bash/zsh/sh, with pwsh available when installed. Safe read-only commands may run directly. Commands that can modify files, processes, environment, git state, or system state are governed by the active 1052 permission profile; the default profile uses exact runtime approval and danger-full-access may execute directly.',
     parameters: {
       type: 'object',
       properties: {
@@ -35,7 +35,7 @@ export const terminalTools: AgentTool[] = [
         },
         confirmed: {
           type: 'boolean',
-          description: 'Must be true only after explicit user confirmation for risky commands unless full-access mode is enabled.',
+          description: 'Runtime-managed confirmation marker. Do not set this to bypass the active 1052 permission profile.',
         },
       },
       required: ['command'],

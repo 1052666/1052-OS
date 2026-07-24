@@ -7,6 +7,7 @@ import {
   updateChatMessage,
 } from '../../agent/agent.history.service.js'
 import { resolveAgentCommand } from '../../agent/agent.command.service.js'
+import { applyRuntimeTraceEvent } from '../../agent/agent.runtime-traces.js'
 import { sendMessageStream } from '../../agent/agent.service.js'
 import type { ChatMessage, TokenUsage } from '../../agent/agent.types.js'
 import { markNotificationRead, createNotification } from '../../notifications/notifications.service.js'
@@ -49,6 +50,7 @@ import {
   upsertFeishuChat,
 } from './feishu.store.js'
 import { logFeishuPlatformEvent } from './feishu.workspace.service.js'
+import { unwrapMarkdownDocumentFence } from '../channel-text.js'
 import type {
   FeishuAppConfigRecord,
   FeishuAppStatus,
@@ -118,7 +120,7 @@ function formatFeishuLabel(params: {
 }
 
 function stripMarkdown(text: string) {
-  return text
+  return unwrapMarkdownDocumentFence(text)
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
     .replace(/!\[[^\]]*]\([^)]*\)/g, '')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)')
@@ -993,7 +995,6 @@ async function handleInboundFeishuMessage(event: any) {
   let streamCardMessageId: string | undefined
   let streamCardFailed = false
   const channelAbort = new AbortController()
-  const channelTimeout = setTimeout(() => channelAbort.abort(), 10 * 60_000)
   let lastStreamCardText = ''
   let lastStreamCardUpdateAt = 0
 
@@ -1069,6 +1070,22 @@ async function handleInboundFeishuMessage(event: any) {
           assistantMessage.id,
           (current) => ({ ...current, usage }),
           'feishu-agent-usage',
+        )
+      } else {
+        await updateChatMessage(
+          assistantMessage.id,
+          (current) => ({
+            ...current,
+            meta: {
+              ...(current.meta ?? {}),
+              runtimeTraces: applyRuntimeTraceEvent(
+                current.meta?.runtimeTraces,
+                streamEvent,
+                finalText.length,
+              ),
+            },
+          }),
+          `feishu-agent-${streamEvent.type}`,
         )
       }
     }
@@ -1153,6 +1170,118 @@ async function handleInboundFeishuMessage(event: any) {
     )
   } catch (error) {
     const messageText = sanitizeError(error)
+    const partialText = finalText.trim()
+    if (partialText) {
+      try {
+        const prepared = await prepareFeishuRichText(partialText)
+        const finalCardText =
+          prepared.plainText ||
+          (prepared.mediaFiles.length > 0
+            ? `已生成并准备发送 ${prepared.mediaFiles.length} 个媒体附件。`
+            : 'Done.')
+
+        if (streamCardMessageId && !streamCardFailed) {
+          const overflow =
+            finalCardText.length > FEISHU_STREAM_CARD_TEXT_LIMIT
+              ? finalCardText.slice(FEISHU_STREAM_CARD_TEXT_LIMIT).trim()
+              : ''
+          await updateFeishuMessageCard({
+            config,
+            messageId: streamCardMessageId,
+            card: buildFeishuStreamingCard({
+              title: '1052 OS 回复已回传',
+              content: trimCardText(finalCardText, FEISHU_STREAM_CARD_TEXT_LIMIT),
+              status: 'complete',
+              note: overflow
+                ? '回复生成在末尾中断，剩余已生成文本会作为后续消息继续发送。'
+                : prepared.mediaFiles.length > 0
+                  ? `回复生成在末尾中断，随后还会补发 ${prepared.mediaFiles.length} 个媒体附件。`
+                  : '回复生成在末尾中断，已先回传以上已生成内容。',
+            }),
+          })
+
+          if (overflow) {
+            await sendFeishuPreparedRichText({
+              config,
+              receiveIdType: 'chat_id',
+              receiveId: chatId,
+              prepared: {
+                plainText: overflow,
+                mediaFiles: prepared.mediaFiles,
+                warnings: prepared.warnings,
+              },
+            })
+          } else if (prepared.mediaFiles.length > 0 || prepared.warnings.length > 0) {
+            await sendFeishuPreparedRichText({
+              config,
+              receiveIdType: 'chat_id',
+              receiveId: chatId,
+              prepared: {
+                plainText: '',
+                mediaFiles: prepared.mediaFiles,
+                warnings: prepared.warnings,
+              },
+            })
+          }
+        } else {
+          await sendFeishuPreparedRichText({
+            config,
+            receiveIdType: 'chat_id',
+            receiveId: chatId,
+            prepared,
+          })
+        }
+
+        if (runtime) runtime.lastOutboundAt = Date.now()
+
+        await updateChatMessage(
+          assistantMessage.id,
+          (current) => ({
+            ...current,
+            streaming: false,
+            error: false,
+            content: current.content || partialText,
+            usage,
+            meta: {
+              ...current.meta,
+              delivery: {
+                status: 'sent',
+                targetChannel: 'feishu',
+                targetPeerId: chatId,
+                error: messageText,
+              },
+            },
+          }),
+          'feishu-agent-partial-sent',
+        )
+        return
+      } catch (deliveryFailure) {
+        const deliveryError = `${messageText}; partial echo failed: ${sanitizeError(deliveryFailure)}`
+        await updateChatMessage(
+          assistantMessage.id,
+          (current) => ({
+            ...current,
+            streaming: false,
+            error: true,
+            content: current.content
+              ? `${current.content}\n\n⚠️ 飞书回传失败：${deliveryError}`
+              : `⚠️ 飞书回传失败：${deliveryError}`,
+            meta: {
+              ...current.meta,
+              delivery: {
+                status: 'failed',
+                targetChannel: 'feishu',
+                targetPeerId: chatId,
+                error: deliveryError,
+              },
+            },
+          }),
+          'feishu-agent-partial-send-failed',
+        )
+        throw error
+      }
+    }
+
     if (streamCardMessageId && !streamCardFailed) {
       try {
         await updateFeishuMessageCard({
@@ -1191,8 +1320,6 @@ async function handleInboundFeishuMessage(event: any) {
       'feishu-agent-error',
     )
     throw error
-  } finally {
-    clearTimeout(channelTimeout)
   }
 }
 

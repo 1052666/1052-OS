@@ -77,7 +77,46 @@ export type AgentStreamEvent =
       /** Wall-clock duration of the tool execution in milliseconds. */
       durationMs?: number
     }
+  | {
+      type: 'approval-requested'
+      approvalId: string
+      callId: string
+      name: string
+      argsPreview?: string
+      expiresAt: number
+    }
+  | {
+      type: 'approval-resolved'
+      approvalId: string
+      callId: string
+      name: string
+      decision: 'approved' | 'denied' | 'cancelled' | 'expired'
+    }
   | { type: 'context-upgrade-requested'; packs: string[]; reason: string }
   | { type: 'context-upgrade-applying'; packs: string[] }
   | { type: 'context-upgrade-applied'; packs: string[] }
   | { type: 'context-upgrade-aborted'; stage: string }
+  | {
+      type: 'conversation-compacted'
+      beforeMessages: number
+      afterMessages: number
+      beforeTokens?: number
+      afterTokens?: number
+      summaryTokens?: number
+      fallback?: boolean
+      trigger?: 'auto' | 'safety'
+      reason?: 'token-limit' | 'message-window' | 'manual-safety' | 'model-error'
+      phase?: 'pre-step'
+      strategy?: 'summary-checkpoint' | 'tail-trim'
+      tokenLimit?: number
+      windowNumber?: number
+      firstWindowId?: string
+      previousWindowId?: string
+      windowId?: string
+    }
+  | {
+      type: 'conversation-compaction-failed'
+      message: string
+      beforeMessages: number
+      afterMessages: number
+    }

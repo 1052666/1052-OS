@@ -151,25 +151,62 @@ describe('agent llm settings tools', () => {
     expect((await settingsService.getSettings()).llm.taskRoutes).toEqual([])
   })
 
-  it('honors full-access confirmed injection through executeToolCalls', async () => {
+  it('honors danger-full-access confirmation injection in the 1052 executor', async () => {
     const { settingsService, agentToolService } = await loadRuntimeToolModules()
     await seedProfiles(settingsService)
     await settingsService.updateSettings({
-      agent: { fullAccess: true },
+      agent: { permissionProfile: 'danger-full-access' },
     })
 
-    const messages = await agentToolService.executeToolCalls([
-      {
-        id: 'call-1',
-        type: 'function',
-        function: {
-          name: 'agent_llm_activate_profile',
-          arguments: JSON.stringify({ profileId: 'local-pdf' }),
-        },
+    const message = await agentToolService.executeToolCall({
+      id: 'call-1',
+      type: 'function',
+      function: {
+        name: 'agent_llm_activate_profile',
+        arguments: JSON.stringify({ profileId: 'local-pdf' }),
       },
-    ])
+    })
 
-    expect(messages[0]?.content).toContain('"ok": true')
+    expect(message.content).toContain('"ok": true')
     expect((await settingsService.getSettings()).llm.activeProfileId).toBe('local-pdf')
+  })
+
+  it('does not let model arguments bypass default runtime approval', async () => {
+    const { settingsService, agentToolService } = await loadRuntimeToolModules()
+    await seedProfiles(settingsService)
+    await settingsService.updateSettings({
+      agent: { permissionProfile: 'default' },
+    })
+
+    const message = await agentToolService.executeToolCall({
+      id: 'call-unapproved',
+      type: 'function',
+      function: {
+        name: 'agent_llm_activate_profile',
+        arguments: JSON.stringify({ profileId: 'local-pdf', confirmed: true }),
+      },
+    })
+
+    expect(message.content).toContain('requires approval from the 1052 runtime')
+    expect((await settingsService.getSettings()).llm.activeProfileId).not.toBe('local-pdf')
+  })
+
+  it('blocks side-effecting tools in the read-only permission profile', async () => {
+    const { settingsService, agentToolService } = await loadRuntimeToolModules()
+    await seedProfiles(settingsService)
+    await settingsService.updateSettings({
+      agent: { permissionProfile: 'read-only' },
+    })
+
+    const message = await agentToolService.executeToolCall({
+      id: 'call-read-only',
+      type: 'function',
+      function: {
+        name: 'agent_llm_activate_profile',
+        arguments: JSON.stringify({ profileId: 'local-pdf', confirmed: true }),
+      },
+    })
+
+    expect(message.content).toContain('blocked by the 1052 read-only permission profile')
   })
 })

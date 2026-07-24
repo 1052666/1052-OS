@@ -17,6 +17,29 @@ afterEach(async () => {
 })
 
 describe('settings llm profiles', () => {
+  it('defaults to the workspace permission profile and persists explicit profiles', async () => {
+    const service = await import('./settings.service.js')
+
+    expect((await service.getSettings()).agent.permissionProfile).toBe('default')
+    const updated = await service.updateSettings({
+      agent: { permissionProfile: 'read-only' },
+    })
+    expect(updated.agent.permissionProfile).toBe('read-only')
+    expect((await service.getSettings()).agent.permissionProfile).toBe('read-only')
+  })
+
+  it('migrates the legacy fullAccess flag to a permission profile', async () => {
+    await fs.writeFile(
+      path.join(tempDir, 'settings.json'),
+      JSON.stringify({ agent: { fullAccess: true } }),
+      'utf-8',
+    )
+    const service = await import('./settings.service.js')
+
+    expect((await service.getSettings()).agent.permissionProfile).toBe('danger-full-access')
+    expect((await service.getPublicSettings()).agent).not.toHaveProperty('fullAccess')
+  })
+
   it('defaults and normalizes morning brief settings', async () => {
     const service = await import('./settings.service.js')
     const calendar = await import('../calendar/calendar.schedule.service.js')

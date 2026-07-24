@@ -67,4 +67,24 @@ describe('agent history /new persistence', () => {
 
     await expect(fs.readdir(path.join(tempDir, 'chat-history-backups'))).rejects.toThrow()
   })
+
+  it('clears frontend chat history without creating a backend backup', async () => {
+    const service = await loadService()
+    await service.saveChatHistory(
+      [
+        {
+          id: 1,
+          ts: 1,
+          role: 'user',
+          content: 'delete this from chat',
+        },
+      ],
+      'replace',
+    )
+
+    await service.saveChatHistory([], 'clear')
+
+    expect(await service.getChatHistory()).toEqual({ messages: [] })
+    await expect(fs.readdir(path.join(tempDir, 'chat-history-backups'))).rejects.toThrow()
+  })
 })

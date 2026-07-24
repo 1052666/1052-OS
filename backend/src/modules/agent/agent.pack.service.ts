@@ -139,11 +139,6 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
   ],
   'channel-pack': [
     'intel_brief_format',
-    'wechat_desktop_list_sessions',
-    'wechat_desktop_send_message',
-    'wechat_group_list',
-    'wechat_group_memory_list',
-    'wechat_group_memory_write',
     'feishu_list_calendars',
     'feishu_list_calendar_events',
     'feishu_list_tasks',
@@ -210,6 +205,6 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'data-pack':
       return '笔记、资源列表、SQL 数据源管理（MySQL/Oracle/SQLite/Hive）、SQL 文件管理、SQL 查询执行、SQL 变量管理、SSH 服务器管理、Shell 脚本管理及执行、SQL 编排（DAG 工作流）、Wiki raw 原始资料、结构化知识页、综合分析、Wiki lint 健康检查和知识沉淀工具。SQL 写入、服务器操作、Shell 执行和 Wiki 写入默认需要用户确认。'
     case 'channel-pack':
-      return '微信桌面、飞书等外部通道能力、Intel Center 工具箱的 Intel Brief 通道格式渲染和飞书工作区工具。桌面微信群聊入站消息会由通道自动回发，不要为了回复当前入站群消息申请本包；只有跨通道主动发送、查看桌面微信会话/群配置，或显式管理微信群聊记忆时才申请本包。'
+      return '外部通道格式渲染和飞书工作区工具。包含 Intel Brief 的 Markdown、飞书卡片、微信文本和企业微信 Markdown 渲染，以及飞书日历、任务等工作区读取能力。官方微信 Bot 与飞书入站消息由通道服务自动回写，本机桌面客户端自动化已废弃。'
   }
 }

@@ -21,7 +21,7 @@ const CHECKPOINT_FAILURE_PATTERNS = [
   /LLM\s*流式响应解析失败/i,
   /无法连接\s*LLM/i,
   /⚠️\s*(?:请求失败|已手动停止|回复生成未完成)/i,
-  /⚠️\s*(?:微信|微信桌面|飞书)通道出错/i,
+  /⚠️\s*(?:微信|飞书)通道出错/i,
   /(?:工具|请求|调用|连接|生成|响应|解析|通道).{0,24}(?:失败|错误|异常|超时|中止|出错)/i,
   /(?:request|tool|call|connection|generation|response|stream|channel).{0,32}(?:failed|error|timeout|timed out|aborted)/i,
   /(?:failed|error|timeout|timed out|aborted).{0,32}(?:request|tool|call|connection|generation|response|stream|channel)/i,
@@ -148,16 +148,6 @@ function normalizeKnownSystemInstruction(content: string) {
       '- 当前请求来自 1052 OS 定时后台任务。',
       '- 直接执行任务，结果保持简洁，只报告真实产出。',
       '- 不要向用户追问；缺少条件时说明阻塞原因和下一步。',
-    ].join('\n')
-  }
-
-  if (/WeChat (?:Desktop )?group .*runtime|WeChat Desktop group bridge|source:\s*WeChat Desktop group mention/i.test(normalized)) {
-    return [
-      '- Current request is a real inbound WeChat Desktop group mention, not a simulated transcript.',
-      '- The WeChat Desktop channel service will automatically deliver your final assistant text back to the current group after generation.',
-      '- Do not request channel-pack and do not call wechat_desktop_send_message just to reply to the current inbound group message.',
-      '- If the inbound content contains a 5 second batch with multiple independent mentions, answer each sender/request explicitly in one combined group reply.',
-      '- Only request channel-pack for desktop WeChat when the user asks you to send a separate proactive message to another WeChat chat, inspect desktop WeChat sessions/groups, or explicitly manage WeChat group memory.',
     ].join('\n')
   }
 

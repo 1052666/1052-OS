@@ -1,4 +1,15 @@
-// Global env is 'node' to avoid breaking matchMedia / import.meta.url assumptions
-// in existing tests. For DOM-dependent tests (React component / hook tests),
-// add: // @vitest-environment jsdom  at the top of that test file.
-export {}
+import '@testing-library/jest-dom/vitest'
+
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  }),
+})

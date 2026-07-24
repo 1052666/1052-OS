@@ -5,6 +5,7 @@ import {
   type ChatHistorySaveReason,
   getChatHistory,
   saveChatHistory,
+  sanitizeRuntimeTraces,
   subscribeChatHistory,
 } from './agent.history.service.js'
 import { compactChatHistory } from './agent.compaction.service.js'
@@ -12,6 +13,10 @@ import { previewAgentMigration, runAgentMigration } from './agent.migration.serv
 import { getTokenUsageStats } from './agent.stats.service.js'
 import { saveAgentUpload } from './agent.upload.service.js'
 import { sendMessage, sendMessageStream } from './agent.service.js'
+import {
+  getPendingRuntime1052Approval,
+  resolveRuntime1052Approval,
+} from './1052-approval.service.js'
 import type {
   ChatHistory,
   ChatMessage,
@@ -137,7 +142,6 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
               source:
                 (item as any).meta.source === 'web' ||
                 (item as any).meta.source === 'wechat' ||
-                (item as any).meta.source === 'wechat_desktop' ||
                 (item as any).meta.source === 'feishu' ||
                 (item as any).meta.source === 'scheduled-task'
                   ? (item as any).meta.source
@@ -145,7 +149,6 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
               channel:
                 (item as any).meta.channel === 'web' ||
                 (item as any).meta.channel === 'wechat' ||
-                (item as any).meta.channel === 'wechat_desktop' ||
                 (item as any).meta.channel === 'feishu'
                   ? (item as any).meta.channel
                   : undefined,
@@ -172,7 +175,6 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
                           : undefined,
                       targetChannel:
                         (item as any).meta.delivery.targetChannel === 'wechat' ||
-                        (item as any).meta.delivery.targetChannel === 'wechat_desktop' ||
                         (item as any).meta.delivery.targetChannel === 'feishu'
                           ? (item as any).meta.delivery.targetChannel
                           : undefined,
@@ -194,6 +196,7 @@ function validateStoredMessages(value: unknown): StoredChatMessage[] {
                 typeof (item as any).meta.taskTitle === 'string'
                   ? (item as any).meta.taskTitle
                   : undefined,
+              runtimeTraces: sanitizeRuntimeTraces((item as any).meta.runtimeTraces),
             }
           : undefined,
     }
@@ -317,6 +320,24 @@ agentRouter.post('/chat', async (req, res, next) => {
     const messages = validateMessages(body?.messages)
     const message = await sendMessage(messages)
     res.json({ message })
+  } catch (error) {
+    next(error)
+  }
+})
+
+agentRouter.post('/approvals/:approvalId/resolve', (req, res, next) => {
+  try {
+    const approvalId = String(req.params.approvalId ?? '').trim()
+    const approved = (req.body as { approved?: unknown } | undefined)?.approved
+    if (!approvalId) throw httpError(400, 'approvalId 不能为空')
+    if (typeof approved !== 'boolean') throw httpError(400, 'approved 必须是布尔值')
+
+    const pending = getPendingRuntime1052Approval(approvalId)
+    if (!pending) throw httpError(404, '审批请求不存在或已结束')
+    if (!resolveRuntime1052Approval(approvalId, approved)) {
+      throw httpError(409, '审批请求已经结束')
+    }
+    res.json({ ok: true, approvalId, approved })
   } catch (error) {
     next(error)
   }

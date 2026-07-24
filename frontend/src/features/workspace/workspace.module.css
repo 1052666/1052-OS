@@ -1,0 +1,47 @@
+.repoHeader { display: grid; min-height: 104px; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 16px 18px; border-bottom: 1px solid var(--line-subtle); }
+.repoHeader > div { display: grid; min-width: 0; gap: 4px; }
+.repoHeader h2 { font-size: 18px; }
+.repoHeader p { overflow: hidden; color: var(--text-secondary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.repoHeader div div { display: flex; gap: 5px; }
+.repoIcon { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid var(--line-default); border-radius: var(--radius-lg); background: var(--accent-soft); color: var(--accent); }
+.repoContent { display: grid; min-height: 510px; grid-template-columns: 210px minmax(0, 1fr); }
+.fileTree { overflow: auto; border-right: 1px solid var(--line-subtle); }
+.fileTree header { position: sticky; top: 0; height: 38px; padding: 10px; border-bottom: 1px solid var(--line-subtle); background: var(--bg-panel); color: var(--text-muted); font-size: 10px; font-weight: 700; }
+.fileTree button { display: flex; width: 100%; min-height: 30px; align-items: center; gap: 7px; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--line-subtle) 55%, transparent); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 10px; text-align: left; }
+.fileTree button:disabled { cursor: default; opacity: .7; }
+.fileTree button:not(:disabled):hover,
+.fileTree .selectedFile { background: var(--bg-hover); color: var(--text-primary); }
+.fileTree button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filePreview { min-width: 0; padding: 20px; overflow: auto; }
+.filePreview > pre { margin: 0; color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.previewEmpty { display: grid; min-height: 420px; place-items: center; color: var(--text-muted); }
+.formError { color: var(--danger); font-size: 11px; }
+
+.workbench { display: grid; height: calc(100vh - 190px); min-height: 620px; grid-template-rows: 48px minmax(240px, .52fr) minmax(250px, .48fr); overflow: hidden; border: 1px solid var(--line-subtle); border-radius: var(--radius-lg); background: var(--bg-panel); }
+.workbenchToolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 8px; border-bottom: 1px solid var(--line-subtle); }
+.workbenchToolbar > div { display: flex; min-width: 0; gap: 7px; }
+.workbenchToolbar select { width: min(240px, 22vw); }
+.editorPane { min-width: 0; min-height: 0; overflow: hidden; border-bottom: 1px solid var(--line-default); }
+.editorPane > div,
+.fileEditor > div:last-child { height: 100%; }
+.resultPane { min-width: 0; min-height: 0; overflow: auto; }
+.resultPane > header { position: sticky; z-index: 2; top: 0; display: flex; min-height: 42px; align-items: center; justify-content: space-between; padding: 0 11px; border-bottom: 1px solid var(--line-subtle); background: var(--bg-panel); }
+.primaryCell { display: flex; align-items: center; gap: 8px; }
+.primaryCell > span { display: grid; }
+.primaryCell small { color: var(--text-muted); font-size: 9px; }
+.fileEditor { display: grid; grid-template-rows: 48px minmax(0,1fr); overflow: hidden !important; }
+.fileEditor input { width: min(220px, 25vw); }
+.fileEditor select { width: min(190px, 22vw); }
+.shellEditor { min-height: 360px !important; font-family: var(--font-mono) !important; }
+.editorActions { display: flex; justify-content: flex-end; gap: 8px; }
+.spin { animation: spin 850ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 760px) {
+  .repoContent { grid-template-columns: 1fr; }
+  .fileTree { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--line-subtle); }
+  .workbench { height: auto; min-height: 680px; grid-template-rows: auto 300px 330px; }
+  .workbenchToolbar { align-items: stretch; }
+  .workbenchToolbar > div { flex-direction: column; }
+  .workbenchToolbar select { width: 100%; }
+}

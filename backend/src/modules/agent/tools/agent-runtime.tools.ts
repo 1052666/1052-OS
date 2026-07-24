@@ -99,7 +99,7 @@ export const agentRuntimeTools: AgentTool[] = [
   {
     name: 'agent_morning_brief_update',
     description:
-      'Update the Agent morning brief preference and its managed daily scheduled task. Before calling, explain the enabled state and HH:MM Asia/Hong_Kong delivery time, then wait for explicit confirmation unless full-access mode is enabled. This does not send a brief immediately or enable external channel delivery.',
+      'Update the Agent morning brief preference and its managed daily scheduled task. Explain the enabled state and HH:MM Asia/Hong_Kong delivery time before calling. The 1052 runtime requests exact approval under the default profile; danger-full-access may execute directly. This does not send a brief immediately or enable external channel delivery.',
     parameters: {
       type: 'object',
       properties: {
@@ -153,7 +153,7 @@ export const agentRuntimeTools: AgentTool[] = [
   {
     name: 'agent_llm_activate_profile',
     description:
-      'Switch the active LLM profile. Before calling, tell the user which profile will become active and wait for explicit confirmation unless full-access mode is enabled.',
+      'Switch the active LLM profile. Tell the user which profile will become active before calling. The 1052 runtime requests exact approval under the default profile; danger-full-access may execute directly.',
     parameters: {
       type: 'object',
       properties: {
@@ -180,7 +180,7 @@ export const agentRuntimeTools: AgentTool[] = [
   {
     name: 'agent_llm_set_task_route',
     description:
-      'Set or clear a task-level LLM route. Before calling, tell the user which task will use which profile and wait for explicit confirmation unless full-access mode is enabled.',
+      'Set or clear a task-level LLM route. Tell the user which task will use which profile before calling. The 1052 runtime requests exact approval under the default profile; danger-full-access may execute directly.',
     parameters: {
       type: 'object',
       properties: {

@@ -4,7 +4,7 @@ build/
 .vite/
 .cache/
 
-data/
+/data/
 *.log
 *.out.log
 *.err.log
@@ -22,6 +22,10 @@ CHANGELOG.md
 
 .claude/
 *.egg-info/
+
+# Local reference checkouts used during development; do not publish them as part of 1052 OS.
+codex/
+codex-official-release-*/
 
 # Playwright
 test-results/

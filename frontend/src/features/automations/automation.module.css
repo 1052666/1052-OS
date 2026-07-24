@@ -1,0 +1,370 @@
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.weekday,
+.dayCell {
+  min-width: 0;
+  border-right: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.weekday:nth-child(7n),
+.dayCell:nth-child(7n) {
+  border-right: 0;
+}
+
+.weekday {
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.dayCell {
+  display: grid;
+  min-height: 116px;
+  align-content: start;
+  gap: 7px;
+  padding: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dayCell:hover,
+.selectedDay {
+  background: var(--bg-hover);
+}
+
+.todayCell {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.mutedDay {
+  opacity: .45;
+}
+
+.dayTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.dayTop strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.eventPill {
+  overflow: hidden;
+  min-height: 22px;
+  padding: 4px 6px;
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenda {
+  display: grid;
+  gap: 10px;
+}
+
+.agendaItem {
+  display: grid;
+  grid-template-columns: minmax(58px, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.agendaItem time {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.agendaItem strong,
+.taskPrimary strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agendaItem small,
+.taskPrimary small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskPrimary {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.taskPrimary > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.statusOn {
+  background: var(--success);
+}
+
+.statusWarn {
+  background: var(--warning);
+}
+
+.flowShell {
+  display: grid;
+  height: calc(100vh - 190px);
+  min-height: 620px;
+  grid-template-columns: minmax(248px, .28fr) minmax(0, 1fr) minmax(270px, .32fr);
+  overflow: hidden;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.flowList,
+.flowInspector {
+  min-width: 0;
+  overflow: auto;
+}
+
+.flowList {
+  border-right: 1px solid var(--line-subtle);
+}
+
+.flowInspector {
+  border-left: 1px solid var(--line-subtle);
+}
+
+.flowCanvas {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.flowToolbar {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.flowToolbar input {
+  min-width: 0;
+}
+
+.flowActions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.flowCanvas :global(.react-flow__node) {
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.flowCanvas :global(.react-flow__handle) {
+  border-color: var(--bg-panel);
+  background: var(--accent);
+}
+
+.nodeRow {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.nodeRow:hover,
+.nodeActive {
+  background: var(--bg-hover);
+}
+
+.nodeRow strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeRow small {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeType {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.inspectorBody {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.runPanel {
+  display: grid;
+  gap: 12px;
+}
+
+.runLine {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.runLine time {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.runLine strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.runLine p {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.jsonBox {
+  overflow: auto;
+  max-height: 340px;
+  padding: 12px;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  background: #06090b;
+  color: #c8d6d9;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+:global(:root[data-theme='light']) .jsonBox {
+  background: #eef3f4;
+  color: #23363b;
+}
+
+.compactActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+@media (max-width: 1080px) {
+  .flowShell {
+    grid-template-columns: minmax(220px, .32fr) minmax(0, 1fr);
+  }
+
+  .flowInspector {
+    grid-column: 1 / -1;
+    max-height: 320px;
+    border-top: 1px solid var(--line-subtle);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .calendarGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weekday {
+    display: none;
+  }
+
+  .dayCell {
+    min-height: 92px;
+  }
+
+  .agendaItem,
+  .runLine {
+    grid-template-columns: 1fr;
+  }
+
+  .flowShell {
+    height: auto;
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .flowList {
+    max-height: 260px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-subtle);
+  }
+
+  .flowCanvas {
+    height: 440px;
+  }
+}

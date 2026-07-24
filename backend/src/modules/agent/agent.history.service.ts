@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { config } from '../../config.js'
 import { readJson, writeJson } from '../../storage.js'
-import type { ChatHistory, StoredChatMessage } from './agent.types.js'
+import type { ChatHistory, StoredChatMessage, StoredRuntimeTrace } from './agent.types.js'
 
 const FILE = 'chat-history.json'
 const BACKUP_DIR = 'chat-history-backups'
@@ -11,6 +11,67 @@ const historyListeners = new Set<(event: ChatHistoryEvent) => void>()
 
 // ── Auto-compaction ────────────────────────────────────────────────
 let autoCompactRunning = false
+
+const VALID_TRACE_KINDS = new Set(['tool', 'approval', 'context', 'compact', 'system'])
+const VALID_TRACE_STATUSES = new Set(['running', 'success', 'warning', 'error', 'neutral'])
+const MAX_STORED_RUNTIME_TRACES = 120
+
+function sanitizeTraceRaw(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  try {
+    const text = JSON.stringify(value)
+    if (!text || text.length > 8000) return undefined
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export function sanitizeRuntimeTraces(value: unknown): StoredRuntimeTrace[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const traces: StoredRuntimeTrace[] = []
+  for (const item of value.slice(-MAX_STORED_RUNTIME_TRACES)) {
+    if (!item || typeof item !== 'object') continue
+    const record = item as Record<string, unknown>
+    if (
+      typeof record.id !== 'string' ||
+      typeof record.kind !== 'string' ||
+      !VALID_TRACE_KINDS.has(record.kind) ||
+      typeof record.title !== 'string' ||
+      typeof record.status !== 'string' ||
+      !VALID_TRACE_STATUSES.has(record.status) ||
+      typeof record.timestamp !== 'number' ||
+      !Number.isFinite(record.timestamp)
+    ) {
+      continue
+    }
+
+    const trace: StoredRuntimeTrace = {
+      id: record.id,
+      kind: record.kind as StoredRuntimeTrace['kind'],
+      title: record.title.slice(0, 180),
+      status: record.status as StoredRuntimeTrace['status'],
+      timestamp: record.timestamp,
+    }
+    if (typeof record.detail === 'string') trace.detail = record.detail.slice(0, 1200)
+    if (typeof record.contentOffset === 'number' && Number.isFinite(record.contentOffset)) {
+      trace.contentOffset = record.contentOffset
+    }
+    if (typeof record.callId === 'string') trace.callId = record.callId.slice(0, 160)
+    if (typeof record.approvalId === 'string') trace.approvalId = record.approvalId.slice(0, 160)
+    if (typeof record.expiresAt === 'number' && Number.isFinite(record.expiresAt)) {
+      trace.expiresAt = record.expiresAt
+    }
+    const raw = sanitizeTraceRaw(record.raw)
+    if (raw) trace.raw = raw
+    traces.push(trace)
+  }
+
+  return traces.length ? traces : undefined
+}
 
 async function maybeAutoCompact(messageCount: number, reason: ChatHistorySaveReason) {
   // Only trigger on 'sync' (frontend saves after stream) and 'replace' (full overwrites).
@@ -67,7 +128,6 @@ function normalizeMeta(meta: Record<string, unknown>): StoredChatMessage['meta']
     source:
       meta.source === 'web' ||
       meta.source === 'wechat' ||
-      meta.source === 'wechat_desktop' ||
       meta.source === 'feishu' ||
       meta.source === 'scheduled-task'
         ? meta.source
@@ -75,7 +135,6 @@ function normalizeMeta(meta: Record<string, unknown>): StoredChatMessage['meta']
     channel:
       meta.channel === 'web' ||
       meta.channel === 'wechat' ||
-      meta.channel === 'wechat_desktop' ||
       meta.channel === 'feishu'
         ? meta.channel
         : undefined,
@@ -93,7 +152,6 @@ function normalizeMeta(meta: Record<string, unknown>): StoredChatMessage['meta']
               : undefined,
           targetChannel:
             delivery.targetChannel === 'wechat' ||
-            delivery.targetChannel === 'wechat_desktop' ||
             delivery.targetChannel === 'feishu'
               ? delivery.targetChannel
               : undefined,
@@ -104,6 +162,7 @@ function normalizeMeta(meta: Record<string, unknown>): StoredChatMessage['meta']
       : undefined,
     taskId: typeof meta.taskId === 'string' ? meta.taskId : undefined,
     taskTitle: typeof meta.taskTitle === 'string' ? meta.taskTitle : undefined,
+    runtimeTraces: sanitizeRuntimeTraces(meta.runtimeTraces),
   }
 
   return Object.values(normalized).some((item) => item !== undefined)
@@ -291,7 +350,7 @@ export async function saveChatHistory(
     }
   }
 
-  if ((reason === 'clear' || reason === 'command-new') && messages.length === 0) {
+  if (reason === 'command-new' && messages.length === 0) {
     const current = await getChatHistory()
     if (current.messages.length > 0) {
       await backupChatHistory(current, reason)

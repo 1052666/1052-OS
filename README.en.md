@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/1052666/1052-OS">
-    <img src="./assets/readme/hero.svg" alt="1052 OS" />
+    <img src="./assets/readme/hero.png" alt="1052 OS today console" />
   </a>
 </p>
 
@@ -28,7 +28,7 @@
 <p align="center">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square&logo=typescript&logoColor=white" />
   <img alt="React" src="https://img.shields.io/badge/React-18-149eca?style=flat-square&logo=react&logoColor=white" />
-  <img alt="Vite" src="https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite&logoColor=white" />
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646cff?style=flat-square&logo=vite&logoColor=white" />
   <img alt="Express" src="https://img.shields.io/badge/Express-4-111827?style=flat-square&logo=express&logoColor=white" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-20+-339933?style=flat-square&logo=node.js&logoColor=white" />
 </p>
@@ -79,34 +79,34 @@ The current release focuses on:
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="./assets/readme/preview-chat.svg" alt="Chat workspace preview" />
+      <img src="./assets/readme/preview-today.png" alt="Today console preview" />
       <br />
-      <strong>Chat Workspace</strong>
+      <strong>Today Console</strong>
       <br />
-      Streaming output, collapsible thinking blocks, Markdown / Mermaid / LaTeX rendering, automatic context compression, token statistics, live tool execution status and a unified chat history.
+      The home view brings together schedule, tasks, notifications, memory suggestions, runtime state and quick input so a personal user can start immediately.
     </td>
     <td width="50%" valign="top">
-      <img src="./assets/readme/preview-files.svg" alt="Files and resources preview" />
+      <img src="./assets/readme/preview-chat.png" alt="Chat and runtime trace preview" />
       <br />
-      <strong>Files, Notes, Resources</strong>
+      <strong>Chat + Runtime Trace</strong>
       <br />
-      Local file editing, repository browsing, note tree, resource cards, Wiki source materials and a managed Agent workspace — all in one place.
+      Answers stay central. Runtime Loop details collapse into a trace, while tool calls, approvals, tokens, timing and errors live in the right inspector.
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="./assets/readme/preview-search.svg" alt="Search and skills preview" />
+      <img src="./assets/readme/preview-workspace.png" alt="Workspace and SQL preview" />
       <br />
-      <strong>Search, Skills, Toolbox</strong>
+      <strong>Workspace + Knowledge</strong>
       <br />
-      Aggregated web search, full-page reader, the UAPIs toolbox, the Skill marketplace and capability packs that mount on demand.
+      Repositories, SQL, notes, Wiki, resources, memory and output profiles move into clear section workflows, with complex editors kept desktop-first.
     </td>
     <td width="50%" valign="top">
-      <img src="./assets/readme/preview-schedule.svg" alt="Schedules and channels preview" />
+      <img src="./assets/readme/preview-automations.png" alt="Automation orchestration preview" />
       <br />
-      <strong>Schedules + Social Channels</strong>
+      <strong>Automations + Connections</strong>
       <br />
-      Calendar, scheduled tasks, the notification center, plus outbound channels through WeChat, Feishu and WeCom.
+      Calendar, scheduled tasks, orchestration, execution logs, Skills, UAPIs, search sources and external channels are organized under the new navigation.
     </td>
   </tr>
 </table>
@@ -133,9 +133,8 @@ The current release focuses on:
 | Skill Center | Install, remove, preview and hot-update local Skill packs |
 | UAPIs Toolbox | API catalog, endpoint detail reading, structured invocation, per-card enable/disable |
 | Calendar & Tasks | Regular events, one-off / recurring / long-running tasks, Agent callbacks, terminal tasks, result write-back |
-| WeChat Desktop Channel | Dedicated channel panel, group listening, group-level prompts, group permissions, group memory, outbound sending |
-| WeChat QR Channel | QR login, reconnect, text + media handling, task push |
-| Feishu / WeCom | Basic message delivery, bot integration, notification linking |
+| WeChat Bot QR Channel | Official Bot QR login, reconnect, text + media handling, inbound message echo |
+| Feishu / WeCom | Feishu QR setup, basic message delivery, bot integration, WeCom webhook notifications |
 | Logs & Runtime Data | All runtime data lands in the local `data/` directory for easy debugging and migration |
 
 ---
@@ -168,7 +167,7 @@ flowchart LR
 ### Frontend
 
 - React 18
-- Vite 5
+- Vite 8
 - TypeScript
 - React Router
 - React Markdown
@@ -325,32 +324,20 @@ data/generated-images/
 
 ---
 
-## WeChat Desktop Channel
+## External Channels
 
-The current build ships a dedicated WeChat desktop channel panel that is fully separated from the legacy QR-login WeChat entry.
+The current build keeps the official WeChat Bot channel, Feishu Bot and WeCom webhooks. Local desktop-client automation is no longer shipped.
 
 Key capabilities:
 
-- Bind to a specific group chat window
-- Independent listener start/stop
-- Per-group permission switches
-- Per-group prompt appendix
-- Per-group memory read/write
-- `@bot` mentions inside group chats trigger the Agent
-- Other channels can proactively send WeChat messages through the Agent
-
-Listener strategy:
-
-- Immediate check on startup
-- Polling roughly every `1 s`
-- Batch-merge window of about `1.5 s`
-- Keeps the chat list pinned to the bottom
-- Lightweight refocus of the bound window roughly every `25 s`
+- WeChat Bot: QR-login the official Bot channel, reconnect saved accounts, process text and media messages, write inbound messages into chat history and echo Agent replies back through the channel service.
+- Feishu Bot: QR setup wizard for App ID and App Secret, plus manual configuration, connect/disconnect and workspace capabilities.
+- WeCom: webhook configuration, testing and notification delivery.
 
 Notes:
 
-- Desktop WeChat automation currently runs on Windows only
-- The Python bridge and the `pywechat` solution are bundled inside the project's `vendor/` directory
+- WeChat and Feishu message echo is handled by backend channel services and does not depend on a local desktop client.
+- The desktop bridge, local listener script, window binding, group memory and desktop outbound tools have been removed.
 
 ---
 
@@ -407,8 +394,8 @@ This design is built for real work, for example:
 - Editing a few lines of configuration in a local file
 - Organising materials into the resource library or the Wiki
 - Triggering the Agent or a terminal command from a scheduled task
-- Asking the model from the web UI to actively send a WeChat message
-- Handling group messages with group-level memory and prompts
+- Handling inbound WeChat Bot and Feishu messages with the same Agent runtime as the web UI
+- Formatting briefings for WeChat text, Feishu cards or WeCom Markdown
 
 ---
 
@@ -499,6 +486,26 @@ Frontend: http://localhost:10052
 Backend:  http://localhost:10053
 ```
 
+Frontend verification:
+
+```bash
+cd frontend
+npm run test:audit
+npm run test
+npm run test:interactions
+npm run test:live-backend
+npm run test:production
+npm run test:visual
+npm run docs:screenshots
+npm run test:e2e
+```
+
+`npm run test:live-backend` starts a real backend with a temporary `DATA_DIR` and temporary ports, then loads the new frontend's core pages against it. It does not read or write the default `data/` user assets.
+
+`npm run test:production` builds the frontend, then uses backend `dist`, frontend `dist` and a local static proxy to simulate the container's nginx + backend shape, including SPA fallback and `/api` proxying.
+
+`npm run test:e2e` covers the Chromium desktop, wide desktop and mobile projects. If the outer command runner times out on Windows, run `npm run test:e2e:desktop`, `npm run test:e2e:wide` and `npm run test:e2e:mobile` separately. `npm run test:e2e:webkit` is available when the local Playwright WebKit browser has been installed.
+
 ---
 
 ## Directory Layout
@@ -516,11 +523,18 @@ Backend:  http://localhost:10053
 |       `-- index.ts
 |-- docs/
 |-- frontend/
+|   |-- e2e/
+|   |-- scripts/
 |   `-- src/
-|       |-- api/
+|       |-- app/
 |       |-- components/
+|       |-- contracts/
+|       |-- data/
+|       |-- features/
 |       |-- pages/
-|       `-- styles.css
+|       |-- runtime/
+|       |-- state/
+|       `-- styles/
 |-- vendor/
 |-- LICENSE
 |-- README.md
@@ -577,9 +591,9 @@ The default preset is:
 
 No. `data/` is the runtime directory and contains settings, logs, chat history, memories, resources, Skills, the Wiki, channel state and other local-only data.
 
-### 4. Which platforms support the WeChat desktop channel?
+### 4. Does 1052 OS still use local desktop-client automation?
 
-The desktop WeChat automation channel is Windows-first. On other platforms you can keep using the web panel, Feishu, the QR-login WeChat channel and the rest of the system.
+No. The external-channel surface now uses the official WeChat Bot QR flow, Feishu QR setup and WeCom webhooks.
 
 ### 5. What are the default ports?
 
