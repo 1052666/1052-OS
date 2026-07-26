@@ -216,6 +216,7 @@ npm run dev
 | `data/chat-history.json` | 当前对话历史 |
 | `data/chat-history-backups/` | `/new` 和压缩历史产生的备份 |
 | `data/1052-rollouts/` | 1052 Runtime 每轮运行事件 |
+| `data/research/research-sessions.sqlite` | 多轮研究会话、结果状态和查询来源 |
 | `data/logs/` | 后端运行日志 |
 | `data/channels/wechat/` | 微信通道账号、媒体和状态 |
 | `data/channels/feishu/` | 飞书通道配置、媒体和状态 |
@@ -373,6 +374,28 @@ sequenceDiagram
 - 终端命令、网络请求、扫码登录、审批等待仍保留各自必要的局部超时。
 - 工具输出会被包成 `{ ok, data }` 或 `{ ok: false, error }` 后回填模型上下文。
 - 超长工具输出会截断并附带 `_hint`，让模型收窄下一次查询。
+
+## 多轮研究会话
+
+复杂对比、跨来源核验和研究报告不再依赖一次性的 `websearch_search`。`search-pack`
+提供持久化研究会话，网页、微信、飞书和定时任务可以通过同一个 `sessionId`
+继续同一项研究：
+
+| 工具 | 作用 |
+| --- | --- |
+| `websearch_research_start` | 创建研究主题和持久化 Session |
+| `websearch_research_search` | 在 Session 中执行一轮搜索并累积来源 |
+| `websearch_research_status` | 查看轮次、RRF 排名和待审/批准/拒绝结果 |
+| `websearch_research_review` | 审核结果，必要时恢复为待审，并可完成 Session |
+
+研究结果默认进入 `pending`，不会直接被当成已验证证据。URL 会先规范化并去除常见
+跟踪参数，重复来源只保留一个结果节点；同一来源在多个查询轮次中出现时，使用
+Reciprocal Rank Fusion 累积排序，同时保留每轮查询、名次和原始分数。
+
+状态保存在 `data/research/research-sessions.sqlite`。SQLite 使用 WAL、外键和事务，
+避免网页、外部通道和定时任务并发追加时发生 JSON 覆盖。研究会话属于可恢复的
+Agent 工作状态，不修改聊天历史、长期记忆、Wiki 或 PKM；后续证据与知识沉淀只消费
+明确批准的结果。
 
 ## 外部通道闭环
 

@@ -40,6 +40,12 @@ const READ_ONLY_OVERRIDES: ReadonlySet<string> = new Set([
   // Explicit read-only terminal runner variant; the generic `_run` write pattern
   // intentionally catches the unrestricted `terminal_run` tool.
   'terminal_run_readonly',
+  // Research sessions are reversible Agent working state. Starting a session,
+  // accumulating search results, and reviewing the pending pool must not trigger
+  // user approval prompts during an otherwise read-only research workflow.
+  'websearch_research_start',
+  'websearch_research_search',
+  'websearch_research_review',
 ])
 
 /**

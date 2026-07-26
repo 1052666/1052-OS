@@ -109,6 +109,8 @@ function getRoutingPrompt() {
     '- Official WeChat Bot and Feishu inbound messages are delivered back by their channel services after generation; do not request channel-pack just to reply to the current inbound channel message.',
     '- Local desktop messaging automation tools are not available. Do not invent removed external-channel tools.',
     '- If you need web search, page reading, or UAPIs lookup/call, request search-pack.',
+    '- For multi-angle comparisons, cross-source verification, research reports, or investigations needing more than one search round, keep one persistent research session: websearch_research_start -> websearch_research_search for each focused query -> websearch_research_status -> websearch_research_review. Reuse the same sessionId for the entire topic.',
+    '- Research search results start as pending. Review source relevance before approving them; reject irrelevant or low-quality results. Do not present pending or rejected results as verified evidence.',
     '- If you need to read, create, update, delete, suggest, confirm, or reject long-term memories or output profiles, request memory-pack.',
     '- If the user explicitly asks to switch LLM profiles or configure task-level model routing, request settings-pack and emit the required settings tool call. Under the default profile, the 1052 runtime will request exact approval before execution.',
     '- If the user asks to enable, disable, or change morning brief time, request settings-pack and use agent_morning_brief_update. Under the default profile, the 1052 runtime will request exact approval before execution.',
