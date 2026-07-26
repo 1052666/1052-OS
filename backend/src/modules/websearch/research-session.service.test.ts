@@ -15,6 +15,7 @@ let store: ResearchSessionStore
 function searchResponse(
   query: string,
   results: SearchResponse['results'],
+  overrides: Partial<SearchResponse> = {},
 ): SearchResponse {
   return {
     query,
@@ -25,6 +26,7 @@ function searchResponse(
     succeededEngines: ['Bing INT'],
     failedEngines: [],
     results,
+    ...overrides,
   }
 }
 
@@ -58,9 +60,9 @@ describe('research session store', () => {
   it('normalizes tracking URLs and computes reciprocal-rank fusion scores', () => {
     expect(
       normalizeResearchUrl(
-        'https://Example.com/docs/?utm_source=test&b=2&a=1#section',
+        'https://Example.com/docs/?utm_source=test&source=feed&ref=home&from=share&spm=123&fbclid=x&gclid=y&keep=yes&b=2&a=1#section',
       ),
-    ).toBe('https://example.com/docs?a=1&b=2')
+    ).toBe('https://example.com/docs?a=1&b=2&keep=yes')
     expect(reciprocalRankScore([1, 2])).toBeCloseTo(1 / 61 + 1 / 62)
     expect(() => reciprocalRankScore([1], 0)).toThrow('RRF k must be positive')
   })
@@ -91,7 +93,14 @@ describe('research session store', () => {
       searchResponse('runtime safety', [
         result('Runtime design expanded', 'https://example.com/runtime#details', 220),
         result('Independent review', 'https://review.example.net/runtime', 120),
-      ]),
+      ], {
+        selectedEngines: [
+          { id: 'bing-int', name: 'Bing INT', region: 'global' },
+          { id: 'startpage', name: 'Startpage', region: 'global' },
+        ],
+        succeededEngines: ['Bing INT'],
+        failedEngines: [{ engine: 'Startpage', error: '请求超时' }],
+      }),
     )
     expect(second).toMatchObject({
       round: 2,
@@ -114,6 +123,44 @@ describe('research session store', () => {
     expect(repeated?.origins.map((origin) => origin.round)).toEqual([1, 2])
     expect(repeated?.rrfScore).toBeCloseTo(2 / 61)
     expect(accumulated[0]?.id).toBe(repeated?.id)
+
+    const rounds = store.listRounds(session.id)
+    expect(rounds.map((item) => item.round)).toEqual([2, 1])
+    expect(rounds[0]).toMatchObject({
+      query: 'runtime safety',
+      searchQuery: 'runtime safety',
+      intent: 'general',
+      succeededEngines: ['Bing INT'],
+      failedEngines: [{ engine: 'Startpage', error: '请求超时' }],
+      resultCount: 2,
+    })
+    expect(rounds[0]?.selectedEngines.map((engine) => engine.id)).toEqual([
+      'bing-int',
+      'startpage',
+    ])
+  })
+
+  it('returns persisted empty and failed search rounds', () => {
+    const session = store.createSession({ title: 'Failure visibility' })
+    store.appendSearchRound(
+      session.id,
+      searchResponse('unavailable source', [], {
+        selectedEngines: [{ id: 'startpage', name: 'Startpage', region: 'global' }],
+        succeededEngines: [],
+        failedEngines: [{ engine: 'Startpage', error: '搜索引擎返回了验证页面' }],
+      }),
+    )
+
+    expect(store.listRounds(session.id)).toEqual([
+      expect.objectContaining({
+        round: 1,
+        query: 'unavailable source',
+        resultCount: 0,
+        succeededEngines: [],
+        failedEngines: [{ engine: 'Startpage', error: '搜索引擎返回了验证页面' }],
+      }),
+    ])
+    expect(store.listResults(session.id)).toEqual([])
   })
 
   it('reviews results transactionally and can restore them to pending', () => {

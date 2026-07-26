@@ -385,7 +385,7 @@ sequenceDiagram
 | --- | --- |
 | `websearch_research_start` | 创建研究主题和持久化 Session |
 | `websearch_research_search` | 在 Session 中执行一轮搜索并累积来源 |
-| `websearch_research_status` | 查看轮次、RRF 排名和待审/批准/拒绝结果 |
+| `websearch_research_status` | 查看每轮查询、引擎成功/失败、RRF 排名和审核状态 |
 | `websearch_research_review` | 审核结果，必要时恢复为待审，并可完成 Session |
 
 研究结果默认进入 `pending`，不会直接被当成已验证证据。URL 会先规范化并去除常见

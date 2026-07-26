@@ -247,7 +247,7 @@ export const websearchTools: AgentTool[] = [
   {
     name: 'websearch_research_status',
     description:
-      'Inspect research sessions and their pending, approved, or rejected results. Omit sessionId to list recent sessions.',
+      'Inspect research sessions, persisted query rounds, engine outcomes, and pending, approved, or rejected results. Omit sessionId to list recent sessions.',
     parameters: {
       type: 'object',
       properties: {
@@ -268,6 +268,14 @@ export const websearchTools: AgentTool[] = [
           type: 'number',
           description: 'Result offset for pagination.',
         },
+        roundLimit: {
+          type: 'number',
+          description: 'Maximum newest search rounds to return. Default 20, max 100.',
+        },
+        roundOffset: {
+          type: 'number',
+          description: 'Search-round offset for pagination.',
+        },
       },
       additionalProperties: false,
     },
@@ -285,6 +293,10 @@ export const websearchTools: AgentTool[] = [
           : undefined
       return {
         session: store.getSession(sessionId),
+        rounds: store.listRounds(sessionId, {
+          limit: typeof input.roundLimit === 'number' ? input.roundLimit : undefined,
+          offset: typeof input.roundOffset === 'number' ? input.roundOffset : undefined,
+        }),
         results: store.listResults(sessionId, {
           status,
           limit,

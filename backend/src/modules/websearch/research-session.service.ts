@@ -6,6 +6,7 @@ import { config } from '../../config.js'
 import { HttpError } from '../../http-error.js'
 import {
   aggregateSearch,
+  normalizeResultUrl,
   type SearchRequest,
   type SearchResponse,
 } from './websearch.service.js'
@@ -73,6 +74,20 @@ export type ResearchSearchRound = {
   }
 }
 
+export type ResearchRound = {
+  id: string
+  sessionId: string
+  round: number
+  query: string
+  searchQuery: string
+  intent: SearchResponse['intent']
+  selectedEngines: SearchResponse['selectedEngines']
+  succeededEngines: string[]
+  failedEngines: SearchResponse['failedEngines']
+  resultCount: number
+  createdAt: number
+}
+
 export type ResearchResultDecision = {
   resultId: string
   status: ResearchResultStatus
@@ -120,6 +135,20 @@ type OriginRow = {
   source_score: number
 }
 
+type QueryRow = {
+  id: string
+  session_id: string
+  round: number
+  query: string
+  search_query: string
+  intent: SearchResponse['intent']
+  selected_engines_json: string
+  succeeded_engines_json: string
+  failed_engines_json: string
+  result_count: number
+  created_at: number
+}
+
 const DEFAULT_RESULT_LIMIT = 20
 const MAX_RESULT_LIMIT = 100
 const RRF_K = 60
@@ -137,6 +166,14 @@ function parseStringArray(value: string): string[] {
   }
 }
 
+function parseJson<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}
+
 function normalizeLimit(value: number | undefined) {
   if (!Number.isFinite(value)) return DEFAULT_RESULT_LIMIT
   return Math.max(1, Math.min(MAX_RESULT_LIMIT, Math.floor(value ?? DEFAULT_RESULT_LIMIT)))
@@ -148,14 +185,9 @@ function normalizeOffset(value: number | undefined) {
 }
 
 export function normalizeResearchUrl(value: string) {
-  const normalized = value.trim()
+  const normalized = normalizeResultUrl(value.trim())
   try {
     const url = new URL(normalized)
-    url.hash = ''
-    url.hostname = url.hostname.toLowerCase()
-    for (const key of [...url.searchParams.keys()]) {
-      if (/^(utm_.+|fbclid|gclid)$/i.test(key)) url.searchParams.delete(key)
-    }
     url.searchParams.sort()
     if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, '')
     return url.toString()
@@ -323,6 +355,57 @@ export class ResearchSessionStore {
       LIMIT ?
     `).all(normalizeLimit(limit)) as SessionRow[]
     return rows.map(sessionFromRow)
+  }
+
+  listRounds(
+    sessionId: string,
+    input: { limit?: number; offset?: number } = {},
+  ): ResearchRound[] {
+    this.getSession(sessionId)
+    const rows = this.db.prepare(`
+      SELECT
+        q.id,
+        q.session_id,
+        q.round,
+        q.query,
+        q.search_query,
+        q.intent,
+        q.selected_engines_json,
+        q.succeeded_engines_json,
+        q.failed_engines_json,
+        COUNT(o.result_id) AS result_count,
+        q.created_at
+      FROM research_queries q
+      LEFT JOIN research_result_origins o ON o.query_id = q.id
+      WHERE q.session_id = ?
+      GROUP BY q.id
+      ORDER BY q.round DESC
+      LIMIT ? OFFSET ?
+    `).all(
+      sessionId,
+      normalizeLimit(input.limit),
+      normalizeOffset(input.offset),
+    ) as QueryRow[]
+
+    return rows.map((row) => ({
+      id: row.id,
+      sessionId: row.session_id,
+      round: row.round,
+      query: row.query,
+      searchQuery: row.search_query,
+      intent: row.intent,
+      selectedEngines: parseJson<SearchResponse['selectedEngines']>(
+        row.selected_engines_json,
+        [],
+      ),
+      succeededEngines: parseStringArray(row.succeeded_engines_json),
+      failedEngines: parseJson<SearchResponse['failedEngines']>(
+        row.failed_engines_json,
+        [],
+      ),
+      resultCount: row.result_count,
+      createdAt: row.created_at,
+    }))
   }
 
   appendSearchRound(sessionId: string, response: SearchResponse): ResearchSearchRound {
