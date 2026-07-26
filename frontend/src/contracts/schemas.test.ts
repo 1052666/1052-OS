@@ -4,6 +4,7 @@ import {
   healthStatusSchema,
   orchestrationSchema,
   publicAppearanceThemesSchema,
+  researchStateSchema,
   runtimeEventSchema,
   scheduledTaskSchema,
   searchSourcesSchema,
@@ -137,6 +138,60 @@ describe('frontend API contracts', () => {
 
     expect(catalog.apis[0].enabled).toBe(true)
     expect(sources.sourceGroups).toHaveLength(1)
+  })
+
+  it('parses the complete research trajectory contract', () => {
+    const state = researchStateSchema.parse({
+      session: {
+        id: 'research-1',
+        title: '运行时安全',
+        description: '',
+        owner: 'web',
+        status: 'active',
+        createdAt: 1,
+        updatedAt: 2,
+        rounds: 1,
+        resultCounts: { total: 1, pending: 0, approved: 1, rejected: 0 },
+      },
+      rounds: [{
+        id: 'query-1',
+        sessionId: 'research-1',
+        round: 1,
+        query: 'runtime safety',
+        searchQuery: 'runtime safety',
+        intent: 'general',
+        selectedEngines: [],
+        succeededEngines: ['Bing INT'],
+        failedEngines: [],
+        resultCount: 1,
+        createdAt: 1,
+      }],
+      assessments: [{
+        queryId: 'query-1',
+        sessionId: 'research-1',
+        round: 1,
+        quality: {
+          verdict: 'good',
+          breakdown: {
+            contentDepth: { value: 1200, threshold: 800, pass: true },
+            sourceDiversity: { value: 3, threshold: 3, pass: true },
+            novelty: { value: 1, threshold: 0.3, pass: true },
+          },
+          failedIndicators: [],
+        },
+        suggestions: [],
+        assessedAt: 2,
+      }],
+      results: [],
+      snapshots: [],
+      claims: [],
+      evidence: [],
+      claimReviews: [],
+      writebacks: [],
+    })
+
+    expect(state.assessments[0].quality.verdict).toBe('good')
+    expect(state.rounds[0].succeededEngines).toEqual(['Bing INT'])
   })
 
   it('parses appearance theme profiles without binding the new UI to old theme code', () => {

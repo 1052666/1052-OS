@@ -11,6 +11,15 @@ import {
   type ResearchResultDecision,
   type ResearchResultStatus,
 } from '../../websearch/research-session.service.js'
+import {
+  addResearchEvidence,
+  assessResearchRound,
+  createResearchClaims,
+  extractResearchResults,
+  getResearchEvidenceCandidates,
+  getResearchSessionState,
+  writeResearchToWiki,
+} from '../../websearch/research-workflow.service.js'
 import { HttpError } from '../../../http-error.js'
 import type { AgentTool } from '../agent.tool.types.js'
 
@@ -291,8 +300,9 @@ export const websearchTools: AgentTool[] = [
         input.status === 'pending' || input.status === 'approved' || input.status === 'rejected'
           ? input.status
           : undefined
+      const workflow = getResearchSessionState(sessionId)
       return {
-        session: store.getSession(sessionId),
+        ...workflow,
         rounds: store.listRounds(sessionId, {
           limit: typeof input.roundLimit === 'number' ? input.roundLimit : undefined,
           offset: typeof input.roundOffset === 'number' ? input.roundOffset : undefined,
@@ -367,6 +377,267 @@ export const websearchTools: AgentTool[] = [
       return input.completeSession === true
         ? { ...review, session: store.completeSession(sessionId) }
         : review
+    },
+  },
+  {
+    name: 'websearch_research_extract',
+    description:
+      'Fetch public pages for selected research results and store immutable source snapshots. Every request and redirect is protected against private-network access, oversized bodies, unsupported content types, and timeouts.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Research session id.',
+        },
+        resultIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Pending or approved research result ids to extract. Maximum 12.',
+        },
+        maxChars: {
+          type: 'number',
+          description: 'Maximum readable characters per snapshot. Default 12000, max 50000.',
+        },
+      },
+      required: ['sessionId', 'resultIds'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return extractResearchResults({
+        sessionId: String(input.sessionId ?? ''),
+        resultIds: Array.isArray(input.resultIds) ? input.resultIds.map(String) : [],
+        maxChars: typeof input.maxChars === 'number' ? input.maxChars : undefined,
+      })
+    },
+  },
+  {
+    name: 'websearch_research_assess',
+    description:
+      'Assess one persisted search round using independent content-depth, source-diversity, and novelty thresholds, then return deterministic follow-up query suggestions.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Research session id.',
+        },
+        queryId: {
+          type: 'string',
+          description: 'Optional query round id. Omit to assess the newest round.',
+        },
+      },
+      required: ['sessionId'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return assessResearchRound({
+        sessionId: String(input.sessionId ?? ''),
+        queryId: typeof input.queryId === 'string' ? input.queryId : undefined,
+      })
+    },
+  },
+  {
+    name: 'websearch_research_claim_create',
+    description:
+      'Create one or more atomic claims inside a research session for evidence verification. Claim ids are collision-safe and remain scoped to the session.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: 'Research session id.',
+        },
+        claims: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'Atomic claim text.' },
+              subject: { type: 'string' },
+              predicate: { type: 'string' },
+              object: { type: 'string' },
+              timeConstraint: { type: 'string' },
+              riskLevel: {
+                type: 'string',
+                enum: ['low', 'medium', 'high'],
+                description: 'Use high for consequential factual claims.',
+              },
+            },
+            required: ['text'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['sessionId', 'claims'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      const claims = (Array.isArray(input.claims) ? input.claims : [])
+        .map((value) => value && typeof value === 'object' ? value as Record<string, unknown> : {})
+        .map((claim) => ({
+          text: String(claim.text ?? ''),
+          subject: typeof claim.subject === 'string' ? claim.subject : undefined,
+          predicate: typeof claim.predicate === 'string' ? claim.predicate : undefined,
+          object: typeof claim.object === 'string' ? claim.object : undefined,
+          timeConstraint: typeof claim.timeConstraint === 'string' ? claim.timeConstraint : undefined,
+          riskLevel:
+            claim.riskLevel === 'low' || claim.riskLevel === 'medium' || claim.riskLevel === 'high'
+              ? claim.riskLevel as 'low' | 'medium' | 'high'
+              : undefined,
+        }))
+      return {
+        claims: createResearchClaims({
+          sessionId: String(input.sessionId ?? ''),
+          claims,
+        }),
+      }
+    },
+  },
+  {
+    name: 'websearch_research_evidence_candidates',
+    description:
+      'Find exact sentence candidates for one claim from approved results with ready source snapshots. Returns result ids, offsets, hashes, publisher clusters, and similarity scores without persisting evidence.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        claimId: { type: 'string' },
+        limit: { type: 'number', description: 'Maximum candidates. Default 8, max 20.' },
+      },
+      required: ['sessionId', 'claimId'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return getResearchEvidenceCandidates({
+        sessionId: String(input.sessionId ?? ''),
+        claimId: String(input.claimId ?? ''),
+        limit: typeof input.limit === 'number' ? input.limit : undefined,
+      })
+    },
+  },
+  {
+    name: 'websearch_research_evidence_add',
+    description:
+      'Attach one verified quote to a claim. The backend requires an approved result and validates snapshot id, exact UTF-16 offsets, quote equality, SHA-256, and publisher cluster before persisting.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        claimId: { type: 'string' },
+        resultId: { type: 'string' },
+        snapshotId: { type: 'string', description: 'Optional immutable snapshot id.' },
+        quote: { type: 'string', description: 'Exact verbatim quote.' },
+        charStart: { type: 'number' },
+        charEnd: { type: 'number' },
+        stance: {
+          type: 'string',
+          enum: ['support', 'refute', 'insufficient'],
+        },
+        confidence: {
+          type: 'number',
+          description: 'Optional confidence from 0 to 1.',
+        },
+        reason: { type: 'string' },
+      },
+      required: [
+        'sessionId',
+        'claimId',
+        'resultId',
+        'quote',
+        'charStart',
+        'charEnd',
+        'stance',
+      ],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      if (
+        input.stance !== 'support'
+        && input.stance !== 'refute'
+        && input.stance !== 'insufficient'
+      ) {
+        throw new HttpError(400, '证据 stance 不正确。')
+      }
+      return addResearchEvidence({
+        sessionId: String(input.sessionId ?? ''),
+        claimId: String(input.claimId ?? ''),
+        resultId: String(input.resultId ?? ''),
+        snapshotId: typeof input.snapshotId === 'string' ? input.snapshotId : undefined,
+        quote: String(input.quote ?? ''),
+        charStart: Number(input.charStart),
+        charEnd: Number(input.charEnd),
+        stance: input.stance,
+        confidence: typeof input.confidence === 'number' ? input.confidence : undefined,
+        reason: typeof input.reason === 'string' ? input.reason : undefined,
+      })
+    },
+  },
+  {
+    name: 'websearch_research_claim_review',
+    description:
+      'Run deterministic Claim-Evidence-Review policy. Refuting evidence creates a conflict; high-risk claims and automatic approval require at least two independent publisher domains.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        claimId: { type: 'string' },
+      },
+      required: ['sessionId', 'claimId'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return getResearchSessionStore().reviewClaim(
+        String(input.sessionId ?? ''),
+        String(input.claimId ?? ''),
+      )
+    },
+  },
+  {
+    name: 'websearch_research_writeback',
+    description:
+      'Write only approved claims and their anchored evidence into a structured Wiki synthesis page, rebuild PKM synchronously, record the writeback, and optionally complete the research session. Requires user approval under the default permission profile.',
+    parameters: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        title: { type: 'string' },
+        summary: { type: 'string' },
+        content: {
+          type: 'string',
+          description: 'Optional analysis body. Verified claims, evidence, and sources are appended by the backend.',
+        },
+        claimIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Approved claim ids. Omit to include every approved claim.',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        completeSession: { type: 'boolean' },
+      },
+      required: ['sessionId', 'summary'],
+      additionalProperties: false,
+    },
+    execute: async (args) => {
+      const input = (args ?? {}) as Record<string, unknown>
+      return writeResearchToWiki({
+        sessionId: String(input.sessionId ?? ''),
+        title: typeof input.title === 'string' ? input.title : undefined,
+        summary: String(input.summary ?? ''),
+        content: typeof input.content === 'string' ? input.content : undefined,
+        claimIds: Array.isArray(input.claimIds) ? input.claimIds.map(String) : undefined,
+        tags: Array.isArray(input.tags) ? input.tags.map(String) : undefined,
+        completeSession: input.completeSession === true,
+      })
     },
   },
   {

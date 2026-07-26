@@ -356,7 +356,7 @@ V7 实现时必须同步更新模型实际会读取的系统提示词，不能�
 新增：
 
 ```text
-frontend/src/api/wiki.ts
+frontend/src/data/api.ts
 frontend/src/pages/Wiki.tsx
 ```
 

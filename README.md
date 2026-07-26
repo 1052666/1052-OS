@@ -2,7 +2,7 @@
 
 1052 OS 是一个本地优先的个人 AI 操作系统。它把对话、工具调用、长期记忆、知识库、自动化任务、本地仓库、SQL 工作台和微信/飞书等外部通道放进同一套可观察、可审批、可恢复的运行时里。
 
-当前版本已经完成一轮前端重写：旧前端页面、旧 Mirror 视觉层和巨型全局样式被废弃，新的首页是「今日控制台」，核心体验围绕 Agent 对话、Runtime Loop、工具审批和运行检查器展开。
+当前版本采用「今日控制台」作为首页，核心体验围绕 Agent 对话、Runtime Loop、工具审批和运行检查器展开。
 
 <p align="center">
   <img src="./assets/readme/hero.png" alt="1052 OS 今日控制台" width="860" />
@@ -385,17 +385,33 @@ sequenceDiagram
 | --- | --- |
 | `websearch_research_start` | 创建研究主题和持久化 Session |
 | `websearch_research_search` | 在 Session 中执行一轮搜索并累积来源 |
-| `websearch_research_status` | 查看每轮查询、引擎成功/失败、RRF 排名和审核状态 |
-| `websearch_research_review` | 审核结果，必要时恢复为待审，并可完成 Session |
+| `websearch_research_status` | 查看轮次、质量、快照、Claim、Evidence、Review 和写回记录 |
+| `websearch_research_review` | 将搜索结果标记为 `pending`、`approved` 或 `rejected` |
+| `websearch_research_extract` | 提取网页正文并生成不可变来源快照 |
+| `websearch_research_assess` | 评估正文深度、来源多样性和新颖度，并生成下一轮查询建议 |
+| `websearch_research_claim_create` | 把待验证结论拆成原子 Claim |
+| `websearch_research_evidence_candidates` | 从已批准来源中寻找带字符偏移的证据候选 |
+| `websearch_research_evidence_add` | 将支持、反驳或不足证据锚定到指定快照 |
+| `websearch_research_claim_review` | 执行独立来源、冲突和风险规则审核 |
+| `websearch_research_writeback` | 只把审核通过的 Claim 和证据写入 Wiki，并重建 PKM 索引 |
 
 研究结果默认进入 `pending`，不会直接被当成已验证证据。URL 会先规范化并去除常见
 跟踪参数，重复来源只保留一个结果节点；同一来源在多个查询轮次中出现时，使用
 Reciprocal Rank Fusion 累积排序，同时保留每轮查询、名次和原始分数。
 
+后续闭环分为三层。网页正文会保存为不可变快照并记录 SHA-256；Evidence 必须精确匹配
+快照中的字符偏移，不能引用随后变化的页面内容。Claim Review 只有在至少两个独立来源
+全部支持且没有反驳证据时才自动通过，高风险、单一来源、冲突或证据不足都会停在
+`needs_review`。最后的 Wiki / PKM 写回会再次检查 Claim Review 和来源状态，拒绝把
+待审或冲突内容固化为知识。
+
 状态保存在 `data/research/research-sessions.sqlite`。SQLite 使用 WAL、外键和事务，
-避免网页、外部通道和定时任务并发追加时发生 JSON 覆盖。研究会话属于可恢复的
-Agent 工作状态，不修改聊天历史、长期记忆、Wiki 或 PKM；后续证据与知识沉淀只消费
-明确批准的结果。
+避免网页、外部通道和定时任务并发追加时发生 JSON 覆盖。完成后的 Session 是只读的。
+网页提取只接受公网 HTTP(S) 地址，逐跳检查重定向、响应类型、2 MB 体积上限和局部超时。
+
+前端入口是“知识 → 深度研究”，完整展示搜索轮次、引擎失败、质量指标、来源审核、
+Claim / Evidence / Review 和 Wiki / PKM 写回轨迹。详细的数据模型、接口和失败语义见
+[深度研究证据闭环](docs/1052-deep-research-closure.md)。
 
 ## 外部通道闭环
 
@@ -424,7 +440,7 @@ flowchart TD
 
 ## 前端架构
 
-新版前端位于 `frontend/src`，不复用旧 `frontend/src/api`、旧页面、旧 Mirror 主题和旧巨型 CSS。
+新版前端位于 `frontend/src`，按契约、数据访问、功能页面和组件样式分层维护。
 
 路由：
 

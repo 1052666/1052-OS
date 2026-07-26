@@ -46,6 +46,12 @@ const READ_ONLY_OVERRIDES: ReadonlySet<string> = new Set([
   'websearch_research_start',
   'websearch_research_search',
   'websearch_research_review',
+  'websearch_research_extract',
+  'websearch_research_assess',
+  'websearch_research_claim_create',
+  'websearch_research_evidence_candidates',
+  'websearch_research_evidence_add',
+  'websearch_research_claim_review',
 ])
 
 /**

@@ -138,11 +138,11 @@ V6 要求把成功指标写成可验证数字，而不是“应该更省”。
 
 | 文件 | 计划改动 |
 | --- | --- |
-| `frontend/src/api/agent.ts` | 扩展 stream event 类型，支持 upgrade 中间态；扩展 `TokenUsage` 字段 |
+| `frontend/src/contracts/schemas.ts` | 扩展 stream event 类型，支持 upgrade 中间态；扩展 `TokenUsage` 字段 |
 | `frontend/src/pages/Chat.tsx` | 处理 `context-upgrade-*` 事件；Stop 按钮中止多阶段请求；显示中间态 |
 | `frontend/src/components/TokenUsagePanel.tsx` | 新增 `upgrade overhead`、cache hit 展示 |
 | `frontend/src/styles.css` | 补充升级状态条、usage 新区块样式 |
-| `frontend/src/api/settings.ts` | 扩展 agent 设置项 |
+| `frontend/src/data/api.ts` | 扩展 agent 设置项 |
 | `frontend/src/pages/Settings.tsx` | 暴露灰度开关和调试项 |
 
 ### 4.4 前端：可选新增文件
@@ -309,12 +309,12 @@ type AgentSettings = {
 
 - `backend/src/modules/settings/settings.types.ts`
 - `backend/src/modules/settings/settings.service.ts`
-- `frontend/src/api/settings.ts`
+- `frontend/src/data/api.ts`
 - `frontend/src/pages/Settings.tsx`
 - `backend/src/modules/agent/agent.types.ts`
 - `backend/src/modules/agent/agent.runtime.types.ts`
 - `backend/src/modules/agent/agent.stats.service.ts`
-- `frontend/src/api/agent.ts`
+- `frontend/src/contracts/schemas.ts`
 
 验收标准：
 
@@ -350,7 +350,7 @@ type AgentSettings = {
 - `backend/src/modules/agent/agent.cache-policy.service.ts`
 - `backend/src/modules/uapis/uapis.service.ts`
 - `backend/src/modules/agent/agent.routes.ts`
-- `frontend/src/api/agent.ts`
+- `frontend/src/contracts/schemas.ts`
 
 验收标准：
 
@@ -393,7 +393,7 @@ type AgentSettings = {
 - `backend/src/modules/agent/agent.tool.service.ts`
 - `backend/src/modules/agent/agent.service.ts`
 - `backend/src/modules/agent/agent.routes.ts`
-- `frontend/src/api/agent.ts`
+- `frontend/src/contracts/schemas.ts`
 - `frontend/src/pages/Chat.tsx`
 - `frontend/src/styles.css`
 - `frontend/src/components/AgentUpgradeStatus.tsx`
@@ -607,6 +607,6 @@ V6 的测试重点是“本地正确性与协议正确性”，不跑真实模�
 - `backend/src/modules/agent/agent.routes.ts`
 - `backend/src/modules/agent/agent.types.ts`
 - `backend/src/modules/agent/agent.stats.service.ts`
-- `frontend/src/api/agent.ts`
+- `frontend/src/contracts/schemas.ts`
 - `frontend/src/pages/Chat.tsx`
 - `frontend/src/components/TokenUsagePanel.tsx`
