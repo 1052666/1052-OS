@@ -409,18 +409,35 @@ session instead of a sequence of disconnected `websearch_search` calls:
 | --- | --- |
 | `websearch_research_start` | Create a persistent research topic |
 | `websearch_research_search` | Run one search round and accumulate sources |
-| `websearch_research_status` | Inspect round queries, engine outcomes, RRF ranking and review states |
-| `websearch_research_review` | Mark results pending, approved or rejected and optionally complete the session |
+| `websearch_research_status` | Inspect rounds, quality, snapshots, claims, evidence, reviews and writebacks |
+| `websearch_research_review` | Mark search results pending, approved or rejected |
+| `websearch_research_extract` | Extract page text into immutable source snapshots |
+| `websearch_research_assess` | Score depth, source diversity and novelty, then suggest follow-up queries |
+| `websearch_research_claim_create` | Split conclusions into atomic claims |
+| `websearch_research_evidence_candidates` | Find offset-anchored evidence candidates in approved sources |
+| `websearch_research_evidence_add` | Attach supporting, refuting or insufficient evidence to a snapshot |
+| `websearch_research_claim_review` | Apply independent-source, conflict and risk review rules |
+| `websearch_research_writeback` | Write only approved claims to Wiki and rebuild the PKM index |
 
 New results enter the session as `pending`. URLs are normalized, common tracking
 parameters are removed and repeated URLs share one result node. When the same source
 appears in multiple query rounds, Reciprocal Rank Fusion raises its accumulated rank
 while retaining per-round query, rank and source-score provenance.
 
+Extracted pages become immutable, SHA-256-addressed snapshots. Evidence must match
+an exact character range in one of those snapshots. A claim auto-passes only when
+at least two independent publishers support it without refuting evidence; high-risk,
+single-source, conflicting and insufficient cases remain `needs_review`. Wiki/PKM
+writeback rechecks both the claim review and source status before persisting knowledge.
+
 Sessions are stored in `data/research/research-sessions.sqlite`. SQLite WAL mode,
 foreign keys and transactions keep web, channel and scheduler writes consistent.
-Research state is isolated from chat history, memory, Wiki and PKM; only explicitly
-approved results are intended for later evidence and knowledge workflows.
+Completed sessions are read-only. Page extraction accepts public HTTP(S) targets only
+and validates every redirect with response type, 2 MB body and local timeout limits.
+
+The UI is available under Knowledge → Deep Research. See the
+[deep research evidence closure](docs/1052-deep-research-closure.md) for the full
+data model, API surface and failure semantics.
 
 ---
 

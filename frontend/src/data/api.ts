@@ -17,6 +17,14 @@ import {
   pkmSearchSchema,
   pkmSummarySchema,
   publicAppearanceThemesSchema,
+  researchAssessmentSchema,
+  researchClaimReviewSchema,
+  researchClaimSchema,
+  researchEvidenceSchema,
+  researchResultSchema,
+  researchSessionSchema,
+  researchSnapshotSchema,
+  researchStateSchema,
   repositoryDetailSchema,
   repositorySchema,
   resourceSchema,
@@ -301,6 +309,125 @@ export const searchApi = {
       method: 'PATCH',
       body: { enabled },
       schema: searchSourcesSchema,
+    }),
+}
+
+export const researchApi = {
+  sessions: () =>
+    request('/websearch/research/sessions', {
+      schema: z.object({ sessions: z.array(researchSessionSchema) }),
+    }),
+  createSession: (body: { title: string; description?: string }) =>
+    request('/websearch/research/sessions', {
+      method: 'POST',
+      body,
+      schema: researchSessionSchema,
+    }),
+  state: (sessionId: string) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}`, {
+      schema: researchStateSchema,
+    }),
+  search: (sessionId: string, body: { query: string; limit?: number }) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}/search`, {
+      method: 'POST',
+      body,
+      schema: z.object({
+        session: researchSessionSchema,
+        queryId: z.string(),
+        round: z.number(),
+        results: z.array(researchResultSchema),
+      }).passthrough(),
+    }),
+  extract: (sessionId: string, resultIds: string[]) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}/extract`, {
+      method: 'POST',
+      body: { resultIds },
+      schema: z.object({
+        extracted: z.number(),
+        failed: z.number(),
+        snapshots: z.array(researchSnapshotSchema),
+      }).passthrough(),
+    }),
+  assess: (sessionId: string, queryId?: string) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}/assess`, {
+      method: 'POST',
+      body: { queryId },
+      schema: researchAssessmentSchema,
+    }),
+  reviewResults: (
+    sessionId: string,
+    decisions: Array<{ resultId: string; status: 'pending' | 'approved' | 'rejected' }>,
+  ) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}/results/review`, {
+      method: 'POST',
+      body: { decisions },
+      schema: z.object({ updated: z.number(), results: z.array(researchResultSchema) }).passthrough(),
+    }),
+  createClaim: (
+    sessionId: string,
+    body: { text: string; riskLevel: 'low' | 'medium' | 'high' },
+  ) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}/claims`, {
+      method: 'POST',
+      body: { claims: [body] },
+      schema: z.array(researchClaimSchema),
+    }),
+  evidenceCandidates: (sessionId: string, claimId: string) =>
+    request(
+      `/websearch/research/sessions/${encodeURIComponent(sessionId)}/claims/${encodeURIComponent(claimId)}/evidence/candidates`,
+      {
+        method: 'POST',
+        body: {},
+        schema: z.object({
+          claim: researchClaimSchema,
+          candidates: z.array(z.object({
+            resultId: z.string(),
+            resultUrl: z.string(),
+            quote: z.string(),
+            charStart: z.number(),
+            charEnd: z.number(),
+            contentHash: z.string(),
+            sourceClusterId: z.string(),
+            similarity: z.number(),
+          }).passthrough()),
+        }),
+      },
+    ),
+  addEvidence: (
+    sessionId: string,
+    claimId: string,
+    body: {
+      resultId: string
+      snapshotId?: string
+      quote: string
+      charStart: number
+      charEnd: number
+      stance: 'support' | 'refute' | 'insufficient'
+    },
+  ) =>
+    request(
+      `/websearch/research/sessions/${encodeURIComponent(sessionId)}/claims/${encodeURIComponent(claimId)}/evidence`,
+      { method: 'POST', body, schema: researchEvidenceSchema },
+    ),
+  reviewClaim: (sessionId: string, claimId: string) =>
+    request(
+      `/websearch/research/sessions/${encodeURIComponent(sessionId)}/claims/${encodeURIComponent(claimId)}/review`,
+      { method: 'POST', body: {}, schema: researchClaimReviewSchema },
+    ),
+  writeback: (
+    sessionId: string,
+    body: {
+      title?: string
+      summary: string
+      content?: string
+      claimIds?: string[]
+      completeSession?: boolean
+    },
+  ) =>
+    request(`/websearch/research/sessions/${encodeURIComponent(sessionId)}/writeback`, {
+      method: 'POST',
+      body,
+      schema: looseObjectSchema,
     }),
 }
 

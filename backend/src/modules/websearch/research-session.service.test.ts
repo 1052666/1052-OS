@@ -163,6 +163,90 @@ describe('research session store', () => {
     expect(store.listResults(session.id)).toEqual([])
   })
 
+  it('persists immutable snapshots and a source-backed claim review', () => {
+    const session = store.createSession({ title: 'Evidence workflow' })
+    const round = store.appendSearchRound(
+      session.id,
+      searchResponse('transaction safety', [
+        result('Source one', 'https://one.example/report', 200),
+        result('Source two', 'https://two.example/report', 180),
+      ]),
+    )
+    const [firstResult, secondResult] = round.results
+    expect(firstResult).toBeDefined()
+    expect(secondResult).toBeDefined()
+    store.reviewResults(session.id, [
+      { resultId: firstResult!.id, status: 'approved' },
+      { resultId: secondResult!.id, status: 'approved' },
+    ])
+
+    const firstContent = '事务存储能够避免并发更新互相覆盖。'
+    const secondContent = '独立测试确认事务边界可以保护研究会话。'
+    const firstSnapshot = store.recordSnapshot(session.id, firstResult!.id, {
+      status: 'ready',
+      requestedUrl: firstResult!.url,
+      finalUrl: firstResult!.url,
+      title: firstResult!.title,
+      content: firstContent,
+      extractedAt: 100,
+    })
+    const secondSnapshot = store.recordSnapshot(session.id, secondResult!.id, {
+      status: 'ready',
+      requestedUrl: secondResult!.url,
+      finalUrl: secondResult!.url,
+      title: secondResult!.title,
+      content: secondContent,
+      extractedAt: 200,
+    })
+    const replacement = store.recordSnapshot(session.id, firstResult!.id, {
+      status: 'ready',
+      requestedUrl: firstResult!.url,
+      finalUrl: firstResult!.url,
+      title: firstResult!.title,
+      content: '网页后来发生了变化。',
+      extractedAt: 300,
+    })
+    expect(replacement.id).not.toBe(firstSnapshot.id)
+    expect(store.getSnapshot(session.id, firstSnapshot.id).content).toBe(firstContent)
+
+    const claims = store.createClaims(session.id, [
+      { text: '事务存储可以保护并发研究会话。', riskLevel: 'high' },
+      { text: '批量创建的第二个主张。', riskLevel: 'low' },
+    ])
+    expect(new Set(claims.map((claim) => claim.id)).size).toBe(2)
+    const claim = claims[0]!
+    const firstEvidence = store.addEvidence({
+      sessionId: session.id,
+      claimId: claim.id,
+      resultId: firstResult!.id,
+      snapshotId: firstSnapshot.id,
+      quote: firstContent,
+      charStart: 0,
+      charEnd: firstContent.length,
+      stance: 'support',
+      confidence: 0.9,
+    })
+    store.addEvidence({
+      sessionId: session.id,
+      claimId: claim.id,
+      resultId: secondResult!.id,
+      snapshotId: secondSnapshot.id,
+      quote: secondContent,
+      charStart: 0,
+      charEnd: secondContent.length,
+      stance: 'support',
+      confidence: 0.8,
+    })
+
+    expect(firstEvidence.snapshotId).toBe(firstSnapshot.id)
+    expect(firstEvidence.snapshotHash).toBe(firstSnapshot.contentHash)
+    expect(store.reviewClaim(session.id, claim.id)).toMatchObject({
+      decision: 'approved',
+      autoPass: true,
+      matchedRule: 'dualSourceSupport',
+    })
+  })
+
   it('reviews results transactionally and can restore them to pending', () => {
     const session = store.createSession({ title: 'Evidence review' })
     store.appendSearchRound(
@@ -200,6 +284,21 @@ describe('research session store', () => {
     })
   })
 
+  it('keeps workflow reads complete when a session has more than one API page', () => {
+    const session = store.createSession({ title: 'Large research session' })
+    store.appendSearchRound(
+      session.id,
+      searchResponse(
+        'large result set',
+        Array.from({ length: 101 }, (_, index) =>
+          result(`Source ${index}`, `https://example${index}.com/source`, 200 - index)),
+      ),
+    )
+
+    expect(store.listResults(session.id, { limit: 100 })).toHaveLength(100)
+    expect(store.listAllResults(session.id)).toHaveLength(101)
+  })
+
   it('persists sessions and rejects new rounds after completion', () => {
     const session = store.createSession({ title: 'Persistent research' })
     store.appendSearchRound(
@@ -214,6 +313,13 @@ describe('research session store', () => {
       session.id,
       searchResponse('late round', []),
     )).toThrow('研究会话已经完成')
+    const resultId = store.listResults(session.id)[0]!.id
+    expect(() => store.reviewResults(session.id, [
+      { resultId, status: 'approved' },
+    ])).toThrow('不能继续修改')
+    expect(() => store.createClaims(session.id, [
+      { text: '完成后的会话不应继续新增主张。' },
+    ])).toThrow('不能继续修改')
 
     store.close()
     store = new ResearchSessionStore(path.join(tempDir, 'research.sqlite'))

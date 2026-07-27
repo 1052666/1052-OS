@@ -451,6 +451,196 @@ export const searchSourcesSchema = z
   .object({ engines: z.array(looseObject), sourceGroups: z.array(looseObject) })
   .passthrough()
 
+export const researchSessionSchema = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    description: z.string(),
+    owner: z.string(),
+    status: z.enum(['active', 'completed']),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+    rounds: z.number(),
+    resultCounts: z.object({
+      total: z.number(),
+      pending: z.number(),
+      approved: z.number(),
+      rejected: z.number(),
+    }),
+  })
+  .passthrough()
+
+export const researchRoundSchema = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    round: z.number(),
+    query: z.string(),
+    searchQuery: z.string(),
+    intent: z.string(),
+    selectedEngines: z.array(looseObject),
+    succeededEngines: z.array(z.string()),
+    failedEngines: z.array(looseObject),
+    resultCount: z.number(),
+    createdAt: z.number(),
+  })
+  .passthrough()
+
+const researchOriginSchema = z
+  .object({
+    queryId: z.string(),
+    query: z.string(),
+    round: z.number(),
+    rank: z.number(),
+    sourceScore: z.number(),
+  })
+  .passthrough()
+
+export const researchResultSchema = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    title: z.string(),
+    url: z.string(),
+    normalizedUrl: z.string(),
+    snippet: z.string(),
+    content: z.string(),
+    source: z.string(),
+    engine: z.string(),
+    engineId: z.string(),
+    matchedBy: z.array(z.string()),
+    status: z.enum(['pending', 'approved', 'rejected']),
+    score: z.number(),
+    rrfScore: z.number(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+    origins: z.array(researchOriginSchema),
+  })
+  .passthrough()
+
+export const researchSnapshotSchema = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    resultId: z.string(),
+    status: z.enum(['ready', 'failed']),
+    requestedUrl: z.string(),
+    finalUrl: z.string(),
+    title: z.string(),
+    content: z.string(),
+    contentHash: z.string(),
+    sourceDomain: z.string(),
+    charCount: z.number(),
+    extractedAt: z.number(),
+    error: z.string(),
+  })
+  .passthrough()
+
+const researchQualitySchema = z
+  .object({
+    verdict: z.enum(['good', 'acceptable', 'poor']),
+    breakdown: z.object({
+      contentDepth: looseObject,
+      sourceDiversity: looseObject,
+      novelty: looseObject,
+    }),
+    failedIndicators: z.array(z.enum(['contentDepth', 'sourceDiversity', 'novelty'])),
+  })
+  .passthrough()
+
+export const researchAssessmentSchema = z
+  .object({
+    queryId: z.string(),
+    sessionId: z.string(),
+    round: z.number(),
+    quality: researchQualitySchema,
+    suggestions: z.array(z.object({
+      query: z.string(),
+      reason: z.string(),
+      strategy: z.enum(['depth', 'diversity', 'novelty', 'coverage']),
+    }).passthrough()),
+    assessedAt: z.number(),
+  })
+  .passthrough()
+
+export const researchClaimSchema = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    text: z.string(),
+    subject: z.string(),
+    predicate: z.string(),
+    object: z.string(),
+    timeConstraint: z.string(),
+    riskLevel: z.enum(['low', 'medium', 'high']),
+    status: z.enum(['pending', 'verifying', 'reviewed']),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+  })
+  .passthrough()
+
+export const researchEvidenceSchema = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    claimId: z.string(),
+    resultId: z.string(),
+    snapshotId: z.string(),
+    resultUrl: z.string(),
+    quote: z.string(),
+    charStart: z.number(),
+    charEnd: z.number(),
+    contentHash: z.string(),
+    snapshotHash: z.string(),
+    extractedAt: z.number(),
+    sourceClusterId: z.string(),
+    stance: z.enum(['support', 'refute', 'insufficient']),
+    confidence: z.number().optional(),
+    reason: z.string(),
+    createdAt: z.number(),
+  })
+  .passthrough()
+
+export const researchClaimReviewSchema = z
+  .object({
+    claimId: z.string(),
+    decision: z.enum(['approved', 'needs_review', 'rejected']),
+    autoPass: z.boolean(),
+    checks: looseObject,
+    conflict: looseObject.optional(),
+    matchedRule: z.string(),
+    reviewer: z.string(),
+    reviewedAt: z.number(),
+  })
+  .passthrough()
+
+export const researchWritebackSchema = z
+  .object({
+    id: z.string(),
+    sessionId: z.string(),
+    wikiPath: z.string(),
+    title: z.string(),
+    summary: z.string(),
+    claimIds: z.array(z.string()),
+    resultIds: z.array(z.string()),
+    createdAt: z.number(),
+  })
+  .passthrough()
+
+export const researchStateSchema = z
+  .object({
+    session: researchSessionSchema,
+    rounds: z.array(researchRoundSchema),
+    assessments: z.array(researchAssessmentSchema),
+    results: z.array(researchResultSchema),
+    snapshots: z.array(researchSnapshotSchema),
+    claims: z.array(researchClaimSchema),
+    evidence: z.array(researchEvidenceSchema),
+    claimReviews: z.array(researchClaimReviewSchema),
+    writebacks: z.array(researchWritebackSchema),
+  })
+  .passthrough()
+
 export const updateStatusSchema = z
   .object({
     mode: z.enum(['git', 'archive']),
@@ -542,6 +732,16 @@ export type WikiPage = z.infer<typeof wikiPageSchema>
 export type OutputProfile = z.infer<typeof outputProfileSchema>
 export type Skill = z.infer<typeof skillSchema>
 export type UapiItem = z.infer<typeof uapiItemSchema>
+export type ResearchSession = z.infer<typeof researchSessionSchema>
+export type ResearchRound = z.infer<typeof researchRoundSchema>
+export type ResearchResult = z.infer<typeof researchResultSchema>
+export type ResearchSnapshot = z.infer<typeof researchSnapshotSchema>
+export type ResearchAssessment = z.infer<typeof researchAssessmentSchema>
+export type ResearchClaim = z.infer<typeof researchClaimSchema>
+export type ResearchEvidence = z.infer<typeof researchEvidenceSchema>
+export type ResearchClaimReview = z.infer<typeof researchClaimReviewSchema>
+export type ResearchWriteback = z.infer<typeof researchWritebackSchema>
+export type ResearchState = z.infer<typeof researchStateSchema>
 export type AppearanceThemeProfile = z.infer<typeof appearanceThemeProfileSchema>
 export type AppearanceReviewReport = z.infer<typeof appearanceReviewReportSchema>
 export type HealthStatus = z.infer<typeof healthStatusSchema>

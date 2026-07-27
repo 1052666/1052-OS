@@ -1,3 +1,5 @@
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { HttpError } from '../../http-error.js'
 import { readJson, writeJson } from '../../storage.js'
 import { getUapisCatalog, setUapisApiEnabled } from '../uapis/uapis.service.js'
@@ -164,6 +166,8 @@ const ENGINE_MAP = new Map(ENGINES.map((engine) => [engine.id, engine]))
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 30
 const MAX_PAGE_CHARS = 12000
+const MAX_PUBLIC_PAGE_BYTES = 2 * 1024 * 1024
+const MAX_PUBLIC_PAGE_REDIRECTS = 5
 const SEARCH_SOURCES_CONFIG_FILE = 'search-sources-config.json'
 
 type SearchSourcesConfig = {
@@ -1274,16 +1278,172 @@ export async function aggregateSearch(input: SearchRequest): Promise<SearchRespo
   }
 }
 
-export async function readWebPage(url: string, maxChars = MAX_PAGE_CHARS): Promise<WebPageResponse> {
-  const normalizedUrl = typeof url === 'string' ? url.trim() : ''
-  if (!/^https?:\/\//i.test(normalizedUrl)) {
+function isBlockedIpv4(address: string) {
+  const parts = address.split('.').map((part) => Number(part))
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true
+  }
+  const [a, b] = parts as [number, number, number, number]
+  return (
+    a === 0
+    || a === 10
+    || a === 127
+    || (a === 100 && b >= 64 && b <= 127)
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 0)
+    || (a === 192 && b === 168)
+    || (a === 198 && (b === 18 || b === 19))
+    || (a === 198 && b === 51 && parts[2] === 100)
+    || (a === 203 && b === 0 && parts[2] === 113)
+    || a >= 224
+  )
+}
+
+function isBlockedIpv6(address: string) {
+  const normalized = address.toLowerCase().split('%')[0] ?? ''
+  if (
+    normalized === '::'
+    || normalized === '::1'
+    || normalized.startsWith('fc')
+    || normalized.startsWith('fd')
+    || /^fe[89ab]/.test(normalized)
+    || normalized.startsWith('ff')
+    || normalized.startsWith('2001:db8:')
+    || normalized.startsWith('::ffff:')
+  ) return true
+
+  return false
+}
+
+export function isPublicWebAddress(address: string) {
+  const version = isIP(address)
+  if (version === 4) return !isBlockedIpv4(address)
+  if (version === 6) return !isBlockedIpv6(address)
+  return false
+}
+
+export async function assertPublicWebUrl(value: string) {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new HttpError(400, 'url 格式不正确')
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new HttpError(400, 'url 必须是 http 或 https 链接')
   }
+  if (url.username || url.password) {
+    throw new HttpError(400, 'url 不能包含用户名或密码')
+  }
 
-  const { text: html, finalUrl } = await fetchText(normalizedUrl)
+  const hostname = url.hostname.replace(/^\[|\]$/g, '')
+  if (!hostname || hostname.toLowerCase() === 'localhost') {
+    throw new HttpError(400, '不允许访问本机或私有网络地址')
+  }
+  const addresses = isIP(hostname)
+    ? [{ address: hostname }]
+    : await lookup(hostname, { all: true, verbatim: true }).catch(() => {
+        throw new HttpError(502, '无法解析网页域名')
+      })
+  if (addresses.length === 0 || addresses.some((item) => !isPublicWebAddress(item.address))) {
+    throw new HttpError(400, '不允许访问本机、私有网络或保留地址')
+  }
+  return url
+}
+
+async function readResponseTextWithLimit(response: Response, maxBytes: number) {
+  const contentLength = Number(response.headers.get('content-length') ?? 0)
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new HttpError(413, '网页响应体积超过限制')
+  }
+  if (!response.body) return ''
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let size = 0
+  let text = ''
+  while (true) {
+    const chunk = await reader.read()
+    if (chunk.done) break
+    size += chunk.value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      throw new HttpError(413, '网页响应体积超过限制')
+    }
+    text += decoder.decode(chunk.value, { stream: true })
+  }
+  return text + decoder.decode()
+}
+
+async function fetchPublicWebText(value: string) {
+  let current = (await assertPublicWebUrl(value)).toString()
+  for (let redirectCount = 0; redirectCount <= MAX_PUBLIC_PAGE_REDIRECTS; redirectCount += 1) {
+    await assertPublicWebUrl(current)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    try {
+      const response = await fetch(current, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'user-agent': USER_AGENT,
+          'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          accept: 'text/html,application/xhtml+xml,text/plain,application/xml;q=0.8',
+          referer: current,
+        },
+      })
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location')
+        if (!location) throw new HttpError(502, '网页重定向缺少 Location')
+        if (redirectCount === MAX_PUBLIC_PAGE_REDIRECTS) {
+          throw new HttpError(508, '网页重定向次数过多')
+        }
+        current = new URL(location, current).toString()
+        continue
+      }
+      if (!response.ok) {
+        throw new HttpError(response.status, `请求失败: ${response.status} ${response.statusText}`)
+      }
+      const contentType = (response.headers.get('content-type') ?? '').toLowerCase()
+      if (
+        contentType
+        && !contentType.includes('text/html')
+        && !contentType.includes('application/xhtml+xml')
+        && !contentType.includes('text/plain')
+        && !contentType.includes('application/xml')
+      ) {
+        throw new HttpError(415, `不支持的网页内容类型: ${contentType}`)
+      }
+      return {
+        finalUrl: current,
+        text: await readResponseTextWithLimit(response, MAX_PUBLIC_PAGE_BYTES),
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new HttpError(504, '请求超时')
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  throw new HttpError(508, '网页重定向次数过多')
+}
+
+export async function readWebPage(url: string, maxChars = MAX_PAGE_CHARS): Promise<WebPageResponse> {
+  const normalizedUrl = typeof url === 'string' ? url.trim() : ''
+  await assertPublicWebUrl(normalizedUrl)
+  const { text: html, finalUrl } = await fetchPublicWebText(normalizedUrl)
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
   const title = stripHtml(titleMatch?.[1] ?? '') || finalUrl
-  const body = stripHtml(html).slice(0, Math.max(500, Math.min(50000, maxChars)))
+  const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)
+  const mainMatch = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)
+  const readableHtml = articleMatch?.[1] ?? mainMatch?.[1] ?? html
+  const body = stripHtml(
+    readableHtml
+      .replace(/<(script|style|noscript|svg|nav|footer|header)\b[^>]*>[\s\S]*?<\/\1>/gi, ' '),
+  ).slice(0, Math.max(500, Math.min(50000, maxChars)))
 
   return {
     url: normalizedUrl,
