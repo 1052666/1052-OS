@@ -654,12 +654,12 @@ function resolveRelativeUrl(rawUrl: string, base: string) {
   }
 }
 
-function normalizeResultUrl(url: string) {
+export function normalizeResultUrl(url: string) {
   try {
     const parsed = new URL(url)
     parsed.hash = ''
     for (const key of [...parsed.searchParams.keys()]) {
-      if (/^(utm_|spm|from|source|ref|ei|ved|sa|gs_|oq|aqs|sxsrf)/i.test(key)) {
+      if (/^(utm_|spm|from|source|ref|ei|ved|sa|gs_|oq|aqs|sxsrf|fbclid|gclid)/i.test(key)) {
         parsed.searchParams.delete(key)
       }
     }

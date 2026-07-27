@@ -30,6 +30,10 @@ const PACK_TOOL_NAMES: Record<Exclude<AgentPackName, 'base-read-pack'>, readonly
     'websearch_list_engines',
     'websearch_search',
     'websearch_read_page',
+    'websearch_research_start',
+    'websearch_research_search',
+    'websearch_research_status',
+    'websearch_research_review',
     'uapis_list_apis',
     'uapis_read_api',
     'uapis_call',
@@ -199,7 +203,7 @@ export function describePackForRouting(pack: Exclude<AgentPackName, 'base-read-p
     case 'image-pack':
       return '内置图像生成和 OCR 文字识别能力。用户要求生成、绘制、设计、渲染图片/插画/海报/Logo/封面/壁纸/头像/视觉稿时调用 image_generate；用户要求识别、提取、读取图片中的文字时调用 ocr_recognize。不要为了找图像生成 API、模型、在线工具、素材图或提示词示例而先走搜索。'
     case 'search-pack':
-      return '联网搜索、网页阅读、UAPIs 工具箱。使用 UAPIs 时必须按 uapis_list_apis -> uapis_read_api -> uapis_call 三步走。'
+      return '联网搜索、网页阅读、持久化多轮研究会话和 UAPIs 工具箱。复杂研究使用 websearch_research_start -> websearch_research_search -> websearch_research_status -> websearch_research_review，并在同一主题中始终复用 sessionId。使用 UAPIs 时必须按 uapis_list_apis -> uapis_read_api -> uapis_call 三步走。'
     case 'memory-pack':
       return '长期记忆、敏感长期记忆和输出配方的读取、建议、写入、更新与删除。普通写入需用户明确要求记住或确认；敏感信息用 secure memory；输出配方用于组合认知模型、写作风格和素材范围。'
     case 'skill-pack':

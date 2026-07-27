@@ -354,6 +354,8 @@ data/
 |-- logs/
 |-- memory/
 |-- notes/
+|-- research/
+|   `-- research-sessions.sqlite
 |-- resources/
 |-- skills/
 |-- wiki/
@@ -395,6 +397,30 @@ This design is built for real work, for example:
 - Triggering the Agent or a terminal command from a scheduled task
 - Handling inbound WeChat Bot and Feishu messages with the same Agent runtime as the web UI
 - Formatting briefings for WeChat text, Feishu cards or WeCom Markdown
+
+---
+
+## Multi-Round Research Sessions
+
+Complex comparisons, cross-source verification and research reports use a persistent
+session instead of a sequence of disconnected `websearch_search` calls:
+
+| Tool | Purpose |
+| --- | --- |
+| `websearch_research_start` | Create a persistent research topic |
+| `websearch_research_search` | Run one search round and accumulate sources |
+| `websearch_research_status` | Inspect round queries, engine outcomes, RRF ranking and review states |
+| `websearch_research_review` | Mark results pending, approved or rejected and optionally complete the session |
+
+New results enter the session as `pending`. URLs are normalized, common tracking
+parameters are removed and repeated URLs share one result node. When the same source
+appears in multiple query rounds, Reciprocal Rank Fusion raises its accumulated rank
+while retaining per-round query, rank and source-score provenance.
+
+Sessions are stored in `data/research/research-sessions.sqlite`. SQLite WAL mode,
+foreign keys and transactions keep web, channel and scheduler writes consistent.
+Research state is isolated from chat history, memory, Wiki and PKM; only explicitly
+approved results are intended for later evidence and knowledge workflows.
 
 ---
 
