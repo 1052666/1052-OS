@@ -439,6 +439,18 @@ The UI is available under Knowledge → Deep Research. See the
 [deep research evidence closure](docs/1052-deep-research-closure.md) for the full
 data model, API surface and failure semantics.
 
+### Technical Reference and Acknowledgement
+
+The multi-round web-search and deep-research design in 1052 OS was informed by
+[hkwuks/sxng-cli](https://github.com/hkwuks/sxng-cli), especially its Agent-first
+SearXNG workflow, accumulated sessions, URL normalization and deduplication,
+quality assessment, and Claim–Evidence–Review pipeline. Thanks to its author for
+making those designs and implementations available for community study.
+
+1052 OS implements the related ideas independently within its own Runtime, tool
+approval system, SQLite session store, external channels, and Wiki/PKM writeback
+pipeline. It does not require `sxng-cli` at runtime.
+
 ---
 
 ## Permission Model
