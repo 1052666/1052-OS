@@ -413,6 +413,16 @@ Reciprocal Rank Fusion 累积排序，同时保留每轮查询、名次和原始
 Claim / Evidence / Review 和 Wiki / PKM 写回轨迹。详细的数据模型、接口和失败语义见
 [深度研究证据闭环](docs/1052-deep-research-closure.md)。
 
+### 技术参考与致谢
+
+1052 OS 的多轮网络搜索与深度研究能力在设计阶段参考了
+[hkwuks/sxng-cli](https://github.com/hkwuks/sxng-cli)，特别是其面向 SearXNG 的
+Agent-first 搜索、Session 累积、URL 规范化与去重、质量评估以及
+Claim–Evidence–Review 流程。感谢原作者将这些设计与实现开放给社区研究。
+
+1052 OS 将相关思路结合自身 Runtime、工具审批、SQLite 会话存储、外部通道以及
+Wiki / PKM 写回闭环进行了独立实现，运行时不依赖 `sxng-cli`。
+
 ## 外部通道闭环
 
 微信和飞书不是独立机器人，它们把外部消息转为同一套 Chat History 和 Runtime 流。
